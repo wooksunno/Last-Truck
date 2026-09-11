@@ -1,4 +1,4 @@
-// -----------------------------------------------------------------------
+﻿// -----------------------------------------------------------------------
 // <copyright file="PhotonUtilitiesUnity.cs" company="Exit Games GmbH">
 // Photon Realtime API - Copyright (C) 2022 Exit Games GmbH
 // </copyright>
@@ -29,8 +29,8 @@ namespace Photon.Realtime
     {
         static PhotonUtilitiesUnity()
         {
-            ApplyDefinesRealtimeV4();     // to be used in Realtime v4 (a.k.a. LoadBalancing)
-            //ApplyDefinesRealtimeV5();       // to be used in Realtime v5
+            //ApplyDefinesRealtimeV4();     // to be used in Realtime v4 (a.k.a. LoadBalancing)
+            ApplyDefinesRealtimeV5();       // to be used in Realtime v5
         }
 
         private static void ApplyDefinesRealtimeV4()
@@ -40,9 +40,10 @@ namespace Photon.Realtime
             #endif
         }
 
+        [InitializeOnLoadMethod]
         private static void ApplyDefinesRealtimeV5()
         {
-            #if !PHOTON_REALTIME_5_OR_NEWER
+            #if !PHOTON_REALTIME_5
             AddScriptingDefineSymbolToAllBuildTargetGroups("PHOTON_REALTIME_5_OR_NEWER");
             #endif
         }
@@ -72,8 +73,8 @@ namespace Photon.Realtime
             }
         }
 
-
-        private static string GetCurrentDefines()
+        
+        private static string GetCurrentDefines() 
         {
             #if UNITY_SERVER
             var defines = PlayerSettings.GetScriptingDefineSymbols(UnityEditor.Build.NamedBuildTarget.Server);
@@ -85,7 +86,7 @@ namespace Photon.Realtime
             return defines;
         }
 
-        private static void SetCurrentDefines(string defines)
+        private static void SetCurrentDefines(string defines) 
         {
             #if UNITY_SERVER
             PlayerSettings.SetScriptingDefineSymbols(UnityEditor.Build.NamedBuildTarget.Server, defines);

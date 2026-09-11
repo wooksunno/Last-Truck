@@ -9,10 +9,3 @@ MonoImporter:
   userData: 
   assetBundleName: 
   assetBundleVariant: 
-AssetOrigin:
-  serializedVersion: 1
-  productId: 119922
-  packageName: PUN 2 - FREE
-  packageVersion: 2.56
-  assetPath: Assets/Photon/PhotonRealtime/Code/PhotonUtilitiesUnity.cs
-  uploadId: 993206
