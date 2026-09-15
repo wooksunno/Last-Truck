@@ -1529,14 +1529,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6f736688ace78714c928b8dc8c9e1b9f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.MapGenerator
-  gridWidth: 20
-  gridHeight: 20
+  gridWidth: 48
+  gridHeight: 48
   tileSize: 4
   gridCenter: {x: 1.21, y: -0.81, z: -4.3}
   baseColor: {r: 0.2, g: 0.192, b: 0.192, a: 1}
   texelsPerCell: 8
-  zoneRadiusTiles: 2
-  nodeItemAmount: 5
 --- !u!4 &1320291774
 Transform:
   m_ObjectHideFlags: 0

@@ -10,10 +10,25 @@ namespace CraftingSystem
         [SerializeField] private bool grantStarterItems = true;
         [SerializeField] private ItemStackInventory inventory = new ItemStackInventory();
 
+        private static readonly KeyCode[] SlotHotkeys = { KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3 };
+
         public event Action Changed;
+        public event Action SelectedSlotChanged;
 
         public ItemStackInventory Inventory => inventory;
         public IReadOnlyList<InventorySlot> Slots => inventory.Slots;
+
+        /// <summary>
+        /// 1/2/3 키로 고른, 현재 손에 든 인벤토리 슬롯 인덱스(0~2).
+        /// 채집 판정(ResourceNode 등)은 이 슬롯의 도구를 기준으로 한다.
+        /// </summary>
+        public int SelectedSlotIndex { get; private set; } = 0;
+
+        public InventorySlot SelectedSlot =>
+            Slots.Count > SelectedSlotIndex ? Slots[SelectedSlotIndex] : null;
+
+        public ItemData SelectedItem =>
+            SelectedSlot != null && !SelectedSlot.IsEmpty ? SelectedSlot.item : null;
 
         private void Awake()
         {
@@ -25,6 +40,27 @@ namespace CraftingSystem
         {
             if (grantStarterItems && inventory.UsedSlotCount == 0)
                 GrantStarterItems();
+        }
+
+        private void Update()
+        {
+            for (int i = 0; i < SlotHotkeys.Length; i++)
+            {
+                if (Input.GetKeyDown(SlotHotkeys[i]))
+                {
+                    SelectSlot(i);
+                    break;
+                }
+            }
+        }
+
+        public void SelectSlot(int slotIndex)
+        {
+            if (slotIndex < 0 || slotIndex >= maxSlots || slotIndex == SelectedSlotIndex)
+                return;
+
+            SelectedSlotIndex = slotIndex;
+            SelectedSlotChanged?.Invoke();
         }
 
         private void OnDestroy()

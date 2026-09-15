@@ -1586,11 +1586,6 @@ namespace CraftingSystem
             WheelToHorizontalScroll wheelAdapter = playerScrollGo.AddComponent<WheelToHorizontalScroll>();
             wheelAdapter.scrollRect = playerScroll;
 
-            // 인벤토리 옆 상시 노출 '제작' 버튼 (트럭까지 가지 않아도 조립 목록을 바로 연다)
-            CreateButton(canvasGo.transform, "CraftPanelButton", "제작",
-                new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f),
-                new Vector2(-312f, 20f), new Vector2(90f, 50f), new Color(0.3f, 0.42f, 0.55f), OpenCraftingPanel);
-
             // 중앙 팝업
             _popupRoot = CreatePanel(canvasGo.transform, "InteractionPopup",
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),

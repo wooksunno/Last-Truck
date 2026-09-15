@@ -1,18 +1,15 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 namespace CraftingSystem
 {
     /// <summary>
     /// 나무/돌/광석 등 월드 자원 채집 오브젝트.
-    /// 캐릭터 모델이 없는 동안은 플레이어 인벤토리의 가장 왼쪽 칸(0번)을 "손"으로 취급한다.
+    /// 1/2/3 키로 선택한 플레이어 인벤토리 슬롯(PlayerInventory.SelectedSlotIndex)을 "손"으로 취급한다.
     /// 손에 든 도구의 등급(toolTier)이 요구 등급 이상이어야 채집 가능(요구 등급 0 = 맨손 채집 허용).
     /// </summary>
     public class ResourceNode : MonoBehaviour, IWorldInteractable
     {
-        private const int HandSlotIndex = 0;
-
         [SerializeField] private string displayName = "자원 채집";
         [SerializeField] private ItemData outputItem;
         [SerializeField] private int outputAmount = 1;
@@ -41,7 +38,7 @@ namespace CraftingSystem
 
             if (!HandMeetsRequiredTier(player))
             {
-                Debug.LogWarning($"[ResourceNode] {displayName}: 손(인벤토리 첫 칸)에 등급 {requiredTier} 이상의 도구가 있어야 채집할 수 있습니다.");
+                Debug.LogWarning($"[ResourceNode] {displayName}: 1/2/3 키로 선택한 슬롯에 등급 {requiredTier} 이상의 도구를 들고 있어야 채집할 수 있습니다.");
                 return;
             }
 
@@ -59,11 +56,7 @@ namespace CraftingSystem
             if (requiredTier <= 0)
                 return true;
 
-            IReadOnlyList<InventorySlot> slots = player.Slots;
-            if (slots.Count <= HandSlotIndex)
-                return false;
-
-            InventorySlot hand = slots[HandSlotIndex];
+            InventorySlot hand = player.SelectedSlot;
             if (hand == null || hand.IsEmpty || hand.item == null)
                 return false;
 
