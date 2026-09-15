@@ -1533,8 +1533,8 @@ MonoBehaviour:
   gridHeight: 20
   tileSize: 4
   gridCenter: {x: 1.21, y: -0.81, z: -4.3}
-  floorMesh: {fileID: 8758740866474069627, guid: a3036218e90d5eb41ae81ac732884900, type: 3}
   baseColor: {r: 0.2, g: 0.192, b: 0.192, a: 1}
+  texelsPerCell: 8
   zoneRadiusTiles: 2
   nodeItemAmount: 5
 --- !u!4 &1320291774
@@ -1985,7 +1985,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
   m_AnchoredPosition: {x: 0, y: -15}
-  m_SizeDelta: {x: -412, y: -212}
+  m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1510873207
 MonoBehaviour:
