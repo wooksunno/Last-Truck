@@ -974,8 +974,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 865509143}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.52573115, y: 0.000000038027057, z: -0.000000023502015, w: 0.8506508}
-  m_LocalPosition: {x: 0, y: 16.1, z: -20}
+  m_LocalRotation: {x: 0.28978416, y: -0.0000000023143691, z: 7.0073575e-10, w: 0.95709205}
+  m_LocalPosition: {x: 0, y: 8.1, z: -24}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -999,7 +999,7 @@ MonoBehaviour:
     AngularDampingMode: 0
     RotationDamping: {x: 1, y: 1, z: 1}
     QuaternionDamping: 1
-  FollowOffset: {x: 0, y: 16, z: -8}
+  FollowOffset: {x: 0, y: 8, z: -12}
 --- !u!1 &920654939
 GameObject:
   m_ObjectHideFlags: 0
@@ -2439,8 +2439,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1753006370}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.52573115, y: 0.000000038027057, z: -0.000000023502015, w: 0.8506508}
-  m_LocalPosition: {x: 0, y: 16.1, z: -20}
+  m_LocalRotation: {x: 0.2897842, y: -0.000000002314369, z: 7.007346e-10, w: 0.95709205}
+  m_LocalPosition: {x: 0, y: 8.1, z: -24}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -2553,7 +2553,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LastTruck.CameraFollow
   target: {fileID: 1527669566}
-  offset: {x: 0, y: 14, z: -6}
+  offset: {x: 0, y: 8, z: -12}
 --- !u!1 &1791572746
 GameObject:
   m_ObjectHideFlags: 0

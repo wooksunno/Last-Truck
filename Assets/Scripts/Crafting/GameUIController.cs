@@ -104,7 +104,10 @@ namespace CraftingSystem
                 Instance = null;
 
             if (playerInventory != null)
+            {
                 playerInventory.Changed -= RefreshPlayerInventoryUI;
+                playerInventory.SelectedSlotChanged -= RefreshPlayerInventoryUI;
+            }
         }
 
         public void OpenFacilityPanel(ProcessingFacility facility, PlayerInventory player)
@@ -198,6 +201,8 @@ namespace CraftingSystem
 
             playerInventory.Changed -= RefreshPlayerInventoryUI;
             playerInventory.Changed += RefreshPlayerInventoryUI;
+            playerInventory.SelectedSlotChanged -= RefreshPlayerInventoryUI;
+            playerInventory.SelectedSlotChanged += RefreshPlayerInventoryUI;
         }
 
         private void RefreshPlayerInventoryUI()
@@ -207,10 +212,17 @@ namespace CraftingSystem
 
             ClearChildren(_playerSlotRoot);
 
-            foreach (InventorySlot slot in playerInventory.Slots)
+            IReadOnlyList<InventorySlot> slots = playerInventory.Slots;
+            for (int i = 0; i < slots.Count; i++)
             {
+                InventorySlot slot = slots[i];
+                bool isSelected = i == playerInventory.SelectedSlotIndex;
+
                 if (slot == null || slot.IsEmpty)
+                {
+                    CreateInventorySlotView(_playerSlotRoot, null, 0, 72f, isSelected: isSelected);
                     continue;
+                }
 
                 InventorySlot captured = slot;
                 CreateInventorySlotView(_playerSlotRoot, slot.item, slot.count, 72f, () =>
@@ -219,7 +231,7 @@ namespace CraftingSystem
                         return;
                     TransferItem(playerInventory.Inventory, _activeTruck.TruckInventory.Inventory, captured.item, captured.count);
                     ShowPopup("트럭 거점", BuildTruckContent);
-                });
+                }, isSelected);
             }
         }
 
@@ -1737,19 +1749,33 @@ namespace CraftingSystem
             return go.GetComponent<RectTransform>();
         }
 
-        private void CreateInventorySlotView(Transform parent, ItemData item, int count, float size, UnityEngine.Events.UnityAction onClick = null)
+        private static readonly Color SlotNormalColor = new Color(0.15f, 0.16f, 0.2f, 0.95f);
+        private static readonly Color SlotSelectedColor = new Color(0.95f, 0.75f, 0.2f, 0.95f);
+        private static readonly Color SlotHighlightOutline = new Color(1f, 0.85f, 0.2f, 1f);
+
+        private void CreateInventorySlotView(Transform parent, ItemData item, int count, float size,
+            UnityEngine.Events.UnityAction onClick = null, bool isSelected = false)
         {
-            var go = new GameObject($"Slot_{item.itemID}", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+            var go = new GameObject(item != null ? $"Slot_{item.itemID}" : "Slot_Empty",
+                typeof(RectTransform), typeof(Image), typeof(LayoutElement));
             go.transform.SetParent(parent, false);
             RectTransform rt = go.GetComponent<RectTransform>();
             rt.sizeDelta = new Vector2(size, size + 28);
             Image slotBg = go.GetComponent<Image>();
-            slotBg.color = new Color(0.15f, 0.16f, 0.2f, 0.95f);
+            slotBg.color = isSelected ? SlotSelectedColor : SlotNormalColor;
             LayoutElement le = go.GetComponent<LayoutElement>();
             le.preferredWidth = size;
             le.preferredHeight = size + 28;
             le.minWidth = size;
             le.minHeight = size + 20;
+
+            if (isSelected)
+            {
+                Outline outline = go.AddComponent<Outline>();
+                outline.effectColor = SlotHighlightOutline;
+                outline.effectDistance = new Vector2(4f, -4f);
+                outline.useGraphicAlpha = false;
+            }
 
             if (onClick != null)
             {
@@ -1768,8 +1794,8 @@ namespace CraftingSystem
             iconRt.sizeDelta = new Vector2(size - 10, size - 10);
             Image iconImage = iconGo.GetComponent<Image>();
             iconImage.preserveAspect = true;
-            iconImage.sprite = item.icon;
-            iconImage.color = item.icon != null ? Color.white : new Color(0.7f, 0.7f, 0.75f);
+            iconImage.sprite = item != null ? item.icon : null;
+            iconImage.color = item != null && item.icon != null ? Color.white : new Color(0.7f, 0.7f, 0.75f, item != null ? 1f : 0.25f);
 
             var nameGo = new GameObject("Name", typeof(RectTransform), typeof(Text));
             nameGo.transform.SetParent(go.transform, false);
@@ -1784,7 +1810,7 @@ namespace CraftingSystem
             nameText.fontSize = 11;
             nameText.alignment = TextAnchor.MiddleCenter;
             nameText.color = Color.white;
-            nameText.text = $"{item.itemName}\nx{count}";
+            nameText.text = item != null ? $"{item.itemName}\nx{count}" : "(빈 칸)";
         }
 
         private void CreateActionButton(RectTransform parent, string label, Color color, UnityEngine.Events.UnityAction onClick)

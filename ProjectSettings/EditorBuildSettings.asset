@@ -4,6 +4,9 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/PurePoly/Mining_Free_Assets/Scenes/Demo_01.unity
+    guid: e324e66165d178645ba84f37bb7edc84
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0
