@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 93e36d5c2d27c5349a62769ba85115a0, type: 3}
+  m_Name: wood_spear
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.ItemData
+  itemID: wood_spear
+  itemName: "\uB098\uBB34\uCC3D"
+  itemType: 2
+  maxStack: 10
+  icon: {fileID: 2974426498676709466, guid: 3da55edeac7f1b74c9dcec28b517f09c, type: 3}

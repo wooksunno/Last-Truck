@@ -1,2 +1,4 @@
-# Last-Truck
-2026 capston design
+# Capstone
+2026년 2학기 캡스톤
+팀원: 김영인, 노도현, 차승재, 황윤희
+유니티 버전: 6000.3.23f1
