@@ -21,16 +21,25 @@ namespace CraftingSystem
             public Color color;
             public int count;      // 이 자원의 구역이 맵에 몇 개 생기는지 (많을수록 자주 출몰)
             public float radius;   // 구역 하나의 반경(타일 단위, 클수록 범위가 넓음)
-            public int amount;     // 채집 시 지급량
+            
+            public float pitFlatRadius;  // 채석장 구덩이: 가장 깊은 평지 반경(월드 단위). 0이면 구덩이 없음
+            public float pitOuterRadius; // 채석장 구덩이: 이 반경 밖은 원래 바닥 높이(월드 단위)
+            public float pitDepth;       // 채석장 구덩이: 바닥보다 얼마나 더 파일지
+public int amount;     // 채집 시 지급량
 
-            public ZoneDef(string itemId, string displayName, Color color, int count, float radius, int amount)
+            public ZoneDef(string itemId, string displayName, Color color, int count, float radius, int amount,
+                float pitFlatRadius = 0f, float pitOuterRadius = 0f, float pitDepth = 0f)
             {
                 this.itemId = itemId;
                 this.displayName = displayName;
                 this.color = color;
                 this.count = count;
                 this.radius = radius;
-                this.amount = amount;
+                
+                this.pitFlatRadius = pitFlatRadius;
+                this.pitOuterRadius = pitOuterRadius;
+                this.pitDepth = pitDepth;
+this.amount = amount;
             }
         }
 
@@ -60,9 +69,9 @@ namespace CraftingSystem
             new ZoneDef(ItemIds.Wood, "나무 군락지", new Color(0.55f, 0.35f, 0.15f), count: 7, radius: 6f, amount: 10),
             new ZoneDef(ItemIds.Stone, "돌 채석장", new Color(0.6f, 0.6f, 0.62f), count: 7, radius: 6f, amount: 10),
             new ZoneDef(ItemIds.IronOre, "철 매장지", Color.white, count: 4, radius: 3.5f, amount: 6),
-            new ZoneDef(ItemIds.Platinum, "백금 매장지", new Color(0.2f, 0.5f, 1f), count: 2, radius: 2f, amount: 3),
+            new ZoneDef(ItemIds.Platinum, "백금 매장지", new Color(0.2f, 0.5f, 1f), count: 2, radius: 2f, amount: 3, pitFlatRadius: 1.5f, pitOuterRadius: 10f, pitDepth: 3f),
             new ZoneDef(ItemIds.PoisonHerb, "독초 군락지", new Color(0.6f, 0.2f, 0.9f), count: 2, radius: 1.5f, amount: 3),
-            new ZoneDef(ItemIds.Diamond, "다이아 매장지", Color.yellow, count: 1, radius: 1f, amount: 1),
+            new ZoneDef(ItemIds.Diamond, "다이아 매장지", Color.yellow, count: 1, radius: 1f, amount: 1, pitFlatRadius: 3f, pitOuterRadius: 20f, pitDepth: 5f),
         };
 
         private void Start()
@@ -70,11 +79,19 @@ namespace CraftingSystem
             Generate();
         }
 
-        [ContextMenu("Regenerate Map")]
-        public void Generate()
+public void Generate()
         {
-            if (_root != null)
-                DestroyImmediate(_root.gameObject);
+            // _root는 직렬화되지 않는 private 필드라 Play 진입 시 도메인 리로드로 null로 리셋될 수 있다.
+            // 그러면 이미 씨으로 남아있는 GeneratedFloor를 못 찾아 지우지 못하고 새로 하나 더 만들어 두 개가 겹치는 버그가 생긴다.
+            // 그래서 _root 값과 무관하게 이름으로 기존 GeneratedFloor를 모두 찾아 지운다.
+            for (int i = transform.childCount - 1; i >= 0; i--)
+            {
+                Transform child = transform.GetChild(i);
+                if (child.name == "GeneratedFloor")
+                {
+                    DestroyImmediate(child.gameObject);
+                }
+            }
 
             _root = new GameObject("GeneratedFloor").transform;
             _root.SetParent(transform, false);
@@ -82,7 +99,7 @@ namespace CraftingSystem
             List<ZoneInstance> zones = PickZoneInstances();
             int[,] zoneMap = BuildZoneMap(zones);
 
-            BuildFloorMesh(zoneMap);
+            BuildFloorMesh(zoneMap, zones);
             SpawnResourceNodes(zones);
         }
 
@@ -144,11 +161,45 @@ namespace CraftingSystem
             return map;
         }
 
+private float EvaluatePitOffset(float worldX, float worldZ, List<ZoneInstance> zones)
+        {
+            float deepest = 0f;
+            for (int i = 0; i < zones.Count; i++)
+            {
+                ZoneDef def = ZoneDefs[zones[i].defIndex];
+                if (def.pitOuterRadius <= 0f) continue;
+
+                Vector3 zoneWorld = GridToWorld(zones[i].center.x, zones[i].center.y);
+                float dx = worldX - zoneWorld.x;
+                float dz = worldZ - zoneWorld.z;
+                float dist = Mathf.Sqrt(dx * dx + dz * dz);
+
+                if (dist >= def.pitOuterRadius) continue;
+
+                float offset;
+                if (dist <= def.pitFlatRadius)
+                {
+                    offset = -def.pitDepth;
+                }
+                else
+                {
+                    float t = (dist - def.pitFlatRadius) / (def.pitOuterRadius - def.pitFlatRadius);
+                    float curve = Mathf.SmoothStep(0f, 1f, t);
+                    offset = Mathf.Lerp(-def.pitDepth, 0f, curve);
+                }
+
+                if (offset < deepest) deepest = offset;
+            }
+
+            return deepest;
+        }
+
+
         /// <summary>
         /// 격자 전체를 잇는 평평한 메쉬 하나를 만든다 — 발판을 따로따로 배치하지 않고
         /// 밟는 모든 위치에 빈틈없이 바닥이 존재하도록 한다.
         /// </summary>
-        private void BuildFloorMesh(int[,] zoneMap)
+private void BuildFloorMesh(int[,] zoneMap, List<ZoneInstance> zones)
         {
             int vertsX = gridWidth + 1;
             int vertsZ = gridHeight + 1;
@@ -164,7 +215,10 @@ namespace CraftingSystem
                 for (int x = 0; x < vertsX; x++)
                 {
                     int i = z * vertsX + x;
-                    vertices[i] = new Vector3(originX + x * tileSize, gridCenter.y, originZ + z * tileSize);
+                    float worldX = originX + x * tileSize;
+                    float worldZ = originZ + z * tileSize;
+                    float y = gridCenter.y + EvaluatePitOffset(worldX, worldZ, zones);
+                    vertices[i] = new Vector3(worldX, y, worldZ);
                     uvs[i] = new Vector2((float)x / gridWidth, (float)z / gridHeight);
                 }
             }
@@ -208,8 +262,6 @@ namespace CraftingSystem
             MeshRenderer mr = floorGO.AddComponent<MeshRenderer>();
             mr.sharedMaterial = CreateFloorMaterial(zoneMap);
 
-            // 맵이 기존 PP_Ground보다 커질 수 있으므로, 바닥 메쉬 자체에 충돌체를 붙여
-            // 밟는 모든 곳에 실제로 발이 닿도록 보장한다.
             MeshCollider mc = floorGO.AddComponent<MeshCollider>();
             mc.sharedMesh = mesh;
         }
@@ -256,7 +308,7 @@ namespace CraftingSystem
             return mat;
         }
 
-        private void SpawnResourceNodes(List<ZoneInstance> zones)
+private void SpawnResourceNodes(List<ZoneInstance> zones)
         {
             ItemCatalog catalog = ItemCatalog.GetOrCreate();
 
@@ -266,7 +318,7 @@ namespace CraftingSystem
                 ItemData item = catalog.GetItem(def.itemId);
 
                 Vector3 pos = GridToWorld(zones[i].center.x, zones[i].center.y);
-                pos.y += 0.5f;
+                pos.y += EvaluatePitOffset(pos.x, pos.z, zones) + 0.5f;
 
                 GameObject node = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 node.name = def.displayName;
