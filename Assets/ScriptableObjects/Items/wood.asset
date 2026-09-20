@@ -16,4 +16,5 @@ MonoBehaviour:
   itemName: "\uB098\uBB34"
   itemType: 0
   maxStack: 99
-  icon: {fileID: -4298590155056493864, guid: 3da55edeac7f1b74c9dcec28b517f09c, type: 3}
+  icon: {fileID: 21300000, guid: 6bacf1fdc274adc478e4006534f498da, type: 3}
+  toolTier: 0

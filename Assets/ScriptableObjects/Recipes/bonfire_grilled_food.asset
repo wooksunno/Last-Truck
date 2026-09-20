@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 390686697781ce44e929a2c7da880592, type: 3}
+  m_Name: bonfire_grilled_food
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
+  recipeID: bonfire_grilled_food
+  displayName: "\uC0DD\uC120\uAD6C\uC774"
+  requiredFacility: 1
+  inputs:
+  - item: {fileID: 11400000, guid: 24db1a5730e75454ea6d9b6641887bdd, type: 2}
+    count: 1
+  output:
+    item: {fileID: 11400000, guid: 20a7653749cc9824b9aee945cf8f7e75, type: 2}
+    count: 1
+  processingSeconds: 2

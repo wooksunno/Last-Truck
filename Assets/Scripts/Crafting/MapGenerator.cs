@@ -26,9 +26,14 @@ namespace CraftingSystem
             public float pitOuterRadius; // 채석장 구덩이: 이 반경 밖은 원래 바닥 높이(월드 단위)
             public float pitDepth;       // 채석장 구덩이: 바닥보다 얼마나 더 파일지
 public int amount;     // 채집 시 지급량
+            public int minHits;           // 고갈까지 필요한 채집 횟수(최소). maxHits가 0이면 고갈되지 않음
+            public int maxHits;           // 고갈까지 필요한 채집 횟수(최대)
+            public float minRegenSeconds; // 고갈 후 리젠까지 걸리는 시간(초, 최소)
+            public float maxRegenSeconds; // 고갈 후 리젠까지 걸리는 시간(초, 최대)
 
             public ZoneDef(string itemId, string displayName, Color color, int count, float radius, int amount,
-                float pitFlatRadius = 0f, float pitOuterRadius = 0f, float pitDepth = 0f)
+                float pitFlatRadius = 0f, float pitOuterRadius = 0f, float pitDepth = 0f,
+                int minHits = 0, int maxHits = 0, float minRegenSeconds = 0f, float maxRegenSeconds = 0f)
             {
                 this.itemId = itemId;
                 this.displayName = displayName;
@@ -40,6 +45,10 @@ public int amount;     // 채집 시 지급량
                 this.pitOuterRadius = pitOuterRadius;
                 this.pitDepth = pitDepth;
 this.amount = amount;
+                this.minHits = minHits;
+                this.maxHits = maxHits;
+                this.minRegenSeconds = minRegenSeconds;
+                this.maxRegenSeconds = maxRegenSeconds;
             }
         }
 
@@ -66,12 +75,12 @@ this.amount = amount;
         // count*radius(면적에 비례)가 클수록 자주/넓게 출몰한다는 뜻.
         private static readonly ZoneDef[] ZoneDefs =
         {
-            new ZoneDef(ItemIds.Wood, "나무 군락지", new Color(0.55f, 0.35f, 0.15f), count: 7, radius: 6f, amount: 10),
-            new ZoneDef(ItemIds.Stone, "돌 채석장", new Color(0.6f, 0.6f, 0.62f), count: 7, radius: 6f, amount: 10),
-            new ZoneDef(ItemIds.IronOre, "철 매장지", Color.white, count: 4, radius: 3.5f, amount: 6),
-            new ZoneDef(ItemIds.Platinum, "백금 매장지", new Color(0.2f, 0.5f, 1f), count: 2, radius: 2f, amount: 3, pitFlatRadius: 1.5f, pitOuterRadius: 10f, pitDepth: 3f),
+            new ZoneDef(ItemIds.Wood, "나무 군락지", new Color(0.55f, 0.35f, 0.15f), count: 7, radius: 6f, amount: 10, minHits: 2, maxHits: 3, minRegenSeconds: 60f, maxRegenSeconds: 120f),
+            new ZoneDef(ItemIds.Stone, "돌 채석장", new Color(0.6f, 0.6f, 0.62f), count: 7, radius: 6f, amount: 10, minHits: 2, maxHits: 3, minRegenSeconds: 90f, maxRegenSeconds: 150f),
+            new ZoneDef(ItemIds.IronOre, "철 매장지", Color.white, count: 4, radius: 3.5f, amount: 6, minHits: 4, maxHits: 7, minRegenSeconds: 300f, maxRegenSeconds: 600f),
+            new ZoneDef(ItemIds.Platinum, "백금 매장지", new Color(0.2f, 0.5f, 1f), count: 2, radius: 2f, amount: 3, pitFlatRadius: 1.5f, pitOuterRadius: 10f, pitDepth: 3f, minHits: 3, maxHits: 4, minRegenSeconds: 420f, maxRegenSeconds: 900f),
             new ZoneDef(ItemIds.PoisonHerb, "독초 군락지", new Color(0.6f, 0.2f, 0.9f), count: 2, radius: 1.5f, amount: 3),
-            new ZoneDef(ItemIds.Diamond, "다이아 매장지", Color.yellow, count: 1, radius: 1f, amount: 1, pitFlatRadius: 3f, pitOuterRadius: 20f, pitDepth: 5f),
+            new ZoneDef(ItemIds.Diamond, "다이아 매장지", Color.yellow, count: 1, radius: 1f, amount: 1, pitFlatRadius: 3f, pitOuterRadius: 20f, pitDepth: 5f, minHits: 5, maxHits: 6, minRegenSeconds: 1200f, maxRegenSeconds: 1800f),
         };
 
         private void Start()
@@ -334,7 +343,7 @@ private void SpawnResourceNodes(List<ZoneInstance> zones)
                 col.isTrigger = true;
 
                 SpecialResourceNode resource = node.AddComponent<SpecialResourceNode>();
-                resource.Configure(def.displayName, item, def.amount);
+                resource.Configure(def.displayName, item, def.amount, 0, def.minHits, def.maxHits, def.minRegenSeconds, def.maxRegenSeconds);
             }
         }
 

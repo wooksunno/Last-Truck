@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 390686697781ce44e929a2c7da880592, type: 3}
+  m_Name: assemble_chemical_gas_grenade
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
+  recipeID: assemble_chemical_gas_grenade
+  displayName: "\uD654\uD559 \uB3C5\uAC00\uC2A4 \uC218\uB958\uD0C4 \uC870\uB9BD"
+  requiredFacility: 0
+  inputs:
+  - item: {fileID: 11400000, guid: d57823ee9c1c6384f8647725838a86ca, type: 2}
+    count: 1
+  - item: {fileID: 11400000, guid: 67efd874b73fea246aa38edea89b9f32, type: 2}
+    count: 3
+  - item: {fileID: 11400000, guid: e6dbd0e496a142e4eb0f1d2cf813b3a2, type: 2}
+    count: 1
+  output:
+    item: {fileID: 11400000, guid: 1eb477096747696448702eee2e11650a, type: 2}
+    count: 1
+  processingSeconds: 2

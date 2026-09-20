@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 93e36d5c2d27c5349a62769ba85115a0, type: 3}
+  m_Name: refined_fuel
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.ItemData
+  itemID: refined_fuel
+  itemName: "\uACE0\uD6A8\uC728 \uC815\uC81C\uC720"
+  itemType: 1
+  maxStack: 50
+  icon: {fileID: 21300000, guid: 32d0630895a5def42b51fe4f464a1d22, type: 3}
+  toolTier: 0

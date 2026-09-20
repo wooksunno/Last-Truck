@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 390686697781ce44e929a2c7da880592, type: 3}
+  m_Name: assemble_spike_bumper
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
+  recipeID: assemble_spike_bumper
+  displayName: "\uAC15\uCCA0\uAC00\uC2DC \uBC94\uD37C \uC870\uB9BD"
+  requiredFacility: 0
+  inputs:
+  - item: {fileID: 11400000, guid: 74ea6c9e5fad2594499f32689d5f2ddc, type: 2}
+    count: 4
+  - item: {fileID: 11400000, guid: 2334d3e84bfd3814a8d4f37d3f66ac64, type: 2}
+    count: 2
+  output:
+    item: {fileID: 11400000, guid: 72a53eb98df74104a9dd0fff4095fd54, type: 2}
+    count: 1
+  processingSeconds: 2

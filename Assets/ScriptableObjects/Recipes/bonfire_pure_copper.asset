@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 390686697781ce44e929a2c7da880592, type: 3}
+  m_Name: bonfire_pure_copper
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
+  recipeID: bonfire_pure_copper
+  displayName: "\uC21C\uC218 \uAD6C\uB9AC \uC81C\uB828"
+  requiredFacility: 1
+  inputs:
+  - item: {fileID: 11400000, guid: b1a9b50c0b07ea24382da19698a86e8a, type: 2}
+    count: 1
+  output:
+    item: {fileID: 11400000, guid: e206cd7c340794a49a424b0705306237, type: 2}
+    count: 1
+  processingSeconds: 2

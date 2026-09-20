@@ -16,8 +16,8 @@ MonoBehaviour:
   displayName: "\uAD6C\uB9AC \uACE1\uAD2D\uC774 \uC870\uB9BD"
   requiredFacility: 0
   inputs:
-  - item: {fileID: 11400000, guid: e206cd7c340794a49a424b0705306237, type: 2}
-    count: 2
+  - item: {fileID: 11400000, guid: b88f963aa9a05594caa71bcbfae3a172, type: 2}
+    count: 1
   - item: {fileID: 11400000, guid: c3d776926fcb1f94193ffcf396bdae97, type: 2}
     count: 1
   output:

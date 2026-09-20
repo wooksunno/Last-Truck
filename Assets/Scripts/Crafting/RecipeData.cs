@@ -14,7 +14,9 @@ namespace CraftingSystem
         Grindstone,
         RollerPress,
         PrecisionCutter,
-        ChemicalRefinery
+        ChemicalRefinery,
+        SuperheatedFurnace,
+        LeatherTanningRack
     }
 
     [Serializable]

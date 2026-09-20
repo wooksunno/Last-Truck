@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 390686697781ce44e929a2c7da880592, type: 3}
+  m_Name: assemble_superheated_furnace
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
+  recipeID: assemble_superheated_furnace
+  displayName: "\uCD08\uACE0\uC628 \uC6A9\uAD11\uB85C \uC870\uB9BD"
+  requiredFacility: 0
+  inputs:
+  - item: {fileID: 11400000, guid: ad9783c5e462cb440870cdf55ec7d8f8, type: 2}
+    count: 30
+  - item: {fileID: 11400000, guid: a87a99d2508b14848943f22d6646c663, type: 2}
+    count: 20
+  - item: {fileID: 11400000, guid: 8a1ad08d7a35696439b501a1b18dbece, type: 2}
+    count: 4
+  output:
+    item: {fileID: 11400000, guid: 14f778c1cd1ef5947aa2bd7fadf6623b, type: 2}
+    count: 1
+  processingSeconds: 2
