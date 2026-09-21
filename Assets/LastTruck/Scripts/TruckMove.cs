@@ -1,128 +1,144 @@
 ﻿using UnityEngine;
+using System;
+using System.Collections.Generic;
 
-namespace LastTruck
-{
 public class TruckMove : MonoBehaviour
 {
-    [System.Serializable]
-    public struct WheelInfo
+    public enum Accelerator
     {
-        public WheelCollider leftWheel;
-        public WheelCollider rightWheel;
-        public Transform leftWheelMesh;
-        public Transform rightWheelMesh;
-        public bool motor;
+        Front,
+        Rear
     }
 
-    [Header("트럭 바퀴")]
-    public WheelInfo frontWheels;
-    public WheelInfo rearWheels;
+    [Serializable]
+    public struct Wheel
+    {
+        public GameObject wheelModel;
+        public WheelCollider wheelCollider;
+        public Accelerator accelerator;
+    }
 
-    [Header("트럭 제어 수치")]
-    public float maxMotorTorque = 3000f;
-    public float autoBrakeTorque = 10000f;
+    [Header("가속")]
+    public float maxAcceleration = 1500.0f;
+    public float brakeAcceleration = 5000.0f;
 
-    [Header("탑승 상태")]
+    [Header("방향")]
+    public float turnSensitivility = 1.0f;
+    public float maxSteerAngle = 30.0f;
+
+    [Header("물리")]
+    public Vector3 _centerOfMass;
+    public Rigidbody carRb;
+
+    public List<Wheel> wheels;
     public bool isDriving = false;
 
-    private float inputVertical;
-    private Rigidbody truckRb;
+    float moveInput;
+    float steerInput;
 
-    private void Awake()
+    private void Start()
     {
-        truckRb = GetComponent<Rigidbody>();
-    }
-
-    private void OnEnable()
-    {
-        if (truckRb != null) truckRb.isKinematic = false;
-
-        Apply_Brake(frontWheels, 0f);
-        Apply_Brake(rearWheels, 0f);
-    }
-
-    private void OnDisable()
-    {
-        StopVehicle();
+        carRb = GetComponent<Rigidbody>();
+        if (carRb != null)
+        {
+            carRb.centerOfMass = _centerOfMass;
+        }
     }
 
     private void Update()
     {
-        if (isDriving)
-        {
-            inputVertical = Input.GetAxis("Vertical");
-        }
-        else
-        {
-            inputVertical = 0f;
-        }
+        if (!isDriving) { return; }
+
+        GetInputs();
+        Ani_Wheels();
     }
 
     private void FixedUpdate()
     {
-        if (isDriving && Mathf.Abs(inputVertical) > 0.05f)
+        if (!isDriving)
         {
-            float currentTorque = inputVertical * maxMotorTorque;
-
-            Apply_Brake(frontWheels, 0f);
-            Apply_Brake(rearWheels, 0f);
-
-            Apply_Motor(frontWheels, currentTorque);
-            Apply_Motor(rearWheels, currentTorque);
-        }
-        else
-        {
-            StopVehicle();
+            Reset_Physics();
+            return;
         }
 
-        UpdateWheelVisual(frontWheels.leftWheel, frontWheels.leftWheelMesh);
-        UpdateWheelVisual(frontWheels.rightWheel, frontWheels.rightWheelMesh);
-        UpdateWheelVisual(rearWheels.leftWheel, rearWheels.leftWheelMesh);
-        UpdateWheelVisual(rearWheels.rightWheel, rearWheels.rightWheelMesh);
+        Move();
+        Steer();
+        Brake();
     }
 
-    private void StopVehicle()
+    private void GetInputs()
     {
-        Apply_Motor(frontWheels, 0f);
-        Apply_Motor(rearWheels, 0f);
+        moveInput = Input.GetAxis("Vertical");
+        steerInput = Input.GetAxis("Horizontal");
+    }
 
-        Apply_Brake(frontWheels, autoBrakeTorque);
-        Apply_Brake(rearWheels, autoBrakeTorque);
+    private void Move()
+    {
+        if (Input.GetKey(KeyCode.Space)) return;
 
-        if (truckRb != null)
+        foreach (var wheel in wheels)
         {
-            truckRb.linearVelocity = Vector3.zero;
-            truckRb.angularVelocity = Vector3.zero;
+            if (wheel.wheelCollider == null) continue;
+            wheel.wheelCollider.motorTorque = moveInput * maxAcceleration;
         }
     }
 
-    private void Apply_Motor(WheelInfo wheels, float torque)
+    private void Steer()
     {
-        if (wheels.motor && wheels.leftWheel != null && wheels.rightWheel != null)
+        foreach (var wheel in wheels)
         {
-            wheels.leftWheel.motorTorque = torque;
-            wheels.rightWheel.motorTorque = torque;
+            if (wheel.wheelCollider == null) continue;
+
+            if (wheel.accelerator == Accelerator.Front)
+            {
+                var _steerAngle = steerInput * turnSensitivility * maxSteerAngle;
+                wheel.wheelCollider.steerAngle = Mathf.Lerp(wheel.wheelCollider.steerAngle, _steerAngle, 0.6f);
+            }
         }
     }
 
-    private void Apply_Brake(WheelInfo wheels, float brake)
+    private void Brake()
     {
-        if (wheels.leftWheel != null && wheels.rightWheel != null)
+        bool isBraking = Input.GetKey(KeyCode.Space);
+
+        foreach (var wheel in wheels)
         {
-            wheels.leftWheel.brakeTorque = brake;
-            wheels.rightWheel.brakeTorque = brake;
+            if (wheel.wheelCollider == null) continue;
+
+            if (isBraking)
+            {
+                wheel.wheelCollider.motorTorque = 0f;
+                wheel.wheelCollider.brakeTorque = brakeAcceleration;
+            }
+            else
+            {
+                wheel.wheelCollider.brakeTorque = 0f;
+            }
         }
     }
 
-    private void UpdateWheelVisual(WheelCollider collider, Transform mesh)
+    private void Ani_Wheels()
     {
-        if (collider == null || mesh == null) return;
+        foreach (var wheel in wheels)
+        {
+            if (wheel.wheelCollider == null || wheel.wheelModel == null) continue;
 
-        Vector3 position;
-        Quaternion rotation;
-        collider.GetWorldPose(out position, out rotation);
-
-        mesh.rotation = rotation;
+            Quaternion rotation;
+            Vector3 position;
+            wheel.wheelCollider.GetWorldPose(out position, out rotation);
+            wheel.wheelModel.transform.position = position;
+            wheel.wheelModel.transform.rotation = rotation;
+        }
     }
-}
+
+    private void Reset_Physics()
+    {
+        foreach (var wheel in wheels)
+        {
+            if (wheel.wheelCollider == null) continue;
+
+            wheel.wheelCollider.motorTorque = 0f;
+            wheel.wheelCollider.brakeTorque = brakeAcceleration * 0.5f; // 주차용 브레이크
+        }
+    }
 }
