@@ -268,6 +268,7 @@ private void BuildFloorMesh(int[,] zoneMap, List<ZoneInstance> zones)
 
             GameObject floorGO = new GameObject("GeneratedFloorMesh");
             floorGO.transform.SetParent(_root, false);
+            floorGO.tag = "Ground";
 
             MeshFilter mf = floorGO.AddComponent<MeshFilter>();
             mf.sharedMesh = mesh;
