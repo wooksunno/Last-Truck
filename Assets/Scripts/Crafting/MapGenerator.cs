@@ -30,10 +30,12 @@ public int amount;     // 채집 시 지급량
             public int maxHits;           // 고갈까지 필요한 채집 횟수(최대)
             public float minRegenSeconds; // 고갈 후 리젠까지 걸리는 시간(초, 최소)
             public float maxRegenSeconds; // 고갈 후 리젠까지 걸리는 시간(초, 최대)
+            public int requiredTier;      // 채집에 필요한 최소 도구 등급. 0 = 맨손 채집 가능
 
             public ZoneDef(string itemId, string displayName, Color color, int count, float radius, int amount,
                 float pitFlatRadius = 0f, float pitOuterRadius = 0f, float pitDepth = 0f,
-                int minHits = 0, int maxHits = 0, float minRegenSeconds = 0f, float maxRegenSeconds = 0f)
+                int minHits = 0, int maxHits = 0, float minRegenSeconds = 0f, float maxRegenSeconds = 0f,
+                int requiredTier = 0)
             {
                 this.itemId = itemId;
                 this.displayName = displayName;
@@ -49,6 +51,7 @@ this.amount = amount;
                 this.maxHits = maxHits;
                 this.minRegenSeconds = minRegenSeconds;
                 this.maxRegenSeconds = maxRegenSeconds;
+                this.requiredTier = requiredTier;
             }
         }
 
@@ -76,11 +79,12 @@ this.amount = amount;
         private static readonly ZoneDef[] ZoneDefs =
         {
             new ZoneDef(ItemIds.Wood, "나무 군락지", new Color(0.55f, 0.35f, 0.15f), count: 7, radius: 6f, amount: 10, minHits: 2, maxHits: 3, minRegenSeconds: 60f, maxRegenSeconds: 120f),
-            new ZoneDef(ItemIds.Stone, "돌 채석장", new Color(0.6f, 0.6f, 0.62f), count: 7, radius: 6f, amount: 10, minHits: 2, maxHits: 3, minRegenSeconds: 90f, maxRegenSeconds: 150f),
-            new ZoneDef(ItemIds.IronOre, "철 매장지", Color.white, count: 4, radius: 3.5f, amount: 6, minHits: 4, maxHits: 7, minRegenSeconds: 300f, maxRegenSeconds: 600f),
-            new ZoneDef(ItemIds.Platinum, "백금 매장지", new Color(0.2f, 0.5f, 1f), count: 2, radius: 2f, amount: 3, pitFlatRadius: 1.5f, pitOuterRadius: 10f, pitDepth: 3f, minHits: 3, maxHits: 4, minRegenSeconds: 420f, maxRegenSeconds: 900f),
+            new ZoneDef(ItemIds.Stone, "돌 채석장", new Color(0.6f, 0.6f, 0.62f), count: 7, radius: 6f, amount: 10, minHits: 2, maxHits: 3, minRegenSeconds: 90f, maxRegenSeconds: 150f, requiredTier: 1),
+            new ZoneDef(ItemIds.CopperOre, "구리 매장지", new Color(0.85f, 0.5f, 0.2f), count: 5, radius: 4f, amount: 8, minHits: 3, maxHits: 5, minRegenSeconds: 180f, maxRegenSeconds: 360f, requiredTier: 2),
+            new ZoneDef(ItemIds.IronOre, "철 매장지", Color.white, count: 4, radius: 3.5f, amount: 6, minHits: 4, maxHits: 7, minRegenSeconds: 300f, maxRegenSeconds: 600f, requiredTier: 3),
+            new ZoneDef(ItemIds.Platinum, "백금 매장지", Color.yellow, count: 2, radius: 2f, amount: 3, pitFlatRadius: 1.5f, pitOuterRadius: 10f, pitDepth: 3f, minHits: 3, maxHits: 4, minRegenSeconds: 420f, maxRegenSeconds: 900f, requiredTier: 4),
             new ZoneDef(ItemIds.PoisonHerb, "독초 군락지", new Color(0.6f, 0.2f, 0.9f), count: 2, radius: 1.5f, amount: 3),
-            new ZoneDef(ItemIds.Diamond, "다이아 매장지", Color.yellow, count: 1, radius: 1f, amount: 1, pitFlatRadius: 3f, pitOuterRadius: 20f, pitDepth: 5f, minHits: 5, maxHits: 6, minRegenSeconds: 1200f, maxRegenSeconds: 1800f),
+            new ZoneDef(ItemIds.Diamond, "다이아 매장지", new Color(0.2f, 0.5f, 1f), count: 1, radius: 1f, amount: 1, pitFlatRadius: 3f, pitOuterRadius: 20f, pitDepth: 5f, minHits: 5, maxHits: 6, minRegenSeconds: 1200f, maxRegenSeconds: 1800f, requiredTier: 5),
         };
 
         private void Start()
@@ -334,7 +338,7 @@ private void SpawnResourceNodes(List<ZoneInstance> zones)
                 node.transform.SetParent(_root, false);
                 node.transform.position = pos;
                 node.transform.localScale = Vector3.one * 0.8f;
-                node.layer = 31; // PlayerInteract의 interactLayer(31번)와 일치
+                node.layer = 4; // PlayerInteract.interactLayer와 일치(Water 레이어 사용 중, 트럭의 TruckInteractable과 동일)
 
                 MeshRenderer mr = node.GetComponent<MeshRenderer>();
                 mr.sharedMaterial = CreateAccentMaterial(def.color);
@@ -343,7 +347,7 @@ private void SpawnResourceNodes(List<ZoneInstance> zones)
                 col.isTrigger = true;
 
                 SpecialResourceNode resource = node.AddComponent<SpecialResourceNode>();
-                resource.Configure(def.displayName, item, def.amount, 0, def.minHits, def.maxHits, def.minRegenSeconds, def.maxRegenSeconds);
+                resource.Configure(def.displayName, item, def.amount, def.requiredTier, def.minHits, def.maxHits, def.minRegenSeconds, def.maxRegenSeconds);
             }
         }
 

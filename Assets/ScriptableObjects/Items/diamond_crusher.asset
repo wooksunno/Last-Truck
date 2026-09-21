@@ -17,4 +17,4 @@ MonoBehaviour:
   itemType: 3
   maxStack: 1
   icon: {fileID: 21300000, guid: 31950893c3d6e54499f6ea8ce8ec4fb5, type: 3}
-  toolTier: 5
+  toolTier: 6

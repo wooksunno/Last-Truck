@@ -53,6 +53,7 @@ public void FillDefaultResources()
             AddItem(catalog.GetItem(ItemIds.Flamethrower), 1);
             AddItem(catalog.GetItem(ItemIds.HuntingBow), 1);
             AddItem(catalog.GetItem(ItemIds.Machete), 1);
+            AddItem(catalog.GetItem(ItemIds.WoodPickaxe), 1);
             AddItem(catalog.GetItem(ItemIds.StonePickaxe), 1);
             AddItem(catalog.GetItem(ItemIds.CopperPickaxe), 1);
             AddItem(catalog.GetItem(ItemIds.IronPickaxe), 1);

@@ -37,7 +37,8 @@ namespace CraftingSystem
             PlayerInventory player = EnsurePlayer();
             TruckStation truck = EnsureTruck(catalog);
             Vector3 origin = truck != null ? truck.transform.position : Vector3.zero;
-            EnsureFacilities(catalog, origin);
+            // 데모 버전: 월드에 시설물을 자동 생성하지 않는다. 가공은 트럭 가공 탭에서 바로 처리된다.
+            // EnsureFacilities(catalog, origin);
             EnsureResourceNodes(catalog, origin);
             EnsureClickInteractor(player);
             EnsureWeaponController(player);
@@ -314,14 +315,7 @@ private static void EnsureFacility(
                 "Resource_Stone", "돌", ItemIds.Stone, 1, 0f, 1,
                 origin + new Vector3(-8f, 0f, 0.5f), 1.2f, RockMeshPath, catalog);
 
-            EnsureResourceNode(
-                "Resource_CopperOre", "구리 원석", ItemIds.CopperOre, 1, 0f, 1,
-                origin + new Vector3(-9f, 0f, -2.5f), 1.2f, CopperOreMeshPath, catalog);
-
-            // 철 원석은 구리곡괭이(등급 2) 이상 필요 - 돌곡괭이로는 채집 불가
-            EnsureResourceNode(
-                "Resource_IronOre", "철 원석", ItemIds.IronOre, 1, 0f, 2,
-                origin + new Vector3(-6.5f, 0f, -3.5f), 1.2f, IronOreMeshPath, catalog);
+            // Copper/Iron은 맵 절차 생성(MapGenerator) 구역에서만 채집된다 — 트럭 근처 고정 데모 노드는 생성하지 않는다.
         }
 
         private static void EnsureResourceNode(
@@ -361,6 +355,7 @@ private static void EnsureFacility(
             }
 
             EnsureCollider(go);
+            go.layer = 4; // PlayerInteract.interactLayer(Water)와 일치 — E키 근처 상호작용이 감지하도록
 
             ResourceNode node = go.GetComponent<ResourceNode>();
             if (node == null)

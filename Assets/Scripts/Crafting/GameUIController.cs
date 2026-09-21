@@ -876,12 +876,8 @@ private void CreateFacilityTab(RectTransform parent, FacilityType facility)
             ItemCatalog catalog = ItemCatalog.GetOrCreate();
             List<RecipeData> facilityRecipes = catalog.GetRecipesForFacility(_truckProcessingFacility);
 
-            var unlocked = new List<RecipeData>();
-            foreach (RecipeData r in facilityRecipes)
-            {
-                if (RecipeUnlocks.IsUnlocked(r))
-                    unlocked.Add(r);
-            }
+            // 데모 버전: 실제 시설 선학 없이 해당 설비의 모든 레시피를 트럭에서 바로 가공할 수 있게 한다.
+            var unlocked = new List<RecipeData>(facilityRecipes);
 
             if (unlocked.Count == 0)
             {

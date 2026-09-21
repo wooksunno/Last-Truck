@@ -57,6 +57,7 @@ namespace CraftingSystem
         public const string SuperheatedFurnace = "superheated_furnace"; // 초고온 용광로
 
         // 도구
+        public const string WoodPickaxe = "wood_pickaxe";
         public const string StonePickaxe = "stone_pickaxe";
         public const string CopperPickaxe = "copper_pickaxe";
         public const string IronPickaxe = "iron_pickaxe";

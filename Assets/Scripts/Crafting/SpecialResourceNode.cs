@@ -27,7 +27,7 @@ namespace CraftingSystem
         private Renderer _cachedRenderer;
         private Collider _cachedCollider;
 
-public void Configure(string name, ItemData itemData, int amt, int tier = 0,
+        public void Configure(string name, ItemData itemData, int amt, int tier = 0,
             int minHitsRange = 0, int maxHitsRange = 0, float minRegen = 0f, float maxRegen = 0f)
         {
             displayName = name;

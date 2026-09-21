@@ -100,11 +100,12 @@ namespace CraftingSystem
                 Make(ItemIds.SuperheatedFurnace, "초고온 용광로", ItemType.Finished, 5, sprites),
 
                 // 도구
-                Make(ItemIds.StonePickaxe, "돌 곡괭이", ItemType.Tool, 1, sprites, 1),
-                Make(ItemIds.CopperPickaxe, "구리 곡괭이", ItemType.Tool, 1, sprites, 2),
-                Make(ItemIds.IronPickaxe, "철제 곡괭이", ItemType.Tool, 1, sprites, 3),
-                Make(ItemIds.PlatinumDrill, "백금 착암 드릴", ItemType.Tool, 1, sprites, 4),
-                Make(ItemIds.DiamondCrusher, "다이아몬드 분쇄기", ItemType.Tool, 1, sprites, 5),
+                Make(ItemIds.WoodPickaxe, "나무 곡괭이", ItemType.Tool, 1, sprites, 1),
+                Make(ItemIds.StonePickaxe, "돌 곡괭이", ItemType.Tool, 1, sprites, 2),
+                Make(ItemIds.CopperPickaxe, "구리 곡괭이", ItemType.Tool, 1, sprites, 3),
+                Make(ItemIds.IronPickaxe, "철제 곡괭이", ItemType.Tool, 1, sprites, 4),
+                Make(ItemIds.PlatinumDrill, "백금 착암 드릴", ItemType.Tool, 1, sprites, 5),
+                Make(ItemIds.DiamondCrusher, "다이아몬드 분쇄기", ItemType.Tool, 1, sprites, 6),
                 Make(ItemIds.CopperHandPump, "구리 수동 펌프", ItemType.Tool, 1, sprites),
 
                 // 근접 무기
@@ -218,6 +219,7 @@ namespace CraftingSystem
             Add("assemble_superheated_furnace", "초고온 용광로 조립", FacilityType.None, new[] { (ItemIds.Stone, 30), (ItemIds.IronOre, 20), (ItemIds.Oil, 4) }, ItemIds.SuperheatedFurnace, 1);
 
             // ── 트럭 조립: 도구 / 채집 ──────────────────────────
+            Add("assemble_wood_pickaxe", "나무 곡괭이 조립", FacilityType.None, new[] { (ItemIds.Wood, 8) }, ItemIds.WoodPickaxe, 1);
             Add("assemble_stone_pickaxe", "돌 곡괭이 조립", FacilityType.None, new[] { (ItemIds.Wood, 10), (ItemIds.Stone, 8) }, ItemIds.StonePickaxe, 1);
             Add("assemble_copper_pickaxe", "구리 곡괭이 조립", FacilityType.None, new[] { (ItemIds.CopperBlade, 1), (ItemIds.WoodHandle, 1) }, ItemIds.CopperPickaxe, 1);
             Add("assemble_iron_pickaxe", "철제 곡괭이 조립", FacilityType.None, new[] { (ItemIds.ReinforcedIronBlade, 1), (ItemIds.WoodHandle, 1), (ItemIds.Copper, 2) }, ItemIds.IronPickaxe, 1);

@@ -54,8 +54,7 @@ namespace CraftingSystem
             IWorldInteractable interactable = hit.collider.GetComponentInParent<ProcessingFacility>();
             if (interactable == null)
                 interactable = hit.collider.GetComponentInParent<TruckStation>();
-            if (interactable == null)
-                interactable = hit.collider.GetComponentInParent<ResourceNode>();
+            // 자원 채집(ResourceNode/SpecialResourceNode)은 클릭이 아닌 E키 근접 상호작용(LastTruck.PlayerInteract)으로만 처리한다.
 
             if (interactable == null)
                 return;
