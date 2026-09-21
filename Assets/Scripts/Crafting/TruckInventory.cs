@@ -37,8 +37,7 @@ namespace CraftingSystem
             inventory.Changed -= OnInventoryChanged;
         }
 
-        [ContextMenu("Fill Default Resources")]
-        public void FillDefaultResources()
+public void FillDefaultResources()
         {
             ItemCatalog catalog = ItemCatalog.GetOrCreate();
             AddItem(catalog.GetItem(ItemIds.Wood), 100);
@@ -47,7 +46,18 @@ namespace CraftingSystem
             AddItem(catalog.GetItem(ItemIds.CopperOre), 50);
             AddItem(catalog.GetItem(ItemIds.Iron), 20);
             AddItem(catalog.GetItem(ItemIds.Copper), 20);
-            Debug.Log($"[TruckInventory] 기본 원재료 지급\n{GetInventorySummary()}");
+
+            // 테스트용: 무기 5종 + 곡괭이 3종. 무기/도구는 겹치지 않아 각각 한 칸씩 차지한다.
+            AddItem(catalog.GetItem(ItemIds.Ak47), 1);
+            AddItem(catalog.GetItem(ItemIds.PlatinumSniperRifle), 1);
+            AddItem(catalog.GetItem(ItemIds.Flamethrower), 1);
+            AddItem(catalog.GetItem(ItemIds.HuntingBow), 1);
+            AddItem(catalog.GetItem(ItemIds.Machete), 1);
+            AddItem(catalog.GetItem(ItemIds.StonePickaxe), 1);
+            AddItem(catalog.GetItem(ItemIds.CopperPickaxe), 1);
+            AddItem(catalog.GetItem(ItemIds.IronPickaxe), 1);
+
+            Debug.Log($"[TruckInventory] 기본 원재료/테스트용 무기·곡괭이 지급\n{GetInventorySummary()}");
         }
 
         public bool HasIngredients(IEnumerable<RecipeIngredient> ingredients) =>

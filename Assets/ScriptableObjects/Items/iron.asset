@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: iron
   m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.ItemData
   itemID: iron
-  itemName: "\uCCA0"
+  itemName: "\uC21C\uC218 \uCCA0"
   itemType: 1
   maxStack: 99
-  icon: {fileID: -5273519538304734877, guid: 3da55edeac7f1b74c9dcec28b517f09c, type: 3}
+  icon: {fileID: 21300000, guid: 8dec2925257360a4487620686d38c73a, type: 3}
+  toolTier: 0

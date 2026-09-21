@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 390686697781ce44e929a2c7da880592, type: 3}
+  m_Name: assemble_high_tension_repair_pack
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
+  recipeID: assemble_high_tension_repair_pack
+  displayName: "\uACE0\uC7A5\uB825 \uC218\uB9AC \uD329 \uC870\uB9BD"
+  requiredFacility: 0
+  inputs:
+  - item: {fileID: 11400000, guid: 2334d3e84bfd3814a8d4f37d3f66ac64, type: 2}
+    count: 1
+  - item: {fileID: 11400000, guid: ea27a103f6f1b6b41883814ca3596c40, type: 2}
+    count: 1
+  output:
+    item: {fileID: 11400000, guid: ae8c60d39027b0940a3699a4e6696cc5, type: 2}
+    count: 1
+  processingSeconds: 2

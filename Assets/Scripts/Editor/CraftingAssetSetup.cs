@@ -7,51 +7,29 @@ using UnityEngine;
 namespace CraftingSystem.Editor
 {
     /// <summary>
-    /// 아이템 시트를 Multiple Sprite로 분할하고 ItemData/Catalog 에셋을 생성한다.
+    /// Resources/Crafting/Icons 아래의 아이템별 개별 아이콘을 Sprite로 임포트하고 ItemData/Catalog 에셋을 생성한다.
+    /// 아이템/레시피 정의는 CraftingContentFactory를 단일 출처로 사용한다.
     /// </summary>
     public static class CraftingAssetSetup
     {
         private const string ItemsFolder = "Assets/ScriptableObjects/Items";
         private const string RecipesFolder = "Assets/ScriptableObjects/Recipes";
         private const string ResourcesFolder = "Assets/Resources/Crafting";
-        private const string UiFolder = "Assets/ui";
-
-        private static readonly (int index, string id, string name, ItemType type, int maxStack)[] ItemDefs =
-        {
-            (0, ItemIds.Wood, "나무", ItemType.Raw, 99),
-            (1, ItemIds.Stone, "돌", ItemType.Raw, 99),
-            (2, ItemIds.IronOre, "철 원석", ItemType.Raw, 99),
-            (3, ItemIds.CopperOre, "구리 원석", ItemType.Raw, 99),
-            (4, ItemIds.Iron, "철", ItemType.Intermediate, 99),
-            (6, ItemIds.Copper, "구리", ItemType.Intermediate, 99),
-            (7, ItemIds.WoodHandle, "원목 손잡이", ItemType.Intermediate, 50),
-            (8, ItemIds.CopperBlade, "구리 절삭날", ItemType.Intermediate, 50),
-            (9, ItemIds.Machete, "마체테", ItemType.Finished, 10),
-            (10, ItemIds.WoodSpear, "나무창", ItemType.Finished, 10),
-            (11, ItemIds.StonePickaxe, "돌 곡괭이", ItemType.Tool, 5),
-            (12, ItemIds.IronPickaxe, "철제 곡괭이", ItemType.Tool, 5),
-        };
+        private const string IconsFolder = "Assets/Resources/Crafting/Icons";
 
         [MenuItem("Crafting/Setup Item Sprites And Assets")]
         public static void SetupAll()
         {
-            string sheetPath = FindSheetPath();
-            if (string.IsNullOrEmpty(sheetPath))
-            {
-                Debug.LogError("[CraftingAssetSetup] Assets/ui 아이템 시트를 찾지 못했습니다.");
-                return;
-            }
-
-            SliceSpriteSheet(sheetPath);
             EnsureFolders();
+            ConfigureIconImportSettings();
 
-            Dictionary<string, Sprite> sprites = LoadSlicedSprites(sheetPath);
+            Dictionary<string, Sprite> sprites = LoadIconSprites();
+            List<ItemData> runtimeItems = CraftingContentFactory.CreateAllItems(sprites);
             var items = new List<ItemData>();
-            foreach (var def in ItemDefs)
+            foreach (ItemData runtimeItem in runtimeItems)
             {
-                sprites.TryGetValue(def.id, out Sprite icon);
-                ItemData item = CreateOrUpdateItem(def.id, def.name, def.type, def.maxStack, icon);
-                items.Add(item);
+                ItemData saved = CreateOrUpdateItem(runtimeItem);
+                items.Add(saved);
             }
 
             List<RecipeData> recipes = CraftingContentFactory.CreateAllRecipes(items);
@@ -63,13 +41,19 @@ namespace CraftingSystem.Editor
             }
 
             ItemCatalog catalog = CreateOrUpdateCatalog(items, savedRecipes);
-            CopySheetToResources(sheetPath);
 
             EditorUtility.SetDirty(catalog);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            Debug.Log($"[CraftingAssetSetup] 완료. 아이템 {items.Count}개, 레시피 {savedRecipes.Count}개 생성. Catalog={AssetDatabase.GetAssetPath(catalog)}");
+            int iconCount = 0;
+            foreach (string id in CraftingContentFactory.GetIconItemIds())
+            {
+                if (sprites.ContainsKey(id))
+                    iconCount++;
+            }
+
+            Debug.Log($"[CraftingAssetSetup] 완료. 아이템 {items.Count}개(아이콘 {iconCount}개), 레시피 {savedRecipes.Count}개 생성. Catalog={AssetDatabase.GetAssetPath(catalog)}");
         }
 
         [MenuItem("Crafting/Setup Demo Scene Objects")]
@@ -87,79 +71,38 @@ namespace CraftingSystem.Editor
             Debug.Log("[CraftingAssetSetup] Demo 씬 오브젝트 셋업 완료.");
         }
 
-        private static string FindSheetPath()
+        private static void ConfigureIconImportSettings()
         {
-            if (!AssetDatabase.IsValidFolder(UiFolder))
-                return null;
-
-            string[] guids = AssetDatabase.FindAssets("t:Texture2D", new[] { UiFolder, "Assets/UI" });
-            foreach (string guid in guids)
-            {
-                string path = AssetDatabase.GUIDToAssetPath(guid);
-                if (path.EndsWith(".png") || path.EndsWith(".jpg"))
-                    return path;
-            }
-
-            return null;
-        }
-
-        private static void SliceSpriteSheet(string assetPath)
-        {
-            var importer = AssetImporter.GetAtPath(assetPath) as TextureImporter;
-            if (importer == null)
+            if (!Directory.Exists(IconsFolder))
                 return;
 
-            importer.textureType = TextureImporterType.Sprite;
-            importer.spriteImportMode = SpriteImportMode.Multiple;
-            importer.mipmapEnabled = false;
-            importer.alphaIsTransparency = true;
-            importer.isReadable = true;
-            importer.filterMode = FilterMode.Bilinear;
-            importer.spritePixelsPerUnit = 100;
-
-            Texture2D tex = AssetDatabase.LoadAssetAtPath<Texture2D>(assetPath);
-            int width = tex != null ? tex.width : 1536;
-            int height = tex != null ? tex.height : 1024;
-            int cols = CraftingContentFactory.SheetColumns;
-            int rows = CraftingContentFactory.SheetRows;
-            int cellW = width / cols;
-            int cellH = height / rows;
-
-            var metas = new List<SpriteMetaData>();
-            string[] namesByIndex = new string[cols * rows];
-            foreach (var def in ItemDefs)
-                namesByIndex[def.index] = def.id;
-            namesByIndex[5] = "unused_ore_variant";
-
-            for (int i = 0; i < cols * rows; i++)
+            string[] files = Directory.GetFiles(IconsFolder, "*.png");
+            foreach (string fullPath in files)
             {
-                int col = i % cols;
-                int rowFromTop = i / cols;
-                int rowFromBottom = rows - 1 - rowFromTop;
-                string spriteName = string.IsNullOrEmpty(namesByIndex[i]) ? $"icon_{i}" : namesByIndex[i];
+                string assetPath = fullPath.Replace('\\', '/');
+                var importer = AssetImporter.GetAtPath(assetPath) as TextureImporter;
+                if (importer == null)
+                    continue;
 
-                metas.Add(new SpriteMetaData
-                {
-                    name = spriteName,
-                    rect = new Rect(col * cellW, rowFromBottom * cellH, cellW, cellH),
-                    alignment = (int)SpriteAlignment.Center,
-                    pivot = new Vector2(0.5f, 0.5f)
-                });
+                importer.textureType = TextureImporterType.Sprite;
+                importer.spriteImportMode = SpriteImportMode.Single;
+                importer.alphaIsTransparency = true;
+                importer.mipmapEnabled = false;
+                importer.filterMode = FilterMode.Bilinear;
+                importer.spritePixelsPerUnit = 100;
+                importer.SaveAndReimport();
             }
-
-            importer.spritesheet = metas.ToArray();
-            EditorUtility.SetDirty(importer);
-            importer.SaveAndReimport();
         }
 
-        private static Dictionary<string, Sprite> LoadSlicedSprites(string assetPath)
+        private static Dictionary<string, Sprite> LoadIconSprites()
         {
             var result = new Dictionary<string, Sprite>();
-            Object[] assets = AssetDatabase.LoadAllAssetsAtPath(assetPath);
-            foreach (Object asset in assets)
+            foreach (string id in CraftingContentFactory.GetIconItemIds())
             {
-                if (asset is Sprite sprite)
-                    result[sprite.name] = sprite;
+                string assetPath = $"{IconsFolder}/{id}.png";
+                Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
+                if (sprite != null)
+                    result[id] = sprite;
             }
 
             return result;
@@ -170,6 +113,7 @@ namespace CraftingSystem.Editor
             CreateFolderRecursive(ItemsFolder);
             CreateFolderRecursive(RecipesFolder);
             CreateFolderRecursive(ResourcesFolder);
+            CreateFolderRecursive(IconsFolder);
             CreateFolderRecursive("Assets/ScriptableObjects");
             CreateFolderRecursive("Assets/Resources");
         }
@@ -190,9 +134,9 @@ namespace CraftingSystem.Editor
             }
         }
 
-        private static ItemData CreateOrUpdateItem(string id, string displayName, ItemType type, int maxStack, Sprite icon)
+        private static ItemData CreateOrUpdateItem(ItemData source)
         {
-            string path = $"{ItemsFolder}/{id}.asset";
+            string path = $"{ItemsFolder}/{source.itemID}.asset";
             ItemData item = AssetDatabase.LoadAssetAtPath<ItemData>(path);
             if (item == null)
             {
@@ -200,11 +144,12 @@ namespace CraftingSystem.Editor
                 AssetDatabase.CreateAsset(item, path);
             }
 
-            item.itemID = id;
-            item.itemName = displayName;
-            item.itemType = type;
-            item.maxStack = maxStack;
-            item.icon = icon;
+            item.itemID = source.itemID;
+            item.itemName = source.itemName;
+            item.itemType = source.itemType;
+            item.maxStack = source.maxStack;
+            item.icon = source.icon;
+            item.toolTier = source.toolTier;
             EditorUtility.SetDirty(item);
             return item;
         }
@@ -222,6 +167,7 @@ namespace CraftingSystem.Editor
             recipe.recipeID = source.recipeID;
             recipe.displayName = source.displayName;
             recipe.requiredFacility = source.requiredFacility;
+            recipe.processingSeconds = source.processingSeconds;
             recipe.inputs = new List<RecipeIngredient>();
             foreach (RecipeIngredient input in source.inputs)
             {
@@ -251,24 +197,6 @@ namespace CraftingSystem.Editor
             catalog.SetContent(items, recipes);
             EditorUtility.SetDirty(catalog);
             return catalog;
-        }
-
-        private static void CopySheetToResources(string sheetPath)
-        {
-            string dest = $"{ResourcesFolder}/ItemIconSheet.png";
-            if (File.Exists(Path.GetFullPath(dest)))
-                AssetDatabase.DeleteAsset(dest);
-
-            AssetDatabase.CopyAsset(sheetPath, dest);
-            var importer = AssetImporter.GetAtPath(dest) as TextureImporter;
-            if (importer != null)
-            {
-                importer.textureType = TextureImporterType.Sprite;
-                importer.spriteImportMode = SpriteImportMode.Single;
-                importer.isReadable = true;
-                importer.mipmapEnabled = false;
-                importer.SaveAndReimport();
-            }
         }
     }
 }

@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 390686697781ce44e929a2c7da880592, type: 3}
+  m_Name: chem_propellant_powder
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
+  recipeID: chem_propellant_powder
+  displayName: "\uCD94\uC9C4 \uD654\uC57D \uC815\uC81C"
+  requiredFacility: 5
+  inputs:
+  - item: {fileID: 11400000, guid: 8a1ad08d7a35696439b501a1b18dbece, type: 2}
+    count: 1
+  output:
+    item: {fileID: 11400000, guid: e6dbd0e496a142e4eb0f1d2cf813b3a2, type: 2}
+    count: 1
+  processingSeconds: 2

@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 390686697781ce44e929a2c7da880592, type: 3}
+  m_Name: assemble_platinum_rail_cannon
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
+  recipeID: assemble_platinum_rail_cannon
+  displayName: "\uBC31\uAE08 \uB808\uC77C \uCE90\uB17C \uC870\uB9BD"
+  requiredFacility: 0
+  inputs:
+  - item: {fileID: 11400000, guid: 49ac97b3f12290b4e9cd0300952649c2, type: 2}
+    count: 2
+  - item: {fileID: 11400000, guid: 7829404e4fd1b7643ad62dab01fdf92a, type: 2}
+    count: 1
+  - item: {fileID: 11400000, guid: f01af06a4769b4e4ba9538207b8cc48f, type: 2}
+    count: 2
+  output:
+    item: {fileID: 11400000, guid: 87aee0442149da042a6ed2ffb52850c0, type: 2}
+    count: 1
+  processingSeconds: 2

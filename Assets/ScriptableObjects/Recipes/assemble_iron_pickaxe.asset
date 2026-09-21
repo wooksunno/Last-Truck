@@ -16,10 +16,13 @@ MonoBehaviour:
   displayName: "\uCCA0\uC81C \uACE1\uAD2D\uC774 \uC870\uB9BD"
   requiredFacility: 0
   inputs:
-  - item: {fileID: 11400000, guid: 5d85dba2be9c178428018d585a5c965e, type: 2}
-    count: 2
+  - item: {fileID: 11400000, guid: 74ea6c9e5fad2594499f32689d5f2ddc, type: 2}
+    count: 1
   - item: {fileID: 11400000, guid: c3d776926fcb1f94193ffcf396bdae97, type: 2}
     count: 1
+  - item: {fileID: 11400000, guid: e206cd7c340794a49a424b0705306237, type: 2}
+    count: 2
   output:
     item: {fileID: 11400000, guid: 20023610186db6a49a69dd851e4a57ff, type: 2}
     count: 1
+  processingSeconds: 2

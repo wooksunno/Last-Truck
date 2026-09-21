@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 390686697781ce44e929a2c7da880592, type: 3}
+  m_Name: cut_platinum_gear
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
+  recipeID: cut_platinum_gear
+  displayName: "\uBC31\uAE08 \uC815\uBC00 \uAE30\uC5B4 \uAC00\uACF5"
+  requiredFacility: 4
+  inputs:
+  - item: {fileID: 11400000, guid: e111514340b63dd448eb5ac3044ca048, type: 2}
+    count: 1
+  output:
+    item: {fileID: 11400000, guid: 6bdf6c9d006460340a6224f0b9e97755, type: 2}
+    count: 1
+  processingSeconds: 2

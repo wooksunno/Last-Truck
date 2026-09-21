@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 390686697781ce44e929a2c7da880592, type: 3}
+  m_Name: assemble_vibration_blade
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
+  recipeID: assemble_vibration_blade
+  displayName: "\uC9C4\uB3D9 \uBE14\uB808\uC774\uB4DC \uC870\uB9BD"
+  requiredFacility: 0
+  inputs:
+  - item: {fileID: 11400000, guid: e111514340b63dd448eb5ac3044ca048, type: 2}
+    count: 1
+  - item: {fileID: 11400000, guid: 6bdf6c9d006460340a6224f0b9e97755, type: 2}
+    count: 1
+  - item: {fileID: 11400000, guid: 74ea6c9e5fad2594499f32689d5f2ddc, type: 2}
+    count: 1
+  output:
+    item: {fileID: 11400000, guid: 8fd5c56430eff18488590351f68299be, type: 2}
+    count: 1
+  processingSeconds: 2

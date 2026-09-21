@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 93e36d5c2d27c5349a62769ba85115a0, type: 3}
+  m_Name: eternal_energy_core
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.ItemData
+  itemID: eternal_energy_core
+  itemName: "\uC601\uAD6C \uC5D0\uB108\uC9C0 \uCF54\uC5B4"
+  itemType: 1
+  maxStack: 10
+  icon: {fileID: 21300000, guid: 33e1091153bf0154d9c8c0bf2a5e0467, type: 3}
+  toolTier: 0

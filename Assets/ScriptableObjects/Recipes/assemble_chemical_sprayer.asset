@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 390686697781ce44e929a2c7da880592, type: 3}
+  m_Name: assemble_chemical_sprayer
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
+  recipeID: assemble_chemical_sprayer
+  displayName: "\uD654\uD559 \uC0B4\uD3EC\uAE30 \uC870\uB9BD"
+  requiredFacility: 0
+  inputs:
+  - item: {fileID: 11400000, guid: f01af06a4769b4e4ba9538207b8cc48f, type: 2}
+    count: 1
+  - item: {fileID: 11400000, guid: d57823ee9c1c6384f8647725838a86ca, type: 2}
+    count: 2
+  - item: {fileID: 11400000, guid: 7882f5d64fee6da45b60fb714fb6baef, type: 2}
+    count: 1
+  output:
+    item: {fileID: 11400000, guid: c2ac0b6026a956148b6aad43edf860d0, type: 2}
+    count: 1
+  processingSeconds: 2

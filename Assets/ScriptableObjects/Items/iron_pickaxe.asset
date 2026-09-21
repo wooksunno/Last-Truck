@@ -15,6 +15,6 @@ MonoBehaviour:
   itemID: iron_pickaxe
   itemName: "\uCCA0\uC81C \uACE1\uAD2D\uC774"
   itemType: 3
-  maxStack: 5
-  icon: {fileID: 4505339197296581320, guid: 3da55edeac7f1b74c9dcec28b517f09c, type: 3}
+  maxStack: 1
+  icon: {fileID: 21300000, guid: 89ac84f701b09444a9f76979f09222bd, type: 3}
   toolTier: 3

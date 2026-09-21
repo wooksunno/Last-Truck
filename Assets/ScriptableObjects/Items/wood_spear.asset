@@ -15,5 +15,6 @@ MonoBehaviour:
   itemID: wood_spear
   itemName: "\uB098\uBB34\uCC3D"
   itemType: 2
-  maxStack: 10
-  icon: {fileID: 2974426498676709466, guid: 3da55edeac7f1b74c9dcec28b517f09c, type: 3}
+  maxStack: 1
+  icon: {fileID: 0}
+  toolTier: 0

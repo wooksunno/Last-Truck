@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Combat;
 
 namespace CraftingSystem
 {
@@ -39,6 +40,8 @@ namespace CraftingSystem
             EnsureFacilities(catalog, origin);
             EnsureResourceNodes(catalog, origin);
             EnsureClickInteractor(player);
+            EnsureWeaponController(player);
+            EnsureTrainingDummy(player.transform.position);
             EnsureUI(player);
 
             Debug.Log("[CraftingSceneBootstrap] 씬 셋업 완료.");
@@ -53,6 +56,50 @@ namespace CraftingSystem
             var go = new GameObject("Player");
             return go.AddComponent<PlayerInventory>();
         }
+
+private static void EnsureWeaponController(PlayerInventory player)
+        {
+            if (player == null)
+                return;
+
+            if (player.GetComponent<WeaponController>() == null)
+                player.gameObject.AddComponent<WeaponController>();
+        }
+
+        private static void EnsureTrainingDummy(Vector3 playerPosition)
+        {
+            if (GameObject.Find("TrainingDummy") != null)
+                return;
+
+            Vector3 pos = playerPosition + new Vector3(2.5f, 0f, 2.5f);
+
+            var root = new GameObject("TrainingDummy");
+            root.transform.position = pos;
+
+            GameObject body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            body.name = "Body";
+            body.transform.SetParent(root.transform, false);
+            body.transform.localPosition = new Vector3(0f, 1f, 0f);
+            body.transform.localScale = new Vector3(0.8f, 1f, 0.8f);
+            SetColor(body, new Color(0.65f, 0.5f, 0.3f));
+
+            GameObject head = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            head.name = "Head";
+            head.transform.SetParent(root.transform, false);
+            head.transform.localPosition = new Vector3(0f, 2.15f, 0f);
+            head.transform.localScale = Vector3.one * 0.5f;
+            SetColor(head, new Color(0.85f, 0.72f, 0.5f));
+
+            GameObject arms = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            arms.name = "Arms";
+            arms.transform.SetParent(root.transform, false);
+            arms.transform.localPosition = new Vector3(0f, 1.6f, 0f);
+            arms.transform.localScale = new Vector3(1.6f, 0.15f, 0.15f);
+            SetColor(arms, new Color(0.5f, 0.35f, 0.2f));
+
+            root.AddComponent<Damageable>();
+        }
+
 
 private static TruckStation EnsureTruck(ItemCatalog catalog)
         {
@@ -142,6 +189,42 @@ private void EnsureFacilities(ItemCatalog catalog, Vector3 origin)
                 new Color(0.55f, 0.75f, 0.25f),
                 catalog,
                 RollerPressMeshPath);
+
+            EnsureFacility(
+                "Facility_Grindstone",
+                "숫돌 연마대",
+                FacilityType.Grindstone,
+                origin + new Vector3(-3.5f, 0f, -1.5f),
+                new Color(0.5f, 0.5f, 0.55f),
+                catalog,
+                null);
+
+            EnsureFacility(
+                "Facility_ChemicalRefinery",
+                "화학 정제탑",
+                FacilityType.ChemicalRefinery,
+                origin + new Vector3(0.5f, 0f, -3.5f),
+                new Color(0.35f, 0.75f, 0.45f),
+                catalog,
+                null);
+
+            EnsureFacility(
+                "Facility_SuperheatedFurnace",
+                "초고온 용광로",
+                FacilityType.SuperheatedFurnace,
+                origin + new Vector3(4.5f, 0f, -1.5f),
+                new Color(0.95f, 0.55f, 0.1f),
+                catalog,
+                null);
+
+            EnsureFacility(
+                "Facility_LeatherTanningRack",
+                "가죽 무두질 건조대",
+                FacilityType.LeatherTanningRack,
+                origin + new Vector3(7f, 0f, 1f),
+                new Color(0.6f, 0.45f, 0.3f),
+                catalog,
+                null);
         }
 
 private static void EnsureFacility(

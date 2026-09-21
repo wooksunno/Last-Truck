@@ -55,6 +55,12 @@ namespace CraftingSystem
             bool ok = player.TryCraft(recipe);
             if (ok)
             {
+                // 실제 가공 시설에서 한 번 성공한 레시피는 트럭 가공 탭에서도 바로 가공할 수 있게 등록한다.
+                RecipeUnlocks.MarkUnlocked(recipe);
+            }
+
+            if (ok)
+            {
                 Debug.Log(
                     $"[Facility:{displayName}] 가공 성공 → " +
                     $"{recipe.output.item.itemName} x{recipe.output.count}");

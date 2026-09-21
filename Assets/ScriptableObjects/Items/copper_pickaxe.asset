@@ -15,6 +15,6 @@ MonoBehaviour:
   itemID: copper_pickaxe
   itemName: "\uAD6C\uB9AC \uACE1\uAD2D\uC774"
   itemType: 3
-  maxStack: 5
-  icon: {fileID: 0}
+  maxStack: 1
+  icon: {fileID: 21300000, guid: c4f08da5f879c8d4ba01627b4a6f0ac9, type: 3}
   toolTier: 2

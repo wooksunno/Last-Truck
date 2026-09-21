@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 390686697781ce44e929a2c7da880592, type: 3}
+  m_Name: tan_lure_pheromone
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
+  recipeID: tan_lure_pheromone
+  displayName: "\uB3C5\uC131 \uC720\uC778 \uD398\uB85C\uBAAC \uCD94\uCD9C"
+  requiredFacility: 7
+  inputs:
+  - item: {fileID: 11400000, guid: 652f83d60adf7e14bb6227a284715e52, type: 2}
+    count: 1
+  output:
+    item: {fileID: 11400000, guid: d1e8148fa94b905478865b61983f97cf, type: 2}
+    count: 1
+  processingSeconds: 2
