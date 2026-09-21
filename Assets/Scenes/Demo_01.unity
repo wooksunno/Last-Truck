@@ -4250,7 +4250,7 @@ MonoBehaviour:
     LookAtTarget: {fileID: 0}
     CustomLookAtTarget: 0
   Lens:
-    FieldOfView: 40
+    FieldOfView: 56.7
     OrthographicSize: 10
     NearClipPlane: 0.1
     FarClipPlane: 5000
@@ -4277,13 +4277,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 865509143}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.28978416, y: -0.0000000023143691, z: 7.0073575e-10, w: 0.95709205}
-  m_LocalPosition: {x: 8.059494, y: 7.1900005, z: -18.104525}
+  m_LocalRotation: {x: 0.36958656, y: -0.000000016221717, z: 0.000000006452165, w: 0.9291963}
+  m_LocalPosition: {x: 8.059494, y: 10.530001, z: -18.104525}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 34.54, y: 0, z: 0}
 --- !u!114 &865509148
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4302,7 +4302,7 @@ MonoBehaviour:
     AngularDampingMode: 0
     RotationDamping: {x: 1, y: 1, z: 1}
     QuaternionDamping: 1
-  FollowOffset: {x: 0, y: 8, z: -12}
+  FollowOffset: {x: 0, y: 11.34, z: -12}
 --- !u!1 &938389362
 GameObject:
   m_ObjectHideFlags: 0
@@ -7461,6 +7461,14 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 3421343053134575936, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
+      propertyPath: m_Size.y
+      value: 2.11
+      objectReference: {fileID: 0}
+    - target: {fileID: 3421343053134575936, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
+      propertyPath: m_Center.y
+      value: 0.86
+      objectReference: {fileID: 0}
     - target: {fileID: 4388384186325488258, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
       propertyPath: m_Name
       value: Truck
@@ -9548,6 +9556,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 2523814689010174382, guid: 187a73a9568bccd40aa007db144c2ecc, type: 3}
+      propertyPath: speed
+      value: 0.43
+      objectReference: {fileID: 0}
     - target: {fileID: 5094976572766362071, guid: 187a73a9568bccd40aa007db144c2ecc, type: 3}
       propertyPath: m_Name
       value: Army
@@ -9660,7 +9672,7 @@ Camera:
     height: 1
   near clip plane: 0.1
   far clip plane: 5000
-  field of view: 40
+  field of view: 56.7
   orthographic: 0
   orthographic size: 10
   m_Depth: -1
@@ -9686,8 +9698,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1753006370}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.2897842, y: -0.000000002314369, z: 7.007346e-10, w: 0.95709205}
-  m_LocalPosition: {x: 8.059494, y: 7.1900005, z: -18.104525}
+  m_LocalRotation: {x: 0.36958656, y: -0.000000016221719, z: 0.000000006452167, w: 0.92919636}
+  m_LocalPosition: {x: 8.059494, y: 10.530001, z: -18.104525}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -9799,7 +9811,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: acf9537a91a486e4bafbb3b3f25a8d82, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LastTruck.CameraFollow
-  target: {fileID: 0}
+  target: {fileID: 736399209}
   offset: {x: 0, y: 8, z: -12}
 --- !u!1 &1763115319
 GameObject:
