@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: CharacterData_Chef
   m_EditorClassIdentifier: Assembly-CSharp::CharacterStatsData
   playerName: 
-  maxHealth: 0
-  attackPower: 0
-  moveSpeed: 0
+  maxHealth: 100
+  attackPower: 10
+  moveSpeed: 20
   costReducation: 0
-  harvestSpeed: 0
+  harvestSpeed: 1
   repairBonus: 0

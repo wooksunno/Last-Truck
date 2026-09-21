@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.TextCore.Text;
 
 namespace LastTruck
 {
@@ -13,10 +14,17 @@ namespace LastTruck
 
         Vector3 moveVec;
         Animator anim;
+        Character character;
 
         private void Start()
         {
             anim = GetComponentInChildren<Animator>();
+            character = GetComponent<Character>();
+
+            if (character != null && character.stats != null && character.stats.moveSpeed > 0)
+            {
+                speed = character.stats.moveSpeed;
+            }
 
             if (cameraTransform == null && Camera.main != null)
             {
