@@ -14,6 +14,8 @@ namespace CraftingSystem
         [SerializeField] private int amount = 1;
         [Tooltip("채집에 필요한 최소 도구 등급. 0 = 맨손 채집 가능. 1/2/3 키로 선택한 슬롯을 기준으로 판정한다.")]
         [SerializeField] private int requiredTier = 0;
+        [Tooltip("채집에 필요한 특정 장비 아이템 ID(예: 장갑). 비어있으면 무시된다. 1/2/3 키로 선택한 슬롯을 기준으로 판정한다.")]
+        [SerializeField] private string requiredItemId = "";
 
         [Tooltip("고갈까지 필요한 채집 횟수 범위(무작위). maxHits가 0이면 고갈되지 않는다.")]
         [SerializeField] private int minHits = 0;
@@ -27,8 +29,8 @@ namespace CraftingSystem
         private Renderer _cachedRenderer;
         private Collider _cachedCollider;
 
-        public void Configure(string name, ItemData itemData, int amt, int tier = 0,
-            int minHitsRange = 0, int maxHitsRange = 0, float minRegen = 0f, float maxRegen = 0f)
+public void Configure(string name, ItemData itemData, int amt, int tier = 0,
+            int minHitsRange = 0, int maxHitsRange = 0, float minRegen = 0f, float maxRegen = 0f, string requiredItem = "")
         {
             displayName = name;
             item = itemData;
@@ -38,6 +40,7 @@ namespace CraftingSystem
             maxHits = maxHitsRange;
             minRegenSeconds = minRegen;
             maxRegenSeconds = maxRegen;
+            requiredItemId = requiredItem;
 
             RollRemainingHits();
         }
@@ -88,13 +91,15 @@ public void Interact(GameObject player)
             if (inventory == null)
                 return;
 
-            if (requiredTier > 0)
+            if (requiredTier > 0 || !string.IsNullOrEmpty(requiredItemId))
             {
                 InventorySlot hand = inventory.SelectedSlot;
-                int heldTier = hand != null && !hand.IsEmpty && hand.item != null ? hand.item.toolTier : 0;
-                if (heldTier < requiredTier)
+                bool hasHandItem = hand != null && !hand.IsEmpty && hand.item != null;
+                bool tierOk = requiredTier <= 0 || (hasHandItem && hand.item.toolTier >= requiredTier);
+                bool itemOk = string.IsNullOrEmpty(requiredItemId) || (hasHandItem && hand.item.itemID == requiredItemId);
+                if (!tierOk || !itemOk)
                 {
-                    Debug.LogWarning($"[SpecialResourceNode] {displayName}: 1/2/3 키로 선택한 슬롯에 등급 {requiredTier} 이상의 도구를 들고 있어야 채집할 수 있습니다.");
+                    Debug.LogWarning($"[SpecialResourceNode] {displayName}: 1/2/3 키로 선택한 슬롯에 적합한 도구/장비를 들고 있어야 채집할 수 있습니다.");
                     return;
                 }
             }
