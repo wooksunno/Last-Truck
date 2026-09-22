@@ -11,12 +11,21 @@ using UnityEngine;
 /// - 몬스터는 한 번에 다 나오지 않고 minSpawnInterval~maxSpawnInterval 간격으로 하나씩 스폰됨.
 /// - 위치 탐색은 코루틴으로 매 프레임 한 번씩 시도하며, maxSearchAttempts 안에 유효한 위치를
 ///   못 찾으면 경고를 띄우고 해당 몬스터의 스폰을 건너뜀(엔진 멈춤 방지).
+///
+/// [GameManager 연동]
+/// - gameManager 필드가 연결되어 있으면, 밤이 시작될 때(OnNightStarted) 그 밤의 쿼터만큼 자동 스폰함.
+/// - 스폰된 각 몬스터에는 MonsterKillNotifier가 자동으로 부착되어, 몬스터가 파괴될 때
+///   GameManager에 킬을 자동으로 보고함 (몬스터 프리팹 자체는 수정할 필요 없음).
 /// </summary>
 public class MonsterSpawner : MonoBehaviour
 {
     [Header("참조")]
     [SerializeField] private Transform player;
     [SerializeField] private GameObject monsterPrefab;
+
+    [Header("게임 매니저 연동")]
+    [Tooltip("연결하면 밤이 시작될 때 그 밤의 쿼터만큼 자동으로 스폰합니다.")]
+    [SerializeField] private GameManager gameManager;
 
     [Header("스폰 거리 (플레이어 기준 원형 링)")]
     [Tooltip("이 거리보다 가깝게는 스폰되지 않음 (화면 밖 스폰을 위해 넉넉하게 설정)")]
@@ -44,7 +53,8 @@ public class MonsterSpawner : MonoBehaviour
     [SerializeField] private int gizmoCircleSegments = 64;
 
     [Header("테스트용 자동 스폰 (프로토타입)")]
-    [Tooltip("체크하면 게임 시작 시 자동으로 spawnCountOnStart 만큼 스폰함")]
+    [Tooltip("gameManager가 연결되어 있지 않을 때만 동작하는 테스트용 폴백입니다. " +
+             "gameManager가 연결되면 이 옵션 대신 밤 시작 이벤트로 스폰됩니다.")]
     [SerializeField] private bool spawnOnStart = true;
     [SerializeField] private int spawnCountOnStart = 5;
 
@@ -56,11 +66,52 @@ public class MonsterSpawner : MonoBehaviour
 
     private Coroutine spawnRoutine;
 
+    private void OnEnable()
+    {
+        if (gameManager != null)
+        {
+            gameManager.OnNightStarted += HandleNightStarted;
+            gameManager.OnNightEnded += HandleNightEnded;
+        }
+    }
+
+    private void OnDisable()
+    {
+        if (gameManager != null)
+        {
+            gameManager.OnNightStarted -= HandleNightStarted;
+            gameManager.OnNightEnded -= HandleNightEnded;
+        }
+    }
+
     private void Start()
     {
-        if (spawnOnStart)
+        // gameManager가 연결되어 있으면 밤 시작 이벤트가 스폰을 트리거하므로,
+        // 테스트용 자동 스폰(spawnOnStart)은 gameManager가 없을 때만 동작시킨다.
+        if (gameManager == null && spawnOnStart)
         {
             SpawnMonsters(spawnCountOnStart);
+        }
+    }
+
+    /// <summary>
+    /// GameManager의 밤 시작 이벤트 핸들러. 그 밤의 총 쿼터만큼 스폰을 시작한다.
+    /// </summary>
+    private void HandleNightStarted(int quota)
+    {
+        SpawnMonsters(quota);
+    }
+
+    /// <summary>
+    /// GameManager의 밤 종료 이벤트 핸들러. 혹시 아직 스폰이 진행 중이라면 중단한다
+    /// (쿼터를 다 채워서 밤이 끝났는데도 스폰 코루틴이 남아있는 경우 방지).
+    /// </summary>
+    private void HandleNightEnded()
+    {
+        if (spawnRoutine != null)
+        {
+            StopCoroutine(spawnRoutine);
+            spawnRoutine = null;
         }
     }
 
@@ -106,7 +157,8 @@ public class MonsterSpawner : MonoBehaviour
 
             if (monsterPrefab != null)
             {
-                Instantiate(monsterPrefab, spawnPos.Value, Quaternion.identity);
+                GameObject monster = Instantiate(monsterPrefab, spawnPos.Value, Quaternion.identity);
+                AttachKillNotifier(monster);
             }
 
             // 마지막 몬스터를 스폰한 뒤에는 굳이 대기하지 않음
@@ -118,6 +170,18 @@ public class MonsterSpawner : MonoBehaviour
         }
 
         spawnRoutine = null;
+    }
+
+    /// <summary>
+    /// 스폰된 몬스터에 킬카운트 알림 컴포넌트를 부착한다.
+    /// 몬스터 프리팹에 이미 붙어 있다면 중복 부착하지 않는다.
+    /// </summary>
+    private void AttachKillNotifier(GameObject monster)
+    {
+        if (monster.GetComponent<MonsterKillNotifier>() == null)
+        {
+            monster.AddComponent<MonsterKillNotifier>();
+        }
     }
 
     /// <summary>

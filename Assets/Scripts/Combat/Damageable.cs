@@ -5,7 +5,6 @@ namespace Combat
 {
     /// <summary>
     /// 피격 가능한 대상(허수아비 등). 데미지를 받으면 잠깐 빨갛게 변하고 데미지 숫자를 띄운다.
-    /// 체력이 0 이하로 떨어지면 다시 가득 채워 반복 연습이 가능하게 한다.
     /// </summary>
     public class Damageable : MonoBehaviour
     {
@@ -45,8 +44,9 @@ namespace Combat
 
             if (_currentHealth <= 0)
             {
-                Debug.Log($"[Damageable] {name} 체력 소진 - 초기화");
-                _currentHealth = maxHealth;
+                // Debug.Log($"[Damageable] {name} 체력 소진 - 초기화");
+                // _currentHealth = maxHealth;
+                Destroy(gameObject);
             }
         }
 
