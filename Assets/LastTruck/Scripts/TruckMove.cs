@@ -9,7 +9,8 @@ namespace LastTruck
         public enum Accelerator
         {
             Front,
-            Rear
+            Rear,
+            All
         }
 
         [Serializable]
@@ -21,22 +22,41 @@ namespace LastTruck
         }
 
         [Header("가속")]
-        public float maxAcceleration = 1500.0f;
-        public float brakeAcceleration = 5000.0f;
+        public float maxAcceleration = 2000.0f;
+        public float brakeAcceleration = 6000.0f;
+        public float decelerationForce = 150.0f; // 키 입력x => 감속
+        public Accelerator driveType = Accelerator.Rear;
 
         [Header("방향")]
-        public float turnSensitivility = 1.0f;
+        public float turnSensitivity = 1.0f;
         public float maxSteerAngle = 30.0f;
 
         [Header("물리")]
-        public Vector3 _centerOfMass;
+        public Vector3 _centerOfMass = new Vector3(0, -0.8f, 0);
+        public float downForce = 150.0f;
         public Rigidbody carRb;
 
         public List<Wheel> wheels;
-        public bool isDriving = false;
 
-        float moveInput;
-        float steerInput;
+        [SerializeField]
+        private bool _isDriving = false;
+
+        public bool isDriving
+        {
+            get => _isDriving;
+            set
+            {
+                _isDriving = value;
+                if (!_isDriving)
+                {
+                    Stop_Immediately();
+                }
+            }
+        }
+
+        private float moveInput;
+        private float steerInput;
+        private bool isBrakingInput;
 
         private void Start()
         {
@@ -66,57 +86,88 @@ namespace LastTruck
             Move();
             Steer();
             Brake();
+            Apply_downForce();
         }
 
         private void GetInputs()
         {
             moveInput = Input.GetAxis("Vertical");
             steerInput = Input.GetAxis("Horizontal");
+            isBrakingInput = Input.GetKey(KeyCode.Space);
         }
 
         private void Move()
         {
-            if (Input.GetKey(KeyCode.Space)) return;
+            if (isBrakingInput) return;
 
             foreach (var wheel in wheels)
             {
                 if (wheel.wheelCollider == null) continue;
-                wheel.wheelCollider.motorTorque = moveInput * maxAcceleration;
+
+                bool isDriveWheel = (driveType == Accelerator.All) || (driveType == wheel.accelerator);
+
+                if (isDriveWheel)
+                {
+                    if (Mathf.Abs(moveInput) > 0.05f)
+                    {
+                        wheel.wheelCollider.motorTorque = moveInput * maxAcceleration;
+                        wheel.wheelCollider.brakeTorque = 0f;
+                    }
+                    else
+                    {
+                        wheel.wheelCollider.motorTorque = 0f;
+                        wheel.wheelCollider.brakeTorque = decelerationForce;
+                    }
+                }
+                else
+                {
+                    wheel.wheelCollider.motorTorque = 0f;
+                    wheel.wheelCollider.brakeTorque = 0f;
+                }
             }
         }
 
         private void Steer()
         {
+            float targetSteerAngle = steerInput * maxSteerAngle;
+
             foreach (var wheel in wheels)
             {
                 if (wheel.wheelCollider == null) continue;
 
                 if (wheel.accelerator == Accelerator.Front)
                 {
-                    var _steerAngle = steerInput * turnSensitivility * maxSteerAngle;
-                    wheel.wheelCollider.steerAngle = Mathf.Lerp(wheel.wheelCollider.steerAngle, _steerAngle, 0.6f);
+                    wheel.wheelCollider.steerAngle = Mathf.MoveTowards(
+                        wheel.wheelCollider.steerAngle,
+                        targetSteerAngle,
+                        turnSensitivity * maxSteerAngle * Time.fixedDeltaTime * 4f
+                    );
                 }
             }
         }
 
         private void Brake()
         {
-            bool isBraking = Input.GetKey(KeyCode.Space);
-
             foreach (var wheel in wheels)
             {
                 if (wheel.wheelCollider == null) continue;
 
-                if (isBraking)
+                if (isBrakingInput)
                 {
                     wheel.wheelCollider.motorTorque = 0f;
                     wheel.wheelCollider.brakeTorque = brakeAcceleration;
                 }
-                else
+                else if (Mathf.Abs(moveInput) > 0.05f)
                 {
                     wheel.wheelCollider.brakeTorque = 0f;
                 }
             }
+        }
+
+        private void Apply_downForce()
+        {
+            if (carRb == null) return;
+            carRb.AddForce(-transform.up * downForce * carRb.linearVelocity.magnitude);
         }
 
         private void Ani_Wheels()
@@ -133,6 +184,27 @@ namespace LastTruck
             }
         }
 
+        public void Stop_Immediately()
+        {
+            moveInput = 0f;
+            steerInput = 0f;
+            isBrakingInput = false;
+
+            if (carRb != null)
+            {
+                carRb.linearVelocity = Vector3.zero;
+                carRb.angularVelocity = Vector3.zero;
+            }
+
+            foreach (var wheel in wheels)
+            {
+                if (wheel.wheelCollider == null) continue;
+
+                wheel.wheelCollider.motorTorque = 0f;
+                wheel.wheelCollider.brakeTorque = brakeAcceleration * 2f;
+            }
+        }
+
         private void Reset_Physics()
         {
             foreach (var wheel in wheels)
@@ -140,7 +212,13 @@ namespace LastTruck
                 if (wheel.wheelCollider == null) continue;
 
                 wheel.wheelCollider.motorTorque = 0f;
-                wheel.wheelCollider.brakeTorque = brakeAcceleration * 0.5f; // 주차용 브레이크
+                wheel.wheelCollider.brakeTorque = brakeAcceleration * 2f;
+            }
+
+            if (carRb != null)
+            {
+                carRb.linearVelocity = Vector3.zero;
+                carRb.angularVelocity = Vector3.zero;
             }
         }
     }

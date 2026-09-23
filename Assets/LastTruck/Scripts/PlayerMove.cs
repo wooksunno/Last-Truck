@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.TextCore.Text;
 
 namespace LastTruck
 {
@@ -7,6 +6,7 @@ namespace LastTruck
     {
         public float speed = 5f;
         public Transform cameraTransform;
+        public Rigidbody rigidbody;
 
         float hAxis;
         float vAxis;
@@ -21,9 +21,23 @@ namespace LastTruck
             anim = GetComponentInChildren<Animator>();
             character = GetComponent<Character>();
 
+            if (rigidbody == null)
+            {
+                rigidbody = GetComponent<Rigidbody>();
+            }
+
+            if (rigidbody != null)
+            {
+                // [���� ���� 1] ���� �����Ӱ� ������ ������ ����
+                rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
+
+                // [���� ���� 2] ĳ���Ͱ� ���� �浹�� �Ѿ����ų� �������� �� ����
+                rigidbody.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
+            }
+
             if (character != null && character.stats != null && character.stats.moveSpeed > 0)
             {
-                speed = character.stats.moveSpeed;
+                speed = character.stats.baseSpeed;
             }
 
             if (cameraTransform == null && Camera.main != null)
@@ -38,6 +52,18 @@ namespace LastTruck
             vAxis = Input.GetAxisRaw("Vertical");
             wDown = Input.GetButton("Walk");
 
+            if (anim != null)
+            {
+                bool isMoving = (hAxis != 0 || vAxis != 0);
+                anim.SetBool("isRun", isMoving);
+                anim.SetBool("isWalk", wDown);
+            }
+        }
+
+        private void FixedUpdate()
+        {
+            if (cameraTransform == null || rigidbody == null) return;
+
             Vector3 camForward = cameraTransform.forward;
             Vector3 camRight = cameraTransform.right;
 
@@ -47,17 +73,21 @@ namespace LastTruck
             camRight.Normalize();
 
             moveVec = (camForward * vAxis + camRight * hAxis).normalized;
-            transform.position += moveVec * speed * (wDown ? 0.3f : 1f) * Time.deltaTime;
 
-            if (anim != null)
-            {
-                anim.SetBool("isRun", moveVec != Vector3.zero);
-                anim.SetBool("isWalk", wDown);
-            }
+            float currentSpeed = speed * (wDown ? 0.3f : 1f);
 
+            // [���� ���� 3] MovePosition ��� velocity(�ӵ�)�� ���� ����!
+            // �̷��� �ϸ� Ʈ��ó�� ���� ������ ���� ������ �˾Ƽ� �ε巴�� ó���մϴ�.
+            Vector3 targetVelocity = moveVec * currentSpeed;
+            targetVelocity.y = rigidbody.linearVelocity.y; // �߷�(���� �ӵ�) ����
+
+            rigidbody.linearVelocity = targetVelocity;
+
+            // ȸ�� ó��
             if (moveVec != Vector3.zero)
             {
-                transform.LookAt(transform.position + moveVec);
+                Quaternion targetRotation = Quaternion.LookRotation(moveVec);
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.fixedDeltaTime * 20f);
             }
         }
     }

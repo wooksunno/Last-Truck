@@ -10,6 +10,7 @@ namespace LastTruck
         public float maxHealth;
         public float attackPower;
         public float moveSpeed;
+        public float baseSpeed => moveSpeed * 0.3f;
 
         // 유틸리티
         public float costReducation;    // 제작비용 감소
