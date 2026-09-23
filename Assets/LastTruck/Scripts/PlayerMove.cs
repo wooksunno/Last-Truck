@@ -28,10 +28,7 @@ namespace LastTruck
 
             if (rigidbody != null)
             {
-                // [���� ���� 1] ���� �����Ӱ� ������ ������ ����
                 rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
-
-                // [���� ���� 2] ĳ���Ͱ� ���� �浹�� �Ѿ����ų� �������� �� ����
                 rigidbody.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
             }
 
@@ -76,14 +73,11 @@ namespace LastTruck
 
             float currentSpeed = speed * (wDown ? 0.3f : 1f);
 
-            // [���� ���� 3] MovePosition ��� velocity(�ӵ�)�� ���� ����!
-            // �̷��� �ϸ� Ʈ��ó�� ���� ������ ���� ������ �˾Ƽ� �ε巴�� ó���մϴ�.
             Vector3 targetVelocity = moveVec * currentSpeed;
-            targetVelocity.y = rigidbody.linearVelocity.y; // �߷�(���� �ӵ�) ����
+            targetVelocity.y = rigidbody.linearVelocity.y;
 
             rigidbody.linearVelocity = targetVelocity;
 
-            // ȸ�� ó��
             if (moveVec != Vector3.zero)
             {
                 Quaternion targetRotation = Quaternion.LookRotation(moveVec);
