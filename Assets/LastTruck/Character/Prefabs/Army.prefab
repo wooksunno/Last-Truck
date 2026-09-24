@@ -193,6 +193,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMove
   speed: 3
   cameraTransform: {fileID: 0}
+  rigidbody: {fileID: 0}
 --- !u!114 &7067638488982292420
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -256,6 +257,15 @@ MonoBehaviour:
   hitMask:
     serializedVersion: 2
     m_Bits: 4294967295
+  bowPrefab: {fileID: 3418439209417848176, guid: c0ca5d627f7641d48b493f4be87d4c1f, type: 3}
+  arrowPrefab: {fileID: 1229728463944274662, guid: 36a61e1a922736e4c98bc61b3262c9b5, type: 3}
+  minArrowSpeed: 15
+  maxArrowSpeed: 35
+  maxDrawDistance: 0.25
+  carryTiltAngle: 50
+  aimArmExtension: 0.8
+  aimTorsoTwist: 60
+  aimBlendTime: 0.15
 --- !u!114 &4958026202253226086
 MonoBehaviour:
   m_ObjectHideFlags: 0
