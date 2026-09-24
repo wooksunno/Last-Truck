@@ -171,10 +171,15 @@ MonoBehaviour:
   amount: 10
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &13400523
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -305,10 +310,15 @@ MonoBehaviour:
   amount: 10
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &13483616
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -1407,10 +1417,15 @@ MonoBehaviour:
   amount: 3
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &261344902
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -1806,10 +1821,15 @@ MonoBehaviour:
   amount: 6
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &336141558
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -1940,10 +1960,15 @@ MonoBehaviour:
   amount: 3
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &353285804
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -2918,10 +2943,15 @@ MonoBehaviour:
   amount: 10
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &669799671
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -3614,10 +3644,15 @@ MonoBehaviour:
   amount: 6
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &783138706
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -3870,10 +3905,15 @@ MonoBehaviour:
   amount: 3
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &807261590
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -4126,10 +4166,15 @@ MonoBehaviour:
   amount: 10
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &850683048
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -5226,10 +5271,15 @@ MonoBehaviour:
   amount: 10
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &1102339311
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -5360,10 +5410,15 @@ MonoBehaviour:
   amount: 10
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &1104159580
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -5973,10 +6028,15 @@ MonoBehaviour:
   amount: 6
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &1159468347
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -6107,10 +6167,15 @@ MonoBehaviour:
   amount: 10
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &1188073782
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -6241,10 +6306,15 @@ MonoBehaviour:
   amount: 3
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &1217217079
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -6868,10 +6938,15 @@ MonoBehaviour:
   amount: 10
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &1286110153
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -7231,8 +7306,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6f736688ace78714c928b8dc8c9e1b9f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.MapGenerator
-  gridWidth: 48
-  gridHeight: 48
+  gridWidth: 200
+  gridHeight: 200
   tileSize: 4
   gridCenter: {x: 1.21, y: -0.81, z: -4.3}
   baseColor: {r: 0.2, g: 0.192, b: 0.192, a: 1}
@@ -7481,10 +7556,15 @@ MonoBehaviour:
   amount: 10
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &1348627906
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -8456,10 +8536,15 @@ MonoBehaviour:
   amount: 10
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &1478161365
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -8590,10 +8675,15 @@ MonoBehaviour:
   amount: 10
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &1503933835
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -8710,6 +8800,7 @@ MonoBehaviour:
   outputAmount: 1
   gatherSeconds: 0
   requiredTier: 0
+  gatherHoldSeconds: 0
 --- !u!65 &1512538682
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -8849,6 +8940,7 @@ MonoBehaviour:
   outputAmount: 1
   gatherSeconds: 0
   requiredTier: 1
+  gatherHoldSeconds: 0
 --- !u!65 &1517916083
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -9001,10 +9093,15 @@ MonoBehaviour:
   amount: 10
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &1528450657
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -9257,10 +9354,15 @@ MonoBehaviour:
   amount: 10
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &1535485410
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -9607,10 +9709,15 @@ MonoBehaviour:
   amount: 6
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &1707414081
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -9741,10 +9848,15 @@ MonoBehaviour:
   amount: 1
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &1731536195
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -10977,10 +11089,15 @@ MonoBehaviour:
   amount: 10
   requiredTier: 0
   requiredItemId: 
+  gatherHoldSeconds: 0
   minHits: 0
   maxHits: 0
   minRegenSeconds: 0
   maxRegenSeconds: 0
+  commonBonusItem: {fileID: 0}
+  commonBonusChance: 0
+  rareBonusItem: {fileID: 0}
+  rareBonusChance: 0
 --- !u!23 &2107836699
 MeshRenderer:
   m_ObjectHideFlags: 0

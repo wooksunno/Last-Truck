@@ -8,7 +8,7 @@ namespace CraftingSystem
     /// 1/2/3 키로 선택한 플레이어 인벤토리 슬롯(PlayerInventory.SelectedSlotIndex)을 "손"으로 취급한다.
     /// 손에 든 도구의 등급(toolTier)이 요구 등급 이상이어야 채집 가능(요구 등급 0 = 맨손 채집 허용).
     /// </summary>
-    public class ResourceNode : MonoBehaviour, LastTruck.IInteractable
+    public class ResourceNode : MonoBehaviour, LastTruck.IHoldInteractable
     {
         [SerializeField] private string displayName = "자원 채집";
         [SerializeField] private ItemData outputItem;
@@ -17,10 +17,13 @@ namespace CraftingSystem
         [SerializeField] private float gatherSeconds = 0f;
         [Tooltip("채집에 필요한 최소 도구 등급. 0 = 맨손 채집 가능.")]
         [SerializeField] private int requiredTier = 0;
+        [Tooltip("E키를 꾹 누르고 있어야 하는 시간(초). 0 이하면 즉시 채집.")]
+        [SerializeField] private float gatherHoldSeconds = 0f;
 
         private bool _isGathering;
 
         public string InteractLabel => displayName;
+        public float RequiredHoldSeconds => gatherHoldSeconds;
 
         public void Interact(GameObject player)
         {
@@ -29,13 +32,14 @@ namespace CraftingSystem
                 OnInteract(inventory);
         }
 
-        public void Configure(string name, ItemData item, int amount, float seconds, int tier)
+public void Configure(string name, ItemData item, int amount, float seconds, int tier, float holdSeconds = 0f)
         {
             displayName = name;
             outputItem = item;
             outputAmount = amount;
             gatherSeconds = seconds;
             requiredTier = tier;
+            gatherHoldSeconds = holdSeconds;
         }
 
         public void OnInteract(PlayerInventory player)

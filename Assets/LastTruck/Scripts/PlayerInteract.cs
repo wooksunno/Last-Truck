@@ -10,18 +10,54 @@ namespace LastTruck
         public KeyCode interactKey = KeyCode.E;
 
         private IInteractable currentInteractable;
+        private float _holdTimer;
 
-        private void Update()
+        public bool IsHolding { get; private set; }
+        public float HoldProgress01 { get; private set; }
+
+private void Update()
         {
             Detect_Interactable();
 
-            if (currentInteractable != null && Input.GetKeyDown(interactKey))
+            IHoldInteractable holdable = currentInteractable as IHoldInteractable;
+
+            if (holdable != null && holdable.RequiredHoldSeconds > 0f)
             {
-                currentInteractable.Interact(gameObject);
+                if (Input.GetKey(interactKey))
+                {
+                    _holdTimer += Time.deltaTime;
+                    IsHolding = true;
+                    HoldProgress01 = Mathf.Clamp01(_holdTimer / holdable.RequiredHoldSeconds);
+
+                    if (_holdTimer >= holdable.RequiredHoldSeconds)
+                    {
+                        currentInteractable.Interact(gameObject);
+                        _holdTimer = 0f;
+                        IsHolding = false;
+                        HoldProgress01 = 0f;
+                    }
+                }
+                else
+                {
+                    _holdTimer = 0f;
+                    IsHolding = false;
+                    HoldProgress01 = 0f;
+                }
+            }
+            else
+            {
+                _holdTimer = 0f;
+                IsHolding = false;
+                HoldProgress01 = 0f;
+
+                if (currentInteractable != null && Input.GetKeyDown(interactKey))
+                {
+                    currentInteractable.Interact(gameObject);
+                }
             }
         }
 
-        private void Detect_Interactable()
+private void Detect_Interactable()
         {
             Collider[] hitColliders = Physics.OverlapSphere(transform.position, interactRange, interactLayer);
 
@@ -39,6 +75,13 @@ namespace LastTruck
                         closestInteractable = interactable;
                     }
                 }
+            }
+
+            if (!ReferenceEquals(closestInteractable, currentInteractable))
+            {
+                _holdTimer = 0f;
+                IsHolding = false;
+                HoldProgress01 = 0f;
             }
 
             currentInteractable = closestInteractable;

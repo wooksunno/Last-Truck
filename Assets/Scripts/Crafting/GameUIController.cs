@@ -247,10 +247,14 @@ private int _withdrawMax;
             _withdrawItem = null;
         }
 
-        private void ShowPopup(string title, System.Action builder)
+private void ShowPopup(string title, System.Action builder)
         {
             _popupRoot.SetActive(true);
             _popupTitle.text = title;
+
+            RectTransform popupRect = _popupRoot.GetComponent<RectTransform>();
+            popupRect.sizeDelta = _truckCodexOpen ? new Vector2(1400f, 860f) : new Vector2(560f, 640f);
+
             ClearChildren(_popupBody);
             builder?.Invoke();
         }
@@ -1943,6 +1947,7 @@ private void CreateFacilityTab(RectTransform parent, FacilityType facility)
             bodyFit.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
 
             ScrollRect scroll = bodyGo.GetComponent<ScrollRect>();
+            scroll.viewport = bodyRect;
             scroll.content = _popupBody;
             scroll.horizontal = false;
             scroll.vertical = true;
