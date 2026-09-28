@@ -46,6 +46,12 @@ public void FillDefaultResources()
             AddItem(catalog.GetItem(ItemIds.CopperOre), 50);
             AddItem(catalog.GetItem(ItemIds.Iron), 20);
             AddItem(catalog.GetItem(ItemIds.Copper), 20);
+            AddItem(catalog.GetItem(ItemIds.Platinum), 10);
+            AddItem(catalog.GetItem(ItemIds.Diamond), 5);
+            AddItem(catalog.GetItem(ItemIds.PoisonHerb), 10);
+            AddItem(catalog.GetItem(ItemIds.WetHide), 20);
+            AddItem(catalog.GetItem(ItemIds.Herb), 20);
+            AddItem(catalog.GetItem(ItemIds.Oil), 20);
 
             // 테스트용: 무기 5종 + 곡괭이 3종. 무기/도구는 겹치지 않아 각각 한 칸씩 차지한다.
             AddItem(catalog.GetItem(ItemIds.Ak47), 1);

@@ -87,41 +87,9 @@ namespace Combat
 
         private void SpawnDamagePopup(Vector3 worldPos, int amount)
         {
-            var go = new GameObject("DamagePopup");
-            go.transform.position = worldPos + Vector3.up * 0.3f;
-
-            TextMesh tm = go.AddComponent<TextMesh>();
-            tm.text = amount.ToString();
-            tm.characterSize = 0.15f;
-            tm.fontSize = 64;
-            tm.color = Color.red;
-            tm.anchor = TextAnchor.MiddleCenter;
-            tm.alignment = TextAlignment.Center;
-
-            StartCoroutine(AnimatePopup(go, tm));
-        }
-
-        private static IEnumerator AnimatePopup(GameObject go, TextMesh tm)
-        {
-            const float duration = 0.8f;
-            float t = 0f;
-            Vector3 start = go.transform.position;
-            Camera cam = Camera.main;
-
-            while (t < duration)
-            {
-                t += Time.deltaTime;
-                go.transform.position = start + Vector3.up * (t / duration);
-                if (cam != null)
-                    go.transform.rotation = cam.transform.rotation;
-
-                Color c = tm.color;
-                c.a = 1f - (t / duration);
-                tm.color = c;
-                yield return null;
-            }
-
-            Object.Destroy(go);
+            // 팝업의 애니메이션/파괴는 DamagePopup이 스스로 처리한다.
+            // (여기서 코루틴을 돌리면 이 오브젝트가 파괴될 때 코루틴도 멈춰 숫자가 남는다)
+            DamagePopup.Spawn(worldPos, amount);
         }
     }
 }

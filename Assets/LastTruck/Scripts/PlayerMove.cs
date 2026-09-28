@@ -29,7 +29,9 @@ namespace LastTruck
             if (rigidbody != null)
             {
                 rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
-                rigidbody.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
+                // 회전은 전부 스크립트가 정한다. Y까지 고정하지 않으면 몬스터/트럭에 비스듬히 부딪힐 때
+                // 생긴 회전 속도가 계속 남아서, 키를 놓은 뒤에도 캐릭터가 제자리에서 빙글빙글 돈다.
+                rigidbody.constraints = RigidbodyConstraints.FreezeRotation;
             }
 
             if (character != null && character.stats != null && character.stats.moveSpeed > 0)
@@ -81,7 +83,7 @@ namespace LastTruck
             if (moveVec != Vector3.zero)
             {
                 Quaternion targetRotation = Quaternion.LookRotation(moveVec);
-                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.fixedDeltaTime * 20f);
+                rigidbody.MoveRotation(Quaternion.Slerp(rigidbody.rotation, targetRotation, Time.fixedDeltaTime * 20f));
             }
         }
     }

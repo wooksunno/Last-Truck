@@ -4,18 +4,20 @@ using UnityEngine;
 namespace CraftingSystem
 {
     /// <summary>
-    /// 맵의 특산물 구역 중앙에 배치되는 채집 오브젝트.
-    /// LastTruck.PlayerInteract(E키, OverlapSphere) 방식으로 상호작용한다.
+    /// 맵의 특산물 구역 안에 배치되는 채집 오브젝트.
+    /// LastTruck.PlayerInteract(E키 꾹 누르기, OverlapSphere) 방식으로 상호작용한다.
     /// </summary>
-    public class SpecialResourceNode : MonoBehaviour, LastTruck.IInteractable
+    public class SpecialResourceNode : MonoBehaviour, LastTruck.IHoldInteractable
     {
         [SerializeField] private string displayName = "특산물";
         [SerializeField] private ItemData item;
         [SerializeField] private int amount = 1;
         [Tooltip("채집에 필요한 최소 도구 등급. 0 = 맨손 채집 가능. 1/2/3 키로 선택한 슬롯을 기준으로 판정한다.")]
         [SerializeField] private int requiredTier = 0;
-        [Tooltip("채집에 필요한 특정 장비 아이템 ID(예: 장갑). 비어있으면 무시된다. 1/2/3 키로 선택한 슬롯을 기준으로 판정한다.")]
+        [Tooltip("채집에 필요한 특정 장비 아이템 ID(예: 장갑, 수동 펌프). 비어있으면 무시된다. 1/2/3 키로 선택한 슬롯을 기준으로 판정한다.")]
         [SerializeField] private string requiredItemId = "";
+        [Tooltip("E키를 꾹 누르고 있어야 하는 시간(초). 0 이하면 즉시 채집(기존 방식).")]
+        [SerializeField] private float gatherHoldSeconds = 0f;
 
         [Tooltip("고갈까지 필요한 채집 횟수 범위(무작위). maxHits가 0이면 고갈되지 않는다.")]
         [SerializeField] private int minHits = 0;
@@ -24,13 +26,25 @@ namespace CraftingSystem
         [SerializeField] private float minRegenSeconds = 0f;
         [SerializeField] private float maxRegenSeconds = 0f;
 
+        [Tooltip("채집 시 원래 자원 대신 일정 확률로 나오는 흔한 보너스 아이템(예: 철광맥의 돌). 없으면 무시.")]
+        [SerializeField] private ItemData commonBonusItem;
+        [SerializeField] private float commonBonusChance = 0f;
+        [Tooltip("채집 시 원래 자원 대신 낮은 확률로 나오는 희귀 보너스 아이템(예: 철광맥의 백금). 없으면 무시.")]
+        [SerializeField] private ItemData rareBonusItem;
+        [SerializeField] private float rareBonusChance = 0f;
+
         private int _remainingHits = -1;
         private bool _depleted;
         private Renderer _cachedRenderer;
         private Collider _cachedCollider;
 
-public void Configure(string name, ItemData itemData, int amt, int tier = 0,
-            int minHitsRange = 0, int maxHitsRange = 0, float minRegen = 0f, float maxRegen = 0f, string requiredItem = "")
+        public float RequiredHoldSeconds => gatherHoldSeconds;
+
+        public void Configure(string name, ItemData itemData, int amt, int tier = 0,
+            int minHitsRange = 0, int maxHitsRange = 0, float minRegen = 0f, float maxRegen = 0f,
+            string requiredItem = "", float holdSeconds = 0f,
+            ItemData commonBonus = null, float commonBonusProbability = 0f,
+            ItemData rareBonus = null, float rareBonusProbability = 0f)
         {
             displayName = name;
             item = itemData;
@@ -41,11 +55,16 @@ public void Configure(string name, ItemData itemData, int amt, int tier = 0,
             minRegenSeconds = minRegen;
             maxRegenSeconds = maxRegen;
             requiredItemId = requiredItem;
+            gatherHoldSeconds = holdSeconds;
+            commonBonusItem = commonBonus;
+            commonBonusChance = commonBonusProbability;
+            rareBonusItem = rareBonus;
+            rareBonusChance = rareBonusProbability;
 
             RollRemainingHits();
         }
 
-private void Awake()
+        private void Awake()
         {
             _cachedRenderer = GetComponent<Renderer>();
             _cachedCollider = GetComponent<Collider>();
@@ -75,8 +94,22 @@ private void Awake()
             if (_cachedCollider != null) _cachedCollider.enabled = true;
         }
 
+        /// <summary>
+        /// 광맥처럼 원래 자원 대신 다른 아이템이 나올 확률을 굴린다.
+        /// 희귀 보너스를 먼저 굴리고, 안 걸리면 흔한 보너스를 굴린다.
+        /// </summary>
+        private ItemData RollGatherItem()
+        {
+            if (rareBonusItem != null && Random.value < rareBonusChance)
+                return rareBonusItem;
 
-public void Interact(GameObject player)
+            if (commonBonusItem != null && Random.value < commonBonusChance)
+                return commonBonusItem;
+
+            return item;
+        }
+
+        public void Interact(GameObject player)
         {
             if (_depleted)
                 return;
@@ -104,13 +137,15 @@ public void Interact(GameObject player)
                 }
             }
 
-            if (!inventory.AddItem(item, amount))
+            ItemData gatherItem = RollGatherItem();
+
+            if (!inventory.AddItem(gatherItem, amount))
             {
-                Debug.LogWarning($"[SpecialResourceNode] 인벤토리 공간이 부족하여 {item.itemName}을(를) 획득하지 못했습니다.");
+                Debug.LogWarning($"[SpecialResourceNode] 인벤토리 공간이 부족하여 {gatherItem.itemName}을(를) 획득하지 못했습니다.");
                 return;
             }
 
-            Debug.Log($"[SpecialResourceNode] {displayName}에서 {item.itemName} x{amount} 획득.");
+            Debug.Log($"[SpecialResourceNode] {displayName}에서 {gatherItem.itemName} x{amount} 획득.");
 
             if (_remainingHits > 0)
             {

@@ -44,6 +44,8 @@ namespace CraftingSystem
             EnsureWeaponController(player);
             EnsureTrainingDummy(player.transform.position);
             EnsureUI(player);
+            EnsureGatherProgressUI(player);
+            EnsureMinimap(player, truck);
 
             Debug.Log("[CraftingSceneBootstrap] 씬 셋업 완료.");
         }
@@ -309,11 +311,11 @@ private static void EnsureFacility(
             // 도구 등급: 맨손 0 < 돌곡괭이 1 < 구리곡괭이 2 < 철제곡괭이 3
             EnsureResourceNode(
                 "Resource_Wood", "나무", ItemIds.Wood, 1, 0f, 0,
-                origin + new Vector3(-6f, 0f, -1.5f), 1.8f, TreeMeshPath, catalog);
+                origin + new Vector3(-6f, 0f, -1.5f), 1.8f, TreeMeshPath, catalog, 0.5f);
 
             EnsureResourceNode(
                 "Resource_Stone", "돌", ItemIds.Stone, 1, 0f, 1,
-                origin + new Vector3(-8f, 0f, 0.5f), 1.2f, RockMeshPath, catalog);
+                origin + new Vector3(-8f, 0f, 0.5f), 1.2f, RockMeshPath, catalog, 0.8f);
 
             // Copper/Iron은 맵 절차 생성(MapGenerator) 구역에서만 채집된다 — 트럭 근처 고정 데모 노드는 생성하지 않는다.
         }
@@ -328,7 +330,8 @@ private static void EnsureFacility(
             Vector3 position,
             float targetSize,
             string meshAssetPath,
-            ItemCatalog catalog)
+            ItemCatalog catalog,
+            float holdSeconds = 0f)
         {
             GameObject go = GameObject.Find(objectName);
             if (go == null)
@@ -362,7 +365,7 @@ private static void EnsureFacility(
                 node = go.AddComponent<ResourceNode>();
 
             ItemData outputItem = catalog.GetItem(outputItemId);
-            node.Configure(displayName, outputItem, amount, gatherSeconds, requiredTier);
+            node.Configure(displayName, outputItem, amount, gatherSeconds, requiredTier, holdSeconds);
         }
 
         private static void EnsureClickInteractor(PlayerInventory player)
@@ -385,6 +388,42 @@ private static void EnsureFacility(
 
             interactor.PlayerInventory = player;
         }
+
+private static void EnsureGatherProgressUI(PlayerInventory player)
+        {
+            if (player == null)
+                return;
+
+            LastTruck.PlayerInteract interact = player.GetComponent<LastTruck.PlayerInteract>();
+            if (interact == null)
+                return;
+
+            GatherProgressUI ui = FindFirstObjectByType<GatherProgressUI>();
+            if (ui == null)
+            {
+                var go = new GameObject("GatherProgressUI");
+                ui = go.AddComponent<GatherProgressUI>();
+            }
+
+            ui.Initialize(interact);
+        }
+
+private static void EnsureMinimap(PlayerInventory player, TruckStation truck)
+        {
+            if (player == null)
+                return;
+
+            MinimapUI ui = FindFirstObjectByType<MinimapUI>();
+            if (ui == null)
+            {
+                var go = new GameObject("MinimapUI");
+                ui = go.AddComponent<MinimapUI>();
+            }
+
+            ui.Initialize(player.transform, truck != null ? truck.transform : null);
+        }
+
+
 
         private static void EnsureUI(PlayerInventory player)
         {
