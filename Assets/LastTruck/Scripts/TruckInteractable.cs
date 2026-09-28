@@ -16,6 +16,8 @@ namespace LastTruck
         private GameObject driverPlayer;
         private float driveStartTime;
 
+        public TruckLight lightController;
+
         private void Start()
         {
             if (truckController != null)
@@ -76,6 +78,11 @@ namespace LastTruck
             {
                 virtualCam.Target.TrackingTarget = transform;
             }
+
+            if (lightController != null)
+            {
+                lightController.SetDrivingState(true);
+            }
         }
 
         private void GetOut_Truck()
@@ -114,6 +121,13 @@ namespace LastTruck
             if (virtualCam != null)
             {
                 virtualCam.Target.TrackingTarget = driverPlayer.transform;
+            }
+
+            driverPlayer = null;
+
+            if (lightController != null)
+            {
+                lightController.SetDrivingState(false);
             }
 
             driverPlayer = null;

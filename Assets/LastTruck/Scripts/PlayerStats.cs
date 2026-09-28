@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 namespace LastTruck
@@ -6,9 +7,11 @@ namespace LastTruck
     {
         public float currentHealth;
 
-        
         [SerializeField] private Character character;
         [SerializeField] private Animator anim;
+
+        public event Action<float, float> OnHealthChanged;
+        public float MaxHealth => (character != null && character.stats != null) ? character.stats.maxHealth : 100f;
 
         private void Start()
         {
@@ -19,6 +22,8 @@ namespace LastTruck
             {
                 currentHealth = character.stats.maxHealth;
             }
+
+            OnHealthChanged?.Invoke(currentHealth, MaxHealth);
         }
 
         public void TakeDamage(float damage, GameObject attacker)
@@ -30,8 +35,9 @@ namespace LastTruck
             }
 
             currentHealth -= damage;
-            float maxHP = (character != null && character.stats != null) ? character.stats.maxHealth : 100f;
-            currentHealth = Mathf.Clamp(currentHealth, 0f, maxHP);
+            currentHealth = Mathf.Clamp(currentHealth, 0f, MaxHealth);
+
+            OnHealthChanged?.Invoke(currentHealth, MaxHealth);
 
             Hit_Ani();
 
@@ -39,6 +45,12 @@ namespace LastTruck
             {
                 Die();
             }
+        }
+
+        public void Heal(float amount)
+        {
+            currentHealth = Mathf.Clamp(currentHealth + amount, 0f, MaxHealth);
+            OnHealthChanged?.Invoke(currentHealth, MaxHealth);
         }
 
         private void Hit_Ani()
@@ -56,5 +68,18 @@ namespace LastTruck
                 anim.SetTrigger("doDie");
             }
         }
+
+        // 체력바 확인용
+        #if UNITY_EDITOR
+        private void OnValidate()
+        {
+            if (Application.isPlaying)
+            {
+                float maxHP = MaxHealth;
+                currentHealth = Mathf.Clamp(currentHealth, 0f, maxHP);
+                OnHealthChanged?.Invoke(currentHealth, maxHP);
+            }
+        }
+        #endif
     }
 }
