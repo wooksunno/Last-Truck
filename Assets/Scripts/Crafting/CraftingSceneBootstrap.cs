@@ -46,6 +46,7 @@ namespace CraftingSystem
             EnsureUI(player);
             EnsureGatherProgressUI(player);
             EnsureMinimap(player, truck);
+            EnsurePouch(player);
 
             Debug.Log("[CraftingSceneBootstrap] 씬 셋업 완료.");
         }
@@ -422,6 +423,19 @@ private static void EnsureMinimap(PlayerInventory player, TruckStation truck)
 
             ui.Initialize(player.transform, truck != null ? truck.transform : null);
         }
+
+private static void EnsurePouch(PlayerInventory player)
+        {
+            if (player == null)
+                return;
+
+            if (player.GetComponent<PouchInventory>() == null)
+                player.gameObject.AddComponent<PouchInventory>();
+
+            if (player.GetComponent<PouchController>() == null)
+                player.gameObject.AddComponent<PouchController>();
+        }
+
 
 
 

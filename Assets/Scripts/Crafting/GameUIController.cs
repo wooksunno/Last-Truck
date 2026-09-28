@@ -33,6 +33,7 @@ namespace CraftingSystem
         private bool _craftingPanelOpen;
         private CraftingCategory _craftingCategory = CraftingCategory.Tools;
         private ItemData _withdrawItem;
+        private PouchInventory _activePouch;
         
 
         // 트럭 가공 탭 (실제 가공 시설과 동일한 UI/로직을 트럭 인벤토리 대상으로 재사용)
@@ -154,6 +155,22 @@ private int _withdrawMax;
             ShowPopup($"{facility.InteractLabel} 가공", BuildFacilityContent);
         }
 
+public void OpenPouchPanel(PouchInventory pouch, PlayerInventory player)
+        {
+            _activePouch = pouch;
+            _activeFacility = null;
+            _activeTruck = null;
+            _activePlayer = player;
+            _selectedRecipe = null;
+            _craftingPanelOpen = false;
+            _truckProcessingPanelOpen = false;
+            _truckCodexOpen = false;
+            _codexSelectedItem = null;
+            _withdrawItem = null;
+            ShowPopup("가죽 파우치", BuildPouchContent);
+        }
+
+
         public void OpenTruckPanel(TruckStation truck, PlayerInventory player)
         {
             _activeTruck = truck;
@@ -245,6 +262,7 @@ private int _withdrawMax;
             _craftingPanelOpen = false;
             _truckProcessingPanelOpen = false;
             _withdrawItem = null;
+            _activePouch = null;
         }
 
 private void ShowPopup(string title, System.Action builder)
@@ -292,10 +310,16 @@ private void ShowPopup(string title, System.Action builder)
                 InventorySlot captured = slot;
                 CreateInventorySlotView(_playerSlotRoot, slot.item, slot.count, 72f, () =>
                 {
-                    if (_activeTruck == null)
-                        return;
-                    TransferItem(playerInventory.Inventory, _activeTruck.TruckInventory.Inventory, captured.item, captured.count);
-                    ShowPopup("트럭 거점", BuildTruckContent);
+                    if (_activeTruck != null)
+                    {
+                        TransferItem(playerInventory.Inventory, _activeTruck.TruckInventory.Inventory, captured.item, captured.count);
+                        ShowPopup("트럭 거점", BuildTruckContent);
+                    }
+                    else if (_activePouch != null)
+                    {
+                        TransferItem(playerInventory.Inventory, _activePouch.Inventory, captured.item, captured.count);
+                        ShowPopup("가죽 파우치", BuildPouchContent);
+                    }
                 }, isSelected);
             }
         }
@@ -351,6 +375,98 @@ private void ShowPopup(string title, System.Action builder)
                 });
             }
         }
+
+private void BuildPouchContent()
+        {
+            if (_activePouch == null || _activePlayer == null)
+                return;
+
+            if (_popupScrollRect != null)
+                _popupScrollRect.vertical = true;
+
+            if (_withdrawItem != null)
+                CreatePouchWithdrawPrompt(_popupBody, _activePouch);
+
+            RectTransform pouchGrid = CreateScrollableGrid(_popupBody, "가죽 파우치", 6, 380f);
+            foreach (InventorySlot slot in _activePouch.Slots)
+            {
+                if (slot == null || slot.IsEmpty)
+                    continue;
+
+                InventorySlot captured = slot;
+                CreateInventorySlotView(pouchGrid, slot.item, slot.count, 64f, () =>
+                {
+                    _withdrawItem = captured.item;
+                    _withdrawMax = captured.count;
+                    ShowPopup("가죽 파우치", BuildPouchContent);
+                });
+            }
+        }
+
+private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouchInv)
+        {
+            ItemData item = _withdrawItem;
+            int max = pouchInv != null ? pouchInv.GetItemCount(item) : _withdrawMax;
+            if (item == null || max <= 0)
+            {
+                _withdrawItem = null;
+                return;
+            }
+
+            var container = new GameObject("PouchWithdrawPrompt", typeof(RectTransform), typeof(Image), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
+            container.transform.SetParent(parent, false);
+            container.GetComponent<RectTransform>().sizeDelta = new Vector2(0, 80);
+            container.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.06f);
+
+            HorizontalLayoutGroup h = container.GetComponent<HorizontalLayoutGroup>();
+            h.spacing = 12;
+            h.padding = new RectOffset(12, 12, 10, 10);
+            h.childAlignment = TextAnchor.MiddleLeft;
+            h.childControlWidth = false;
+            h.childControlHeight = false;
+
+            LayoutElement cle = container.GetComponent<LayoutElement>();
+            cle.preferredHeight = 80;
+            cle.minHeight = 80;
+
+            var iconGo = new GameObject("Icon", typeof(RectTransform), typeof(Image));
+            iconGo.transform.SetParent(container.transform, false);
+            iconGo.GetComponent<RectTransform>().sizeDelta = new Vector2(56f, 56f);
+            Image iconImg = iconGo.GetComponent<Image>();
+            iconImg.preserveAspect = true;
+            iconImg.sprite = item.icon;
+            iconImg.color = item.icon != null ? Color.white : new Color(0.7f, 0.7f, 0.75f);
+
+            var labelGo = new GameObject("Label", typeof(RectTransform), typeof(Text));
+            labelGo.transform.SetParent(container.transform, false);
+            labelGo.GetComponent<RectTransform>().sizeDelta = new Vector2(150f, 56f);
+            Text labelText = labelGo.GetComponent<Text>();
+            labelText.font = uiFont;
+            labelText.fontSize = 13;
+            labelText.color = Color.white;
+            labelText.alignment = TextAnchor.MiddleLeft;
+            labelText.text = $"{item.itemName}\n보유 {max}개";
+
+            InputField field = CreateNumberInputField(container.GetComponent<RectTransform>(), Mathf.Clamp(_withdrawMax, 1, max), max);
+
+            CreateSmallActionButton(container.GetComponent<RectTransform>(), "확인", new Color(0.3f, 0.55f, 0.35f), () =>
+            {
+                if (!int.TryParse(field.text, out int amount))
+                    amount = 1;
+                amount = Mathf.Clamp(amount, 1, max);
+                TransferItem(pouchInv.Inventory, _activePlayer.Inventory, item, amount);
+                _withdrawItem = null;
+                ShowPopup("가죽 파우치", BuildPouchContent);
+            });
+
+            CreateSmallActionButton(container.GetComponent<RectTransform>(), "취소", new Color(0.35f, 0.3f, 0.3f), () =>
+            {
+                _withdrawItem = null;
+                ShowPopup("가죽 파우치", BuildPouchContent);
+            });
+        }
+
+
 
         private void CreateFurnacePanel(RectTransform parent, FacilityJob activeJob)
         {
