@@ -43,6 +43,7 @@ namespace CraftingSystem
         public const string StimulantPowder = "stimulant_powder"; // 자극 농축 분말
         public const string NeurotoxinExtract = "neurotoxin_extract"; // 신경 독소 원액
         public const string LurePheromone = "lure_pheromone"; // 독성 유인 페로몬
+        public const string Steak = "steak"; // 스테이크
         public const string GrilledFood = "grilled_food"; // 생선구이/구운 고기
         public const string Jerky = "jerky"; // 전투용 육포
         public const string TannedLeather = "tanned_leather"; // 경화 가공 가죽

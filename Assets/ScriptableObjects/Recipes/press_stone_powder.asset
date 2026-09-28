@@ -21,4 +21,4 @@ MonoBehaviour:
   output:
     item: {fileID: 11400000, guid: 67efd874b73fea246aa38edea89b9f32, type: 2}
     count: 1
-  processingSeconds: 2
+  processingSeconds: 60

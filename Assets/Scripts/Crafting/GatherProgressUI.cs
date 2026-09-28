@@ -10,14 +10,16 @@ namespace CraftingSystem
     public class GatherProgressUI : MonoBehaviour
     {
         private LastTruck.PlayerInteract _playerInteract;
+        private EatController _eat;
         private Image _fillImage;
         private GameObject _root;
 
         private static Sprite _cachedCircleSprite;
 
-        public void Initialize(LastTruck.PlayerInteract playerInteract)
+public void Initialize(LastTruck.PlayerInteract playerInteract, EatController eat = null)
         {
             _playerInteract = playerInteract;
+            _eat = eat;
             if (_root == null)
                 BuildUI();
         }
@@ -70,17 +72,20 @@ namespace CraftingSystem
             _root.SetActive(false);
         }
 
-        private void Update()
+private void Update()
         {
-            if (_playerInteract == null || _root == null)
+            if (_root == null)
                 return;
 
-            bool holding = _playerInteract.IsHolding;
+            bool gathering = _playerInteract != null && _playerInteract.IsHolding;
+            bool eating = _eat != null && _eat.IsHolding;
+            bool holding = gathering || eating;
+
             if (_root.activeSelf != holding)
                 _root.SetActive(holding);
 
             if (holding)
-                _fillImage.fillAmount = _playerInteract.HoldProgress01;
+                _fillImage.fillAmount = gathering ? _playerInteract.HoldProgress01 : _eat.HoldProgress01;
         }
 
         private static Sprite GetCircleSprite()

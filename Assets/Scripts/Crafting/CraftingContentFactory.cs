@@ -18,7 +18,7 @@ namespace CraftingSystem
             ItemIds.Wood, ItemIds.Stone, ItemIds.CopperOre, ItemIds.IronOre, ItemIds.PlatinumOre,
             ItemIds.Herb, ItemIds.PoisonHerb, ItemIds.Fish, ItemIds.Charcoal, ItemIds.ReinforcedWoodPanel,
             ItemIds.WetHide, ItemIds.WoodHandle, ItemIds.Copper, ItemIds.Iron, ItemIds.MechanicalTrigger,
-            ItemIds.SuperconductorCatalyst, ItemIds.EternalEnergyCore, ItemIds.MedicalExtract, ItemIds.Meat,
+            ItemIds.SuperconductorCatalyst, ItemIds.EternalEnergyCore, ItemIds.MedicalExtract, ItemIds.Meat, ItemIds.Steak,
             ItemIds.TannedLeather, ItemIds.ArmorPlate, ItemIds.HighVoltageCable, ItemIds.PurePlatinum,
             ItemIds.PrecisionBarrel, ItemIds.TruckCompositeArmor, ItemIds.PlatinumGear, ItemIds.DiamondCuttingTip,
             ItemIds.Oil, ItemIds.CopperBlade, ItemIds.NapalmGel, ItemIds.PropellantPowder, ItemIds.StimulantPowder,
@@ -87,6 +87,7 @@ namespace CraftingSystem
                 Make(ItemIds.NeurotoxinExtract, "신경 독소 원액", ItemType.Intermediate, 50, sprites),
                 Make(ItemIds.LurePheromone, "독성 유인 페로몬", ItemType.Intermediate, 50, sprites),
                 Make(ItemIds.GrilledFood, "생선구이", ItemType.Finished, 20, sprites),
+                Make(ItemIds.Steak, "스테이크", ItemType.Finished, 20, sprites),
                 Make(ItemIds.Jerky, "전투용 육포", ItemType.Finished, 20, sprites),
                 Make(ItemIds.TannedLeather, "경화 가공 가죽", ItemType.Intermediate, 50, sprites),
 
@@ -173,6 +174,7 @@ namespace CraftingSystem
             Add("bonfire_pure_iron", "순수 철 제련", FacilityType.Campfire, new[] { (ItemIds.IronOre, 1) }, ItemIds.Iron, 1);
             Add("bonfire_pure_copper", "순수 구리 제련", FacilityType.Campfire, new[] { (ItemIds.CopperOre, 1) }, ItemIds.Copper, 1);
             Add("bonfire_grilled_food", "생선구이", FacilityType.Campfire, new[] { (ItemIds.Fish, 1) }, ItemIds.GrilledFood, 1);
+            Add("bonfire_steak", "스테이크", FacilityType.Campfire, new[] { (ItemIds.Meat, 1) }, ItemIds.Steak, 1);
 
             // ── 초고온 용광로 ───────────────────────────────────
             Add("furnace_pure_platinum", "순수 백금 제련", FacilityType.SuperheatedFurnace, new[] { (ItemIds.PlatinumOre, 1) }, ItemIds.PurePlatinum, 1);
@@ -329,6 +331,8 @@ namespace CraftingSystem
             }
 
             recipe.output = new RecipeIngredient(output, outputCount);
+            if (facility != FacilityType.None)
+                recipe.processingSeconds = 60f;
             return recipe;
         }
 

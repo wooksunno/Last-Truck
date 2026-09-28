@@ -41,6 +41,7 @@ namespace CraftingSystem
         private FacilityType _truckProcessingFacility = FacilityType.Campfire;
         private FacilityJob _truckJob;
         private Text _truckCountdownText;
+        private string _truckProcessMessage;
 
         private static readonly FacilityType[] TruckProcessingFacilities =
         {
@@ -82,6 +83,7 @@ private int _withdrawMax;
         {
             public RecipeData recipe;
             public float remaining;
+            public bool done;
         }
 
         private readonly Dictionary<ProcessingFacility, FacilityJob> _facilityJobs = new Dictionary<ProcessingFacility, FacilityJob>();
@@ -505,7 +507,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 outputItem != null ? $"x{outputCount}" : "-");
         }
 
-        private void CreateFurnaceSlot(RectTransform parent, Vector2 anchor, Vector2 anchoredPos, ItemData item, string subText)
+        private GameObject CreateFurnaceSlot(RectTransform parent, Vector2 anchor, Vector2 anchoredPos, ItemData item, string subText)
         {
             var go = new GameObject("FurnaceSlot", typeof(RectTransform), typeof(Image));
             go.transform.SetParent(parent, false);
@@ -546,6 +548,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             text.alignment = TextAnchor.MiddleCenter;
             text.color = Color.white;
             text.text = subText ?? "";
+            return go;
         }
 
         private void CreateFurnaceMiddle(RectTransform parent, RecipeData recipe, bool canProcess, bool isProcessing, FacilityJob activeJob)
@@ -967,7 +970,7 @@ private void CreateFacilityTab(RectTransform parent, FacilityType facility)
             });
         }
 
-        private void BuildTruckProcessingPanel()
+private void BuildTruckProcessingPanel()
         {
             if (_popupScrollRect != null)
                 _popupScrollRect.vertical = true;
@@ -979,6 +982,7 @@ private void CreateFacilityTab(RectTransform parent, FacilityType facility)
             {
                 _truckProcessingPanelOpen = false;
                 _selectedRecipe = null;
+                _truckProcessMessage = null;
                 ShowPopup("트럭 거점", BuildTruckContent);
             });
 
@@ -987,25 +991,24 @@ private void CreateFacilityTab(RectTransform parent, FacilityType facility)
             for (int i = 0; i < TruckProcessingFacilities.Length; i++)
                 CreateFacilityTab(i < 4 ? tabRow : tabRow2, TruckProcessingFacilities[i]);
 
-            bool isProcessing = _truckJob != null;
-            if (!isProcessing && _selectedRecipe != null && _selectedRecipe.requiredFacility != _truckProcessingFacility)
-                _selectedRecipe = null;
+            bool hasJob = _truckJob != null;
 
             CreateTruckFurnacePanel(_popupBody, _truckJob);
 
+            if (!string.IsNullOrEmpty(_truckProcessMessage))
+                CreateLabel(_popupBody, _truckProcessMessage, 13, FontStyle.Bold);
+
             ItemCatalog catalog = ItemCatalog.GetOrCreate();
             List<RecipeData> facilityRecipes = catalog.GetRecipesForFacility(_truckProcessingFacility);
-
-            // 데모 버전: 실제 시설 선학 없이 해당 설비의 모든 레시피를 트럭에서 바로 가공할 수 있게 한다.
             var unlocked = new List<RecipeData>(facilityRecipes);
 
             if (unlocked.Count == 0)
             {
-                CreateLabel(_popupBody, $"{FacilityDisplayName(_truckProcessingFacility)}에서 아직 배운 가공법이 없습니다. 실제 시설에서 한 번 먼저 가공해보세요.", 14, FontStyle.Normal);
+                CreateLabel(_popupBody, $"{FacilityDisplayName(_truckProcessingFacility)}에서 가공할 수 있는 레시피가 없습니다.", 14, FontStyle.Normal);
                 return;
             }
 
-            CreateLabel(_popupBody, "가공할 재료를 선택하세요", 16, FontStyle.Bold);
+            CreateLabel(_popupBody, hasJob ? "가공이 끝나면 오른쪽 아이템을 눌러 받으세요" : "재료를 누르면 재료창에 올라가 자동으로 가공됩니다", 16, FontStyle.Bold);
             RectTransform grid = CreateScrollableGrid(_popupBody, "재료 선택", 4, 200f);
             foreach (RecipeData recipe in unlocked)
             {
@@ -1014,19 +1017,17 @@ private void CreateFacilityTab(RectTransform parent, FacilityType facility)
                     continue;
 
                 bool canCraft = truckInv != null && truckInv.HasIngredients(recipe);
-                bool isSelected = !isProcessing && _selectedRecipe == recipe;
                 RecipeData captured = recipe;
-                CreateRecipeSelectIcon(grid, recipe, canCraft, isSelected, () =>
+                CreateRecipeSelectIcon(grid, recipe, canCraft, false, () =>
                 {
-                    if (isProcessing)
+                    if (_truckJob != null)
                         return;
-                    _selectedRecipe = captured;
-                    ShowPopup("트럭 거점", BuildTruckContent);
+                    StartTruckProcessing(captured);
                 });
             }
         }
 
-        private void CreateTruckFurnacePanel(RectTransform parent, FacilityJob activeJob)
+private void CreateTruckFurnacePanel(RectTransform parent, FacilityJob activeJob)
         {
             var container = new GameObject("TruckFurnacePanel", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
             container.transform.SetParent(parent, false);
@@ -1038,8 +1039,10 @@ private void CreateFacilityTab(RectTransform parent, FacilityType facility)
 
             RectTransform containerRt = container.GetComponent<RectTransform>();
 
-            bool isProcessing = activeJob != null;
-            RecipeData recipe = isProcessing ? activeJob.recipe : _selectedRecipe;
+            bool hasJob = activeJob != null;
+            bool done = hasJob && activeJob.done;
+            RecipeData recipe = hasJob ? activeJob.recipe : null;
+
             ItemData inputItem = null;
             int needCount = 0;
             if (recipe != null && recipe.inputs != null && recipe.inputs.Count > 0 && recipe.inputs[0] != null)
@@ -1051,21 +1054,34 @@ private void CreateFacilityTab(RectTransform parent, FacilityType facility)
             ItemData outputItem = recipe != null && recipe.output != null ? recipe.output.item : null;
             int outputCount = recipe != null && recipe.output != null ? recipe.output.count : 0;
 
-            TruckInventory truckInv = _activeTruck != null ? _activeTruck.TruckInventory : null;
-            int haveCount = (truckInv != null && inputItem != null) ? truckInv.GetItemCount(inputItem) : 0;
-            bool canProcess = recipe != null && !isProcessing && truckInv != null && truckInv.HasIngredients(recipe);
-
             CreateFurnaceSlot(containerRt, new Vector2(0f, 0.5f), new Vector2(90f, 0f), inputItem,
-                inputItem != null ? $"{haveCount}/{needCount}" : "재료 선택");
+                inputItem != null ? $"x{needCount}" : "재료 선택");
 
-            CreateTruckFurnaceMiddle(containerRt, recipe, canProcess, isProcessing, activeJob);
+            CreateTruckFurnaceMiddle(containerRt, activeJob);
 
-            CreateFurnaceSlot(containerRt, new Vector2(1f, 0.5f), new Vector2(-90f, 0f), outputItem,
-                outputItem != null ? $"x{outputCount}" : "-");
+            string outText = !hasJob ? "-" : (done ? $"클릭! x{outputCount}" : "가공 중");
+            GameObject outSlot = CreateFurnaceSlot(containerRt, new Vector2(1f, 0.5f), new Vector2(-90f, 0f), outputItem, outText);
+
+            if (hasJob && !done)
+            {
+                Image dim = outSlot.transform.Find("Icon").GetComponent<Image>();
+                dim.color = new Color(dim.color.r, dim.color.g, dim.color.b, 0.35f);
+            }
+            else if (done)
+            {
+                Image slotImg = outSlot.GetComponent<Image>();
+                slotImg.color = new Color(0.2f, 0.42f, 0.26f, 0.95f);
+                Button claimBtn = outSlot.AddComponent<Button>();
+                claimBtn.targetGraphic = slotImg;
+                claimBtn.onClick.AddListener(ClaimTruckOutput);
+            }
         }
 
-        private void CreateTruckFurnaceMiddle(RectTransform parent, RecipeData recipe, bool canProcess, bool isProcessing, FacilityJob activeJob)
+private void CreateTruckFurnaceMiddle(RectTransform parent, FacilityJob activeJob)
         {
+            bool hasJob = activeJob != null;
+            bool done = hasJob && activeJob.done;
+
             var go = new GameObject("TruckFurnaceMiddle", typeof(RectTransform));
             go.transform.SetParent(parent, false);
             RectTransform rt = go.GetComponent<RectTransform>();
@@ -1090,94 +1106,128 @@ private void CreateFacilityTab(RectTransform parent, FacilityType facility)
             arrowText.color = new Color(0.6f, 0.6f, 0.65f);
             arrowText.text = "→";
 
-            var buttonGo = new GameObject("ProcessButton", typeof(RectTransform), typeof(Image), typeof(Button));
-            buttonGo.transform.SetParent(go.transform, false);
-            RectTransform buttonRt = buttonGo.GetComponent<RectTransform>();
-            buttonRt.anchorMin = new Vector2(0.5f, 0.5f);
-            buttonRt.anchorMax = new Vector2(0.5f, 0.5f);
-            buttonRt.pivot = new Vector2(0.5f, 0.5f);
-            buttonRt.anchoredPosition = new Vector2(0, -8);
-            buttonRt.sizeDelta = new Vector2(126f, 44f);
-            Image btnImg = buttonGo.GetComponent<Image>();
-            btnImg.color = canProcess ? new Color(0.3f, 0.55f, 0.35f) : new Color(0.25f, 0.25f, 0.28f);
-            Button btn = buttonGo.GetComponent<Button>();
-            btn.targetGraphic = btnImg;
-            btn.interactable = canProcess;
-            RecipeData captured = recipe;
-            btn.onClick.AddListener(() => StartTruckProcessing(captured));
+            var timerGo = new GameObject("TimerText", typeof(RectTransform), typeof(Text));
+            timerGo.transform.SetParent(go.transform, false);
+            RectTransform timerRt = timerGo.GetComponent<RectTransform>();
+            timerRt.anchorMin = new Vector2(0.5f, 0.5f);
+            timerRt.anchorMax = new Vector2(0.5f, 0.5f);
+            timerRt.pivot = new Vector2(0.5f, 0.5f);
+            timerRt.anchoredPosition = new Vector2(0, -8);
+            timerRt.sizeDelta = new Vector2(126f, 44f);
+            Text timerText = timerGo.GetComponent<Text>();
+            timerText.font = uiFont;
+            timerText.fontSize = 28;
+            timerText.fontStyle = FontStyle.Bold;
+            timerText.alignment = TextAnchor.MiddleCenter;
+            timerText.raycastTarget = false;
+            if (done)
+            {
+                timerText.text = "완료";
+                timerText.color = new Color(0.5f, 0.95f, 0.55f);
+            }
+            else if (hasJob)
+            {
+                timerText.text = FormatClock(activeJob.remaining);
+                timerText.color = new Color(1f, 0.85f, 0.4f);
+            }
+            else
+            {
+                timerText.text = FormatClock(TruckProcessSeconds);
+                timerText.color = new Color(0.55f, 0.55f, 0.6f);
+            }
 
-            CreateText(buttonGo.transform, "Label", isProcessing ? "가공 중" : "가공하기", 14, TextAnchor.MiddleCenter,
-                Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
-            Text label = buttonGo.GetComponentInChildren<Text>();
-            label.rectTransform.offsetMin = Vector2.zero;
-            label.rectTransform.offsetMax = Vector2.zero;
-            label.color = canProcess ? Color.white : new Color(0.6f, 0.6f, 0.6f);
-            label.raycastTarget = false;
+            var hintGo = new GameObject("Hint", typeof(RectTransform), typeof(Text));
+            hintGo.transform.SetParent(go.transform, false);
+            RectTransform hintRt = hintGo.GetComponent<RectTransform>();
+            hintRt.anchorMin = new Vector2(0, 0);
+            hintRt.anchorMax = new Vector2(1, 0);
+            hintRt.pivot = new Vector2(0.5f, 0f);
+            hintRt.anchoredPosition = new Vector2(0, 4);
+            hintRt.sizeDelta = new Vector2(0, 20);
+            Text hintText = hintGo.GetComponent<Text>();
+            hintText.font = uiFont;
+            hintText.fontSize = 12;
+            hintText.alignment = TextAnchor.MiddleCenter;
+            hintText.color = new Color(0.75f, 0.75f, 0.8f);
+            hintText.text = done ? "오른쪽을 눌러 받기" : (hasJob ? "가공 중..." : "재료를 고르면 시작");
 
-            var countdownGo = new GameObject("Countdown", typeof(RectTransform), typeof(Text));
-            countdownGo.transform.SetParent(go.transform, false);
-            RectTransform countdownRt = countdownGo.GetComponent<RectTransform>();
-            countdownRt.anchorMin = new Vector2(0, 0);
-            countdownRt.anchorMax = new Vector2(1, 0);
-            countdownRt.pivot = new Vector2(0.5f, 0f);
-            countdownRt.anchoredPosition = new Vector2(0, 4);
-            countdownRt.sizeDelta = new Vector2(0, 20);
-            Text countdownText = countdownGo.GetComponent<Text>();
-            countdownText.font = uiFont;
-            countdownText.fontSize = 12;
-            countdownText.alignment = TextAnchor.MiddleCenter;
-            countdownText.color = new Color(1f, 0.85f, 0.4f);
-            countdownText.text = isProcessing && activeJob != null ? $"{Mathf.Max(0f, activeJob.remaining):0.0}초 남음" : "";
-            _truckCountdownText = isProcessing ? countdownText : null;
+            _truckCountdownText = hasJob && !done ? timerText : null;
         }
 
-        private void StartTruckProcessing(RecipeData recipe)
+private void StartTruckProcessing(RecipeData recipe)
         {
             TruckStation truck = _activeTruck;
             if (recipe == null || truck == null || _truckJob != null)
                 return;
 
             TruckInventory truckInv = truck.TruckInventory;
-            TruckCraftingManager craft = truck.CraftingManager;
-            if (truckInv == null || craft == null || !truckInv.HasIngredients(recipe))
+            if (truckInv == null || !truckInv.HasIngredients(recipe))
             {
+                _truckProcessMessage = "재료가 부족합니다.";
                 Debug.LogWarning("재료가 부족합니다.");
-                return;
-            }
-
-            if (recipe.processingSeconds <= 0f)
-            {
-                bool ok = craft.TryCraft(recipe);
-                if (!ok)
-                    Debug.LogWarning("재료가 부족합니다.");
                 ShowPopup("트럭 거점", BuildTruckContent);
                 return;
             }
 
-            _truckJob = new FacilityJob { recipe = recipe, remaining = recipe.processingSeconds };
+            foreach (RecipeIngredient ingredient in recipe.inputs)
+            {
+                if (ingredient != null && ingredient.item != null)
+                    truckInv.RemoveItem(ingredient.item, ingredient.count);
+            }
+
+            _truckProcessMessage = null;
+            _truckJob = new FacilityJob { recipe = recipe, remaining = Mathf.Max(0f, recipe.processingSeconds) };
             ShowPopup("트럭 거점", BuildTruckContent);
-            StartCoroutine(TruckProcessRoutine(truck, craft, recipe, _truckJob));
+            StartCoroutine(TruckProcessRoutine(truck, _truckJob));
         }
 
-        private IEnumerator TruckProcessRoutine(TruckStation truck, TruckCraftingManager craft, RecipeData recipe, FacilityJob job)
+private IEnumerator TruckProcessRoutine(TruckStation truck, FacilityJob job)
         {
             while (job.remaining > 0f)
             {
                 yield return null;
                 job.remaining -= Time.deltaTime;
-                if (_activeTruck == truck && IsPopupOpen && _truckCountdownText != null)
-                    _truckCountdownText.text = $"{Mathf.Max(0f, job.remaining):0.0}초 남음";
+                if (_truckJob == job && _truckCountdownText != null && IsPopupOpen)
+                    _truckCountdownText.text = FormatClock(job.remaining);
             }
 
-            bool ok = craft.TryCraft(recipe);
-            _truckJob = null;
-
-            if (!ok)
-                Debug.LogWarning("재료가 부족합니다.");
+            job.remaining = 0f;
+            job.done = true;
 
             if (_activeTruck == truck && IsPopupOpen)
                 ShowPopup("트럭 거점", BuildTruckContent);
         }
+
+private void ClaimTruckOutput()
+        {
+            FacilityJob job = _truckJob;
+            if (job == null || !job.done)
+                return;
+
+            PlayerInventory player = _activePlayer != null ? _activePlayer : playerInventory;
+            RecipeIngredient output = job.recipe != null ? job.recipe.output : null;
+
+            if (player != null && output != null && output.item != null && !player.AddItem(output.item, output.count))
+            {
+                _truckProcessMessage = "인벤토리가 가득 찼습니다. 아래 내 인벤토리 칸을 눌러 트럭에 넣어 자리를 만드세요.";
+                Debug.LogWarning("인벤토리 공간이 부족하여 가공 결과물을 받을 수 없습니다.");
+                ShowPopup("트럭 거점", BuildTruckContent);
+                return;
+            }
+
+            _truckProcessMessage = null;
+            _truckJob = null;
+            ShowPopup("트럭 거점", BuildTruckContent);
+        }
+
+        private const float TruckProcessSeconds = 60f;
+
+        private static string FormatClock(float seconds)
+        {
+            int total = Mathf.CeilToInt(Mathf.Max(0f, seconds));
+            return $"{total / 60}:{total % 60:00}";
+        }
+
 
 
         private static bool MatchesCraftingCategory(ItemData item, CraftingCategory category)
