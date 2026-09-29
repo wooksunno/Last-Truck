@@ -1,9 +1,9 @@
-﻿using Unity.Cinemachine;
+using Unity.Cinemachine;
 using UnityEngine;
 
 namespace LastTruck
 {
-    public class TruckInteractable : MonoBehaviour, IInteractable
+    public class TruckInteractable : MonoBehaviour, IHoldInteractable
     {
         public TruckMove truckController;
         public Transform seatPoint;
@@ -15,6 +15,17 @@ namespace LastTruck
         private bool isDriving = false;
         private GameObject driverPlayer;
         private float driveStartTime;
+        private CraftingSystem.TruckRepair _repair;
+
+        // 수리 아이템을 들고 있고 트럭이 손상된 경우에만 E키를 꾹 눌러야 한다(그 외엔 즉시 탑승).
+        public float RequiredHoldSeconds
+        {
+            get
+            {
+                if (_repair == null) _repair = GetComponent<CraftingSystem.TruckRepair>();
+                return _repair != null ? _repair.CurrentRepairHoldSeconds : 0f;
+            }
+        }
 
         public TruckLight lightController;
 
@@ -38,8 +49,12 @@ namespace LastTruck
             }
         }
 
-        public void Interact(GameObject player)
+public void Interact(GameObject player)
         {
+            if (_repair == null) _repair = GetComponent<CraftingSystem.TruckRepair>();
+            if (_repair != null && _repair.TryRepair(player))
+                return;
+
             if (!isDriving)
             {
                 GetIn_Truck(player);

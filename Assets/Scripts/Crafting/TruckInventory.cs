@@ -53,6 +53,9 @@ public void FillDefaultResources()
             AddItem(catalog.GetItem(ItemIds.Herb), 20);
             AddItem(catalog.GetItem(ItemIds.Oil), 20);
             AddItem(catalog.GetItem(ItemIds.Meat), 20);
+            AddItem(catalog.GetItem(ItemIds.EmergencyPatchBoard), 2);
+            AddItem(catalog.GetItem(ItemIds.WeldingKit), 2);
+            AddItem(catalog.GetItem(ItemIds.HighTensionRepairPack), 2);
 
             // 테스트용: 무기 5종 + 곡괭이 3종. 무기/도구는 겹치지 않아 각각 한 칸씩 차지한다.
             AddItem(catalog.GetItem(ItemIds.Ak47), 1);
