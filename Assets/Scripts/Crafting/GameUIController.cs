@@ -1885,6 +1885,15 @@ private void ClaimTruckOutput()
             truckInv.AddItem(catalog.GetItem(ItemIds.Stone), amount);
             truckInv.AddItem(catalog.GetItem(ItemIds.IronOre), amount);
             truckInv.AddItem(catalog.GetItem(ItemIds.CopperOre), amount);
+
+            // 테스트 편의: 아직 하나도 없는 아이템(무기/도구/식료품 등 전부)은 최소 1개씩 채워 넣는다.
+            foreach (ItemData item in catalog.Items)
+            {
+                if (item == null)
+                    continue;
+                if (truckInv.GetItemCount(item) <= 0)
+                    truckInv.AddItem(item, 1);
+            }
         }
 
         private RectTransform CreateScrollableGrid(RectTransform parent, string title, int columns, float height = 380f)

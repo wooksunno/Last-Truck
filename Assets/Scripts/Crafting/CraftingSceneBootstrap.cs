@@ -400,6 +400,10 @@ private static void EnsureGatherProgressUI(PlayerInventory player)
             if (eat == null)
                 eat = player.gameObject.AddComponent<EatController>();
 
+            TrapController trap = player.GetComponent<TrapController>();
+            if (trap == null)
+                trap = player.gameObject.AddComponent<TrapController>();
+
             LastTruck.PlayerInteract interact = player.GetComponent<LastTruck.PlayerInteract>();
 
             GatherProgressUI ui = FindFirstObjectByType<GatherProgressUI>();
@@ -409,7 +413,7 @@ private static void EnsureGatherProgressUI(PlayerInventory player)
                 ui = go.AddComponent<GatherProgressUI>();
             }
 
-            ui.Initialize(interact, eat);
+            ui.Initialize(interact, eat, trap);
         }
 
 private static void EnsureMinimap(PlayerInventory player, TruckStation truck)

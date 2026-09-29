@@ -11,15 +11,17 @@ namespace CraftingSystem
     {
         private LastTruck.PlayerInteract _playerInteract;
         private EatController _eat;
+        private TrapController _trap;
         private Image _fillImage;
         private GameObject _root;
 
         private static Sprite _cachedCircleSprite;
 
-public void Initialize(LastTruck.PlayerInteract playerInteract, EatController eat = null)
+public void Initialize(LastTruck.PlayerInteract playerInteract, EatController eat = null, TrapController trap = null)
         {
             _playerInteract = playerInteract;
             _eat = eat;
+            _trap = trap;
             if (_root == null)
                 BuildUI();
         }
@@ -79,13 +81,19 @@ private void Update()
 
             bool gathering = _playerInteract != null && _playerInteract.IsHolding;
             bool eating = _eat != null && _eat.IsHolding;
-            bool holding = gathering || eating;
+            bool trapping = _trap != null && _trap.IsHolding;
+            bool holding = gathering || eating || trapping;
 
             if (_root.activeSelf != holding)
                 _root.SetActive(holding);
 
             if (holding)
-                _fillImage.fillAmount = gathering ? _playerInteract.HoldProgress01 : _eat.HoldProgress01;
+            {
+                float progress = gathering ? _playerInteract.HoldProgress01
+                    : eating ? _eat.HoldProgress01
+                    : _trap.HoldProgress01;
+                _fillImage.fillAmount = progress;
+            }
         }
 
         private static Sprite GetCircleSprite()

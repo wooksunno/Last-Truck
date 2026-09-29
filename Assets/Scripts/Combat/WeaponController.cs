@@ -21,6 +21,7 @@ namespace Combat
             MeleeArc,
             ContinuousCone,
             ChargeAndRelease,
+            Throw,
         }
 
         private struct WeaponStats
@@ -33,6 +34,11 @@ namespace Combat
             public float chargeTime;
             public float minChargeFraction;
             public Color effectColor;
+            public float blastRadius;
+            public float gasDuration;
+            public float gasTickInterval;
+            public int gasTickDamage;
+            public float throwSpeed;
         }
 
         [SerializeField] private Camera targetCamera;
@@ -88,6 +94,30 @@ namespace Combat
         private Coroutine _flameEffectRoutine;
         private string _activeWeaponId;
 
+        [Header("근접 무기 자동 조준 / 후딜")]
+        [Tooltip("근접 무기(마체테 등)를 휘두르기 직전, 가장 가까운 대상을 바라보도록 자동으로 돌아서는 탐지 반경(m)")]
+        [SerializeField] private float meleeAutoFaceRange = 6f;
+        [Tooltip("근접 공격 후 다시 움직일 수 있기까지의 멈칫하는 시간(초)")]
+        [SerializeField] private float meleeRecoverySeconds = 0.25f;
+
+        private Coroutine _meleeRecoveryRoutine;
+
+        [Header("맨손 공격")]
+        [Tooltip("맨손일 때 공격 대상을 찾는 탐지 반경(m). 이 범위 안의 가장 가까운 대상을 바라보며 공격한다.")]
+        [SerializeField] private float fistDetectRange = 6f;
+        [Tooltip("실제로 피해가 닿는 근접 반경(m)")]
+        [SerializeField] private float fistStrikeRadius = 1.4f;
+        [SerializeField] private int fistDamage = 8;
+        [SerializeField] private float fistCooldown = 0.5f;
+        [Tooltip("공격 시작부터 피해가 적용되기까지(초). 이 동안 이동이 막힌다.")]
+        [SerializeField] private float fistImpactDelay = 0.15f;
+        [Tooltip("공격 전체 지속 시간(초, 이동 차단 총 시간)")]
+        [SerializeField] private float fistWindup = 0.35f;
+
+        private LastTruck.PlayerMove _playerMove;
+        private float _nextFistTime;
+        private bool _fistAttacking;
+
         private static readonly Dictionary<string, WeaponStats> Weapons = new Dictionary<string, WeaponStats>
         {
             {
@@ -125,12 +155,85 @@ namespace Combat
                     coneAngle = 120f, effectColor = Color.white,
                 }
             },
+            {
+                ItemIds.WoodSpear, new WeaponStats
+                {
+                    behavior = WeaponBehavior.MeleeArc, damage = 15, range = 2.0f, cooldown = 0.5f,
+                    coneAngle = 100f, effectColor = new Color(0.6f, 0.5f, 0.3f),
+                }
+            },
+            {
+                ItemIds.FlameMachete, new WeaponStats
+                {
+                    behavior = WeaponBehavior.MeleeArc, damage = 32, range = 1.6f, cooldown = 0.35f,
+                    coneAngle = 120f, effectColor = new Color(1f, 0.45f, 0.1f),
+                }
+            },
+            {
+                ItemIds.VibrationBlade, new WeaponStats
+                {
+                    behavior = WeaponBehavior.MeleeArc, damage = 38, range = 1.7f, cooldown = 0.3f,
+                    coneAngle = 120f, effectColor = new Color(0.6f, 0.85f, 1f),
+                }
+            },
+            {
+                ItemIds.Pistol, new WeaponStats
+                {
+                    behavior = WeaponBehavior.Hitscan, damage = 10, range = 22f, cooldown = 0.22f,
+                    effectColor = new Color(1f, 0.95f, 0.6f),
+                }
+            },
+            {
+                ItemIds.ChemicalSprayer, new WeaponStats
+                {
+                    behavior = WeaponBehavior.ContinuousCone, damage = 4, range = 5f, cooldown = 0.15f,
+                    coneAngle = 45f, effectColor = new Color(0.45f, 0.85f, 0.3f),
+                }
+            },
+            {
+                ItemIds.ShredderDrillLauncher, new WeaponStats
+                {
+                    behavior = WeaponBehavior.Hitscan, damage = 35, range = 35f, cooldown = 0.6f,
+                    effectColor = new Color(0.6f, 0.5f, 0.3f),
+                }
+            },
+            {
+                ItemIds.IronFieldCannon, new WeaponStats
+                {
+                    behavior = WeaponBehavior.Hitscan, damage = 60, range = 45f, cooldown = 1.8f,
+                    effectColor = new Color(0.4f, 0.4f, 0.42f),
+                }
+            },
+            {
+                ItemIds.PlatinumRailCannon, new WeaponStats
+                {
+                    behavior = WeaponBehavior.Hitscan, damage = 90, range = 90f, cooldown = 2.5f,
+                    effectColor = new Color(0.55f, 0.85f, 1f),
+                }
+            },
+            {
+                ItemIds.ChemicalGasGrenade, new WeaponStats
+                {
+                    behavior = WeaponBehavior.Throw, damage = 25, range = 20f, cooldown = 1.5f,
+                    blastRadius = 3f, gasDuration = 4f, gasTickInterval = 1f, gasTickDamage = 5,
+                    throwSpeed = 14f, effectColor = new Color(0.45f, 0.85f, 0.3f),
+                }
+            },
+            {
+                ItemIds.FragGrenade, new WeaponStats
+                {
+                    behavior = WeaponBehavior.Throw, damage = 35, range = 20f, cooldown = 1.2f,
+                    blastRadius = 3f, gasDuration = 0f, gasTickInterval = 0f, gasTickDamage = 0,
+                    throwSpeed = 14f, effectColor = new Color(0.55f, 0.5f, 0.45f),
+                }
+            },
         };
 
         private void Awake()
         {
             _inventory = GetComponent<PlayerInventory>();
             _animator = GetComponentInChildren<Animator>();
+            _playerMove = GetComponent<LastTruck.PlayerMove>();
             if (targetCamera == null)
                 targetCamera = Camera.main;
         }
@@ -138,6 +241,7 @@ namespace Combat
         private void OnDisable()
         {
             UnequipBow();
+            LockMovement(false);
         }
 
         private void Update()
@@ -169,7 +273,11 @@ namespace Combat
                 CancelOngoingActions();
                 _activeWeaponId = hasWeapon ? selected.itemID : null;
                 if (!hasWeapon)
+                {
+                    bool handEmpty = !blocked && selected == null;
+                    UpdateFistAttack(handEmpty);
                     return;
+                }
             }
 
             switch (stats.behavior)
@@ -193,7 +301,10 @@ namespace Combat
                         if (!_pressVetoed && Time.time >= _nextFireTime)
                         {
                             _nextFireTime = Time.time + stats.cooldown;
+                            AutoFaceNearestTarget(meleeAutoFaceRange);
                             FireMeleeArc(stats);
+                            StopMeleeRecovery();
+                            _meleeRecoveryRoutine = StartCoroutine(MeleeRecoveryRoutine());
                         }
                     }
                     break;
@@ -204,7 +315,8 @@ namespace Combat
 
                     if (!_pressVetoed && Input.GetMouseButton(0))
                     {
-                        AimTowardMouse(stats.range);
+                        if (!AutoFaceNearestTarget(stats.range))
+                            AimTowardMouse(stats.range);
 
                         if (!_isFlameActive)
                         {
@@ -237,7 +349,8 @@ namespace Combat
                     }
                     else if (_isCharging && Input.GetMouseButton(0))
                     {
-                        AimTowardMouse(stats.range);
+                        if (!AutoFaceNearestTarget(stats.range))
+                            AimTowardMouse(stats.range);
                     }
                     else if (Input.GetMouseButtonUp(0) && _isCharging)
                     {
@@ -250,6 +363,20 @@ namespace Combat
                                 FireArrow(stats, scaledDamage, fraction);
                             else
                                 FireHitscan(stats, scaledDamage);
+                        }
+                    }
+                    break;
+
+                case WeaponBehavior.Throw:
+                    if (Input.GetMouseButtonDown(0))
+                    {
+                        _pressVetoed = RaycastHitsWorldInteractable(stats.range);
+                        if (!_pressVetoed && Time.time >= _nextFireTime)
+                        {
+                            _nextFireTime = Time.time + stats.cooldown;
+                            FireGrenade(stats);
+                            // 1회용 소모품: 던지는 즉시 인벤토리에서 1개 소모되어 사라진다.
+                            _inventory.RemoveItem(selected, 1);
                         }
                     }
                     break;
@@ -395,6 +522,25 @@ namespace Combat
         {
             _isCharging = false;
             StopFlameEffect();
+            StopMeleeRecovery();
+        }
+
+        private void StopMeleeRecovery()
+        {
+            if (_meleeRecoveryRoutine != null)
+            {
+                StopCoroutine(_meleeRecoveryRoutine);
+                _meleeRecoveryRoutine = null;
+            }
+            LockMovement(false);
+        }
+
+        private IEnumerator MeleeRecoveryRoutine()
+        {
+            LockMovement(true);
+            yield return new WaitForSeconds(meleeRecoverySeconds);
+            LockMovement(false);
+            _meleeRecoveryRoutine = null;
         }
 
         /// <summary>
@@ -493,7 +639,7 @@ namespace Combat
             else
                 spawnPos = transform.position + Vector3.up * 1.2f + transform.forward * 0.3f;
 
-            Vector3 target = GetMouseAimPoint(stats.range, spawnPos.y);
+            Vector3 target = GetAutoAimPoint(stats.range, spawnPos.y);
             Vector3 toTarget = target - spawnPos;
             if (toTarget.sqrMagnitude < 0.01f)
                 toTarget = transform.forward;
@@ -503,6 +649,41 @@ namespace Combat
             ArrowProjectile arrow = Instantiate(arrowPrefab, spawnPos, Quaternion.LookRotation(toTarget));
             Vector3 velocity = toTarget.normalized * speed + Vector3.up * (0.5f * arrow.Gravity * flightTime);
             arrow.Launch(velocity, damage, stats.range * 1.5f, hitMask, transform);
+        }
+
+        /// <summary>
+        /// 화학 독가스 수류탄: 마우스가 가리키는 지점으로 포물선을 그리며 던진다.
+        /// 맞으면 즉시 폭발 피해를 주고, 자리에 독가스 구름을 남긴다.
+        /// </summary>
+        private void FireGrenade(WeaponStats stats)
+        {
+            Vector3 spawnPos = transform.position + Vector3.up * 1.3f + transform.forward * 0.4f;
+            Vector3 target = GetMouseAimPoint(stats.range, spawnPos.y);
+            Vector3 toTarget = target - spawnPos;
+            if (toTarget.sqrMagnitude < 0.01f)
+                toTarget = transform.forward * (stats.range * 0.5f);
+
+            float speed = stats.throwSpeed;
+            float flightTime = toTarget.magnitude / speed;
+
+            GameObject go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            go.name = "GrenadeProjectile";
+            go.transform.position = spawnPos;
+            go.transform.localScale = Vector3.one * 0.18f;
+
+            Material mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            if (mat.HasProperty("_BaseColor"))
+                mat.SetColor("_BaseColor", stats.effectColor);
+            go.GetComponent<Renderer>().sharedMaterial = mat;
+
+            Collider col = go.GetComponent<Collider>();
+            if (col != null)
+                col.enabled = false;
+
+            GrenadeProjectile grenade = go.AddComponent<GrenadeProjectile>();
+            Vector3 velocity = toTarget.normalized * speed + Vector3.up * (0.5f * grenade.Gravity * flightTime);
+            grenade.Launch(velocity, stats.damage, stats.blastRadius, stats.gasDuration, stats.gasTickInterval,
+                stats.gasTickDamage, hitMask, transform);
         }
 
         private Vector3 GetMouseAimPoint(float range, float fallbackHeight)
@@ -528,6 +709,155 @@ namespace Combat
 
             Plane plane = new Plane(Vector3.up, new Vector3(0f, fallbackHeight, 0f));
             return plane.Raycast(ray, out float enter) ? ray.GetPoint(enter) : ray.origin + ray.direction * range;
+        }
+
+        /// <summary>
+        /// 맨손(빈손) 상태일 때의 공격. 원신처럼 근처 가장 가까운 대상을 자동으로 바라보며 때리고,
+        /// 공격이 진행되는 동안(락온+타격)에는 WASD 이동을 잠근다.
+        /// </summary>
+        private void UpdateFistAttack(bool handEmpty)
+        {
+            if (!handEmpty || _fistAttacking)
+                return;
+
+            if (Input.GetMouseButtonDown(0) && Time.time >= _nextFistTime)
+            {
+                bool vetoed = RaycastHitsWorldInteractable(fistStrikeRadius);
+                if (!vetoed)
+                {
+                    _nextFistTime = Time.time + fistCooldown;
+                    StartCoroutine(FistAttackRoutine());
+                }
+            }
+        }
+
+        private IEnumerator FistAttackRoutine()
+        {
+            _fistAttacking = true;
+            LockMovement(true);
+
+            AutoFaceNearestTarget(fistDetectRange);
+
+            yield return new WaitForSeconds(fistImpactDelay);
+            FireFistStrike();
+
+            float remaining = fistWindup - fistImpactDelay;
+            if (remaining > 0f)
+                yield return new WaitForSeconds(remaining);
+
+            LockMovement(false);
+            _fistAttacking = false;
+        }
+
+        private void FireFistStrike()
+        {
+            Vector3 origin = transform.position + Vector3.up * 1f;
+            Collider[] hits = Physics.OverlapSphere(origin, fistStrikeRadius, hitMask);
+
+            Damageable nearest = null;
+            Vector3 nearestPoint = origin;
+            float nearestDist = float.MaxValue;
+
+            foreach (Collider col in hits)
+            {
+                Damageable d = col.GetComponentInParent<Damageable>();
+                if (d == null)
+                    continue;
+
+                float dist = (col.transform.position - transform.position).sqrMagnitude;
+                if (dist < nearestDist)
+                {
+                    nearestDist = dist;
+                    nearest = d;
+                    nearestPoint = col.ClosestPoint(origin);
+                }
+            }
+
+            if (nearest != null)
+            {
+                nearest.TakeDamage(fistDamage, nearestPoint);
+                SpawnImpact(nearestPoint, new Color(0.95f, 0.8f, 0.65f));
+            }
+        }
+
+        private Damageable FindNearestDamageable(float range)
+        {
+            Collider[] hits = Physics.OverlapSphere(transform.position, range, hitMask);
+            Damageable nearest = null;
+            float nearestDist = float.MaxValue;
+
+            foreach (Collider col in hits)
+            {
+                Damageable d = col.GetComponentInParent<Damageable>();
+                if (d == null)
+                    continue;
+
+                float dist = (col.transform.position - transform.position).sqrMagnitude;
+                if (dist < nearestDist)
+                {
+                    nearestDist = dist;
+                    nearest = d;
+                }
+            }
+
+            return nearest;
+        }
+
+        private void LockMovement(bool locked)
+        {
+            if (_playerMove != null)
+                _playerMove.SetMovementLocked(locked);
+        }
+
+        /// <summary>
+        /// 원신처럼, 지정한 반경 안의 가장 가까운 대상 쪽으로 캐릭터를 자동으로 돌린다(공격 직전 락온용).
+        /// </summary>
+        /// <summary>탐지 범위 안의 가장 가까운 대상을 바라보도록 돌린다. 대상을 찾아 돌렸으면 true.</summary>
+        private bool AutoFaceNearestTarget(float detectRange)
+        {
+            Damageable target = FindNearestDamageable(detectRange);
+            if (target == null)
+                return false;
+
+            Vector3 toTarget = target.transform.position - transform.position;
+            toTarget.y = 0f;
+            if (toTarget.sqrMagnitude <= 0.01f)
+                return false;
+
+            FaceDirection(toTarget);
+            return true;
+        }
+
+        /// <summary>캐릭터를 즉시 해당 수평 방향으로 돌린다.</summary>
+        private void FaceDirection(Vector3 direction)
+        {
+            direction.y = 0f;
+            if (direction.sqrMagnitude < 0.0001f)
+                return;
+
+            Quaternion faceRotation = Quaternion.LookRotation(direction.normalized);
+
+            // transform.rotation을 즉시 반영해야 같은 프레임에서 바로 이어지는 판정(부채꼴/레이캐스트 등)이
+            // 새 방향을 기준으로 계산된다(그렇지 않으면 물리 스텝 전까지 이전 방향으로 판정됨).
+            transform.rotation = faceRotation;
+
+            // PlayerMove가 Rigidbody(보간 On)로 회전을 관리하므로, transform만 바꾸면 다음 물리
+            // 스텝에서 Rigidbody의 이전 회전값으로 되돌아간다. Rigidbody도 같은 값으로 맞춰준다.
+            if (_playerMove != null && _playerMove.rigidbody != null)
+                _playerMove.rigidbody.MoveRotation(faceRotation);
+        }
+
+        /// <summary>
+        /// 원거리 무기 자동 조준용 조준점. 범위 안에 대상이 있으면 그 대상을, 없으면 기존처럼 마우스 조준점을 반환한다.
+        /// (수류탄은 이 함수를 쓰지 않고 항상 마우스 커서를 직접 조준한다.)
+        /// </summary>
+        private Vector3 GetAutoAimPoint(float range, float fallbackHeight)
+        {
+            Damageable target = FindNearestDamageable(range);
+            if (target != null)
+                return target.transform.position + Vector3.up * 1f;
+
+            return GetMouseAimPoint(range, fallbackHeight);
         }
 
         private void StopFlameEffect()
@@ -575,11 +905,17 @@ namespace Combat
 
         private void FireHitscan(WeaponStats stats, int damage)
         {
-            Ray ray = targetCamera.ScreenPointToRay(Input.mousePosition);
             Vector3 muzzle = transform.position + Vector3.up * 1.2f;
-            Vector3 endPoint;
 
-            if (Physics.Raycast(ray, out RaycastHit hit, stats.range, hitMask))
+            // 근처에 대상이 있으면 그쪽을 자동으로 바라보며 쏘고(원신 락온 스타일),
+            // 없으면 기존처럼 마우스 커서 방향을 조준한다.
+            Vector3 aimPoint = GetAutoAimPoint(stats.range, muzzle.y);
+            Vector3 dir = aimPoint - muzzle;
+            dir = dir.sqrMagnitude < 0.0001f ? transform.forward : dir.normalized;
+            FaceDirection(dir);
+
+            Vector3 endPoint;
+            if (Physics.Raycast(muzzle, dir, out RaycastHit hit, stats.range, hitMask))
             {
                 endPoint = hit.point;
                 Damageable target = hit.collider.GetComponentInParent<Damageable>();
@@ -590,7 +926,7 @@ namespace Combat
             }
             else
             {
-                endPoint = ray.origin + ray.direction * stats.range;
+                endPoint = muzzle + dir * stats.range;
             }
 
             SpawnTracer(muzzle, endPoint, stats.effectColor);

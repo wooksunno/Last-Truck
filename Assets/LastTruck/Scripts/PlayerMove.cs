@@ -16,6 +16,14 @@ namespace LastTruck
         Animator anim;
         Character character;
 
+        private bool _movementLocked;
+
+        /// <summary>공격 중 등 특정 동작 동안 WASD 이동을 잠글 때 사용한다.</summary>
+        public void SetMovementLocked(bool locked)
+        {
+            _movementLocked = locked;
+        }
+
         private void Start()
         {
             anim = GetComponentInChildren<Animator>();
@@ -47,9 +55,18 @@ namespace LastTruck
 
         private void Update()
         {
-            hAxis = Input.GetAxisRaw("Horizontal");
-            vAxis = Input.GetAxisRaw("Vertical");
-            wDown = Input.GetButton("Walk");
+            if (_movementLocked)
+            {
+                hAxis = 0f;
+                vAxis = 0f;
+                wDown = false;
+            }
+            else
+            {
+                hAxis = Input.GetAxisRaw("Horizontal");
+                vAxis = Input.GetAxisRaw("Vertical");
+                wDown = Input.GetButton("Walk");
+            }
 
             if (anim != null)
             {

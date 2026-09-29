@@ -31,6 +31,9 @@ namespace CraftingSystem
             ItemIds.HighTensionRepairPack, ItemIds.RefinedFuel, ItemIds.SpikeBumper, ItemIds.Diamond,
             ItemIds.CombatStimulant, ItemIds.Jerky, ItemIds.PlatinumSniperRifle, ItemIds.IronFieldCannon,
             ItemIds.GrilledFood, ItemIds.WeldingKit, ItemIds.GrinderWheel,
+            ItemIds.StonePowder, ItemIds.Campfire, ItemIds.Grindstone, ItemIds.LeatherTanningRack,
+            ItemIds.RollerPressMachine, ItemIds.PrecisionCutterMachine, ItemIds.ChemicalRefineryTower,
+            ItemIds.SuperheatedFurnace, ItemIds.WoodPickaxe, ItemIds.WoodSpear, ItemIds.FragGrenade,
         };
 
         public static void PopulateCatalog(ItemCatalog catalog)
@@ -142,6 +145,7 @@ namespace CraftingSystem
                 Make(ItemIds.EmergencyRevivalKit, "응급 소생 키트", ItemType.Finished, 20, sprites),
                 Make(ItemIds.CombatStimulant, "전투 각성제", ItemType.Finished, 20, sprites),
                 Make(ItemIds.ChemicalGasGrenade, "화학 독가스 수류탄", ItemType.Finished, 20, sprites),
+                Make(ItemIds.FragGrenade, "일반 수류탄", ItemType.Finished, 20, sprites),
                 Make(ItemIds.LureTrap, "유인 미끼 트랩", ItemType.Finished, 20, sprites),
             };
         }
@@ -262,6 +266,7 @@ namespace CraftingSystem
             Add("assemble_emergency_revival_kit", "응급 소생 키트 조립", FacilityType.None, new[] { (ItemIds.MedicalExtract, 2), (ItemIds.MechanicalTrigger, 1) }, ItemIds.EmergencyRevivalKit, 1);
             Add("assemble_combat_stimulant", "전투 각성제 조립", FacilityType.None, new[] { (ItemIds.StimulantPowder, 1), (ItemIds.MedicalExtract, 1) }, ItemIds.CombatStimulant, 1);
             Add("assemble_chemical_gas_grenade", "화학 독가스 수류탄 조립", FacilityType.None, new[] { (ItemIds.NeurotoxinExtract, 1), (ItemIds.StonePowder, 3), (ItemIds.PropellantPowder, 1) }, ItemIds.ChemicalGasGrenade, 1);
+            Add("assemble_frag_grenade", "일반 수류탄 조립", FacilityType.None, new[] { (ItemIds.StonePowder, 3), (ItemIds.PropellantPowder, 1) }, ItemIds.FragGrenade, 1);
             Add("assemble_lure_trap", "유인 미끼 트랩 조립", FacilityType.None, new[] { (ItemIds.LurePheromone, 1), (ItemIds.StonePowder, 5) }, ItemIds.LureTrap, 1);
 
             return recipes;
