@@ -47,6 +47,7 @@ namespace CraftingSystem
             EnsureGatherProgressUI(player);
             EnsureMinimap(player, truck);
             EnsurePouch(player);
+            EnsureTruckRepair(truck);
 
             Debug.Log("[CraftingSceneBootstrap] 씬 셋업 완료.");
         }
@@ -399,6 +400,10 @@ private static void EnsureGatherProgressUI(PlayerInventory player)
             if (eat == null)
                 eat = player.gameObject.AddComponent<EatController>();
 
+            TrapController trap = player.GetComponent<TrapController>();
+            if (trap == null)
+                trap = player.gameObject.AddComponent<TrapController>();
+
             LastTruck.PlayerInteract interact = player.GetComponent<LastTruck.PlayerInteract>();
 
             GatherProgressUI ui = FindFirstObjectByType<GatherProgressUI>();
@@ -408,7 +413,7 @@ private static void EnsureGatherProgressUI(PlayerInventory player)
                 ui = go.AddComponent<GatherProgressUI>();
             }
 
-            ui.Initialize(interact, eat);
+            ui.Initialize(interact, eat, trap);
         }
 
 private static void EnsureMinimap(PlayerInventory player, TruckStation truck)
@@ -437,6 +442,19 @@ private static void EnsurePouch(PlayerInventory player)
             if (player.GetComponent<PouchController>() == null)
                 player.gameObject.AddComponent<PouchController>();
         }
+
+private static void EnsureTruckRepair(TruckStation truck)
+        {
+            if (truck == null)
+                return;
+
+            if (truck.GetComponent<TruckRepair>() == null)
+                truck.gameObject.AddComponent<TruckRepair>();
+
+            if (truck.GetComponent<TruckDamageVisuals>() == null)
+                truck.gameObject.AddComponent<TruckDamageVisuals>();
+        }
+
 
 
 

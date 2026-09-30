@@ -8,7 +8,8 @@ namespace Combat
 {
     /// <summary>
     /// 인벤토리에서 무기를 선택한 상태로 좌클릭하면 무기 종류에 맞는 방식으로 공격한다.
-    /// - Hitscan(AK-47/백금 저격소총): 클릭 시 마우스 방향으로 즉시 한 발.
+    /// - Hitscan(AK-47 등): 클릭 시 마우스 방향으로 즉시 한 발.
+    ///   백금 저격소총은 두 손으로 총을 든 모습을 보여 주고, 클릭 시 총구에서 실제 총알이 날아간다.
     /// - MeleeArc(마체테): 클릭 시 주변(전방 부채꼴)에서 가장 가까운 적 최대 1명에게 근접 피해.
     /// - ContinuousCone(화염방사기): 누르고 있는 동안 전방 부채꼴 범위에 주기적으로 피해 + 불꽃 이펙트.
     /// - ChargeAndRelease(사냥용 활): 누르고 있으면 차징, 일정 시간 이상 차징한 뒤 떼면 화살 발사.
@@ -22,6 +23,7 @@ namespace Combat
             MeleeArc,
             ContinuousCone,
             ChargeAndRelease,
+            Throw,
         }
 
         private struct WeaponStats
@@ -34,6 +36,11 @@ namespace Combat
             public float chargeTime;
             public float minChargeFraction;
             public Color effectColor;
+            public float blastRadius;
+            public float gasDuration;
+            public float gasTickInterval;
+            public int gasTickDamage;
+            public float throwSpeed;
         }
 
         [SerializeField] private Camera targetCamera;
@@ -58,6 +65,17 @@ namespace Combat
         [Tooltip("평소 자세 ↔ 조준 자세 전환 시간(초)")]
         [SerializeField] private float aimBlendTime = 0.15f;
 
+        [Header("저격총")]
+        [Tooltip("두 손으로 드는 저격총 모델. 피벗=오른손 손잡이, 로컬 +Z=총구 방향. 자식 LeftGrip(왼손 위치), Muzzle(총구)이 필요")]
+        [SerializeField] private GameObject rifleHeldPrefab;
+        [Tooltip("발사할 총알(중력 0, stickOnHit 끔)")]
+        [SerializeField] private ArrowProjectile bulletPrefab;
+        [SerializeField] private float bulletSpeed = 90f;
+        [Tooltip("총을 들 때 상체를 돌리는 각도. 짧은 왼팔이 총열 아래 손잡이에 닿게 한다(머리는 정면 유지)")]
+        [SerializeField] private float rifleTorsoTwist = 50f;
+        [Tooltip("오른손(손잡이) 위치: 돌린 오른쪽 어깨 기준 오프셋(캐릭터 로컬, x=오른쪽 y=위 z=앞)")]
+        [SerializeField] private Vector3 rifleGripOffset = new Vector3(-0.08f, 0f, 0.14f);
+
         private PlayerInventory _inventory;
         private Animator _animator;
         private GameObject _heldBow;
@@ -75,6 +93,17 @@ namespace Combat
         private float _aimWeight;
         private WeaponStats _bowStats;
 
+        private Transform _leftHandBone;
+        private Vector3 _rightShoulderLocal;
+
+        private GameObject _heldRifle;
+        private Transform _rifleLeftGrip;
+        private Transform _rifleMuzzle;
+        private float _rifleWeight;
+        private float _rifleRecoil;
+        private Vector3 _rifleLeftIkCorrection;
+        private Vector3 _rifleRightIkCorrection;
+
         // 활 로컬 기준 화살 꼬리를 거는 위치: 손잡이 뒤쪽 시위 위.
         private static readonly Vector3 NockRestLocalPosition = new Vector3(0f, 0.015f, -0.24f);
 
@@ -89,6 +118,41 @@ namespace Combat
         private Coroutine _flameEffectRoutine;
         private string _activeWeaponId;
 
+        [Header("차징/연속 사용 중 이동")]
+        [Tooltip("활을 당기는 중, 화염방사기·분무기를 뿜는 중의 이동 속도 배율. 1이면 느려지지 않는다")]
+        [Range(0.1f, 1f)]
+        [SerializeField] private float chargingMoveSpeedMultiplier = 0.5f;
+
+        [Header("근접 무기 자동 조준")]
+        [Tooltip("근접 무기(마체테 등)를 휘두르기 직전, 가장 가까운 대상을 바라보도록 자동으로 돌아서는 탐지 반경(m)")]
+        [SerializeField] private float meleeAutoFaceRange = 6f;
+
+        [Header("공격 후딜(이동 불가)")]
+        [Tooltip("모든 무기 공격 후 기본으로 멈칫하는 시간(초)")]
+        [SerializeField] private float attackRecoveryBase = 0.15f;
+        [Tooltip("공격 딜레이(쿨다운) 1초당 추가로 멈칫하는 시간(초). 딜레이가 큰 무기일수록 반동으로 더 오래 멈춘다")]
+        [SerializeField] private float attackRecoveryPerDelay = 0.2f;
+        [Tooltip("후딜 최대 시간(초)")]
+        [SerializeField] private float attackRecoveryMax = 0.7f;
+
+        private Coroutine _attackRecoveryRoutine;
+
+        [Header("맨손 공격")]
+        [Tooltip("맨손일 때 공격 대상을 찾는 탐지 반경(m). 이 범위 안의 가장 가까운 대상을 바라보며 공격한다.")]
+        [SerializeField] private float fistDetectRange = 6f;
+        [Tooltip("실제로 피해가 닿는 근접 반경(m)")]
+        [SerializeField] private float fistStrikeRadius = 1.4f;
+        [SerializeField] private int fistDamage = 8;
+        [SerializeField] private float fistCooldown = 0.5f;
+        [Tooltip("공격 시작부터 피해가 적용되기까지(초). 이 동안 이동이 막힌다.")]
+        [SerializeField] private float fistImpactDelay = 0.15f;
+        [Tooltip("공격 전체 지속 시간(초, 이동 차단 총 시간)")]
+        [SerializeField] private float fistWindup = 0.35f;
+
+        private LastTruck.PlayerMove _playerMove;
+        private float _nextFistTime;
+        private bool _fistAttacking;
+
         private static readonly Dictionary<string, WeaponStats> Weapons = new Dictionary<string, WeaponStats>
         {
             {
@@ -101,7 +165,7 @@ namespace Combat
             {
                 ItemIds.PlatinumSniperRifle, new WeaponStats
                 {
-                    behavior = WeaponBehavior.Hitscan, damage = 40, range = 80f, cooldown = 1.0f,
+                    behavior = WeaponBehavior.Hitscan, damage = 40, range = 80f, cooldown = 2.0f,
                     effectColor = new Color(0.4f, 0.85f, 1f),
                 }
             },
@@ -126,12 +190,85 @@ namespace Combat
                     coneAngle = 120f, effectColor = Color.white,
                 }
             },
+            {
+                ItemIds.WoodSpear, new WeaponStats
+                {
+                    behavior = WeaponBehavior.MeleeArc, damage = 15, range = 2.0f, cooldown = 0.5f,
+                    coneAngle = 100f, effectColor = new Color(0.6f, 0.5f, 0.3f),
+                }
+            },
+            {
+                ItemIds.FlameMachete, new WeaponStats
+                {
+                    behavior = WeaponBehavior.MeleeArc, damage = 32, range = 1.6f, cooldown = 0.35f,
+                    coneAngle = 120f, effectColor = new Color(1f, 0.45f, 0.1f),
+                }
+            },
+            {
+                ItemIds.VibrationBlade, new WeaponStats
+                {
+                    behavior = WeaponBehavior.MeleeArc, damage = 38, range = 1.7f, cooldown = 0.3f,
+                    coneAngle = 120f, effectColor = new Color(0.6f, 0.85f, 1f),
+                }
+            },
+            {
+                ItemIds.Pistol, new WeaponStats
+                {
+                    behavior = WeaponBehavior.Hitscan, damage = 10, range = 22f, cooldown = 0.22f,
+                    effectColor = new Color(1f, 0.95f, 0.6f),
+                }
+            },
+            {
+                ItemIds.ChemicalSprayer, new WeaponStats
+                {
+                    behavior = WeaponBehavior.ContinuousCone, damage = 4, range = 5f, cooldown = 0.15f,
+                    coneAngle = 45f, effectColor = new Color(0.45f, 0.85f, 0.3f),
+                }
+            },
+            {
+                ItemIds.ShredderDrillLauncher, new WeaponStats
+                {
+                    behavior = WeaponBehavior.Hitscan, damage = 35, range = 35f, cooldown = 0.6f,
+                    effectColor = new Color(0.6f, 0.5f, 0.3f),
+                }
+            },
+            {
+                ItemIds.IronFieldCannon, new WeaponStats
+                {
+                    behavior = WeaponBehavior.Hitscan, damage = 60, range = 45f, cooldown = 1.8f,
+                    effectColor = new Color(0.4f, 0.4f, 0.42f),
+                }
+            },
+            {
+                ItemIds.PlatinumRailCannon, new WeaponStats
+                {
+                    behavior = WeaponBehavior.Hitscan, damage = 90, range = 90f, cooldown = 2.5f,
+                    effectColor = new Color(0.55f, 0.85f, 1f),
+                }
+            },
+            {
+                ItemIds.ChemicalGasGrenade, new WeaponStats
+                {
+                    behavior = WeaponBehavior.Throw, damage = 25, range = 20f, cooldown = 1.5f,
+                    blastRadius = 3f, gasDuration = 4f, gasTickInterval = 1f, gasTickDamage = 5,
+                    throwSpeed = 14f, effectColor = new Color(0.45f, 0.85f, 0.3f),
+                }
+            },
+            {
+                ItemIds.FragGrenade, new WeaponStats
+                {
+                    behavior = WeaponBehavior.Throw, damage = 35, range = 20f, cooldown = 1.2f,
+                    blastRadius = 3f, gasDuration = 0f, gasTickInterval = 0f, gasTickDamage = 0,
+                    throwSpeed = 14f, effectColor = new Color(0.55f, 0.5f, 0.45f),
+                }
+            },
         };
 
         private void Awake()
         {
             _inventory = GetComponent<PlayerInventory>();
             _animator = GetComponentInChildren<Animator>();
+            _playerMove = GetComponent<LastTruck.PlayerMove>();
             if (targetCamera == null)
                 targetCamera = Camera.main;
         }
@@ -139,6 +276,10 @@ namespace Combat
         private void OnDisable()
         {
             UnequipBow();
+            UnequipRifle();
+            LockMovement(false);
+            if (_playerMove != null)
+                _playerMove.SetSpeedMultiplier(1f);
         }
 
         private void Update()
@@ -164,13 +305,23 @@ namespace Combat
             else
                 UnequipBow();
 
+            bool holdingRifle = selected != null && selected.itemID == ItemIds.PlatinumSniperRifle && rifleHeldPrefab != null;
+            if (holdingRifle)
+                EquipRifle();
+            else
+                UnequipRifle();
+
             if (!hasWeapon || selected.itemID != _activeWeaponId)
             {
                 // 무기를 바꾸거나 내려놓으면 진행 중이던 차징/화염 상태를 정리한다.
                 CancelOngoingActions();
                 _activeWeaponId = hasWeapon ? selected.itemID : null;
                 if (!hasWeapon)
+                {
+                    bool handEmpty = !blocked && selected == null;
+                    UpdateFistAttack(handEmpty);
                     return;
+                }
             }
 
             switch (stats.behavior)
@@ -182,7 +333,11 @@ namespace Combat
                         if (!_pressVetoed && Time.time >= _nextFireTime)
                         {
                             _nextFireTime = Time.time + stats.cooldown;
-                            FireHitscan(stats, stats.damage);
+                            if (holdingRifle && bulletPrefab != null)
+                                FireBullet(stats);
+                            else
+                                FireHitscan(stats, stats.damage);
+                            StartAttackRecovery(stats.cooldown);
                         }
                     }
                     break;
@@ -194,7 +349,9 @@ namespace Combat
                         if (!_pressVetoed && Time.time >= _nextFireTime)
                         {
                             _nextFireTime = Time.time + stats.cooldown;
+                            AutoFaceNearestTarget(meleeAutoFaceRange);
                             FireMeleeArc(stats);
+                            StartAttackRecovery(stats.cooldown);
                         }
                     }
                     break;
@@ -205,7 +362,8 @@ namespace Combat
 
                     if (!_pressVetoed && Input.GetMouseButton(0))
                     {
-                        AimTowardMouse(stats.range);
+                        if (!AutoFaceNearestTarget(stats.range))
+                            AimTowardMouse(stats.range);
 
                         if (!_isFlameActive)
                         {
@@ -222,6 +380,7 @@ namespace Combat
                     else if (_isFlameActive && (Input.GetMouseButtonUp(0) || !Input.GetMouseButton(0)))
                     {
                         StopFlameEffect();
+                        StartAttackRecovery(stats.cooldown);
                     }
                     break;
 
@@ -238,7 +397,8 @@ namespace Combat
                     }
                     else if (_isCharging && Input.GetMouseButton(0))
                     {
-                        AimTowardMouse(stats.range);
+                        if (!AutoFaceNearestTarget(stats.range))
+                            AimTowardMouse(stats.range);
                     }
                     else if (Input.GetMouseButtonUp(0) && _isCharging)
                     {
@@ -251,6 +411,23 @@ namespace Combat
                                 FireArrow(stats, scaledDamage, fraction);
                             else
                                 FireHitscan(stats, scaledDamage);
+                            // 활은 쿨다운 대신 당긴 시간만큼(세게 당길수록 오래) 멈칫한다.
+                            StartAttackRecovery(stats.chargeTime * fraction);
+                        }
+                    }
+                    break;
+
+                case WeaponBehavior.Throw:
+                    if (Input.GetMouseButtonDown(0))
+                    {
+                        _pressVetoed = RaycastHitsWorldInteractable(stats.range);
+                        if (!_pressVetoed && Time.time >= _nextFireTime)
+                        {
+                            _nextFireTime = Time.time + stats.cooldown;
+                            FireGrenade(stats);
+                            StartAttackRecovery(stats.cooldown);
+                            // 1회용 소모품: 던지는 즉시 인벤토리에서 1개 소모되어 사라진다.
+                            _inventory.RemoveItem(selected, 1);
                         }
                     }
                     break;
@@ -259,6 +436,9 @@ namespace Combat
 
         private void LateUpdate()
         {
+            UpdateChargingSlowdown();
+            UpdateRifle();
+
             // 애니메이션이 손 뼈대를 움직인 뒤에 활/화살 자세를 덮어쓴다.
             if (_heldBow == null)
                 return;
@@ -356,9 +536,9 @@ namespace Combat
         /// <summary>
         /// IK는 상체를 돌리기 전 자세에서 풀리므로, 돌린 뒤 원하는 위치를 돌리기 전 기준으로 되돌려 목표로 준다.
         /// </summary>
-        private Vector3 ToPreTwistWorld(Vector3 local)
+        private Vector3 ToPreTwistWorld(Vector3 local, float twistDegrees)
         {
-            Quaternion untwist = Quaternion.AngleAxis(-aimTorsoTwist * _aimWeight, Vector3.up);
+            Quaternion untwist = Quaternion.AngleAxis(-twistDegrees, Vector3.up);
             return transform.TransformPoint(_chestLocal + untwist * (local - _chestLocal));
         }
 
@@ -371,17 +551,33 @@ namespace Combat
             if (_animator == null)
                 return;
 
+            // 저격총: 오른손은 손잡이, 왼손은 총열 아래 LeftGrip.
+            if (_heldRifle != null && _chest != null && _rifleLeftGrip != null)
+            {
+                float rw = _rifleWeight;
+                float twistDegrees = rifleTorsoTwist * rw;
+                _animator.SetIKPositionWeight(AvatarIKGoal.LeftHand, rw);
+                _animator.SetIKPositionWeight(AvatarIKGoal.RightHand, rw);
+                _animator.SetIKPosition(AvatarIKGoal.RightHand,
+                    ToPreTwistWorld(GetRifleGripLocal() + _rifleRightIkCorrection, twistDegrees));
+                Vector3 leftGripLocal = transform.InverseTransformPoint(_rifleLeftGrip.position);
+                _animator.SetIKPosition(AvatarIKGoal.LeftHand,
+                    ToPreTwistWorld(leftGripLocal + _rifleLeftIkCorrection, twistDegrees));
+                return;
+            }
+
             float w = _heldBow != null && _chest != null ? _aimWeight : 0f;
             _animator.SetIKPositionWeight(AvatarIKGoal.LeftHand, w);
             _animator.SetIKPositionWeight(AvatarIKGoal.RightHand, w);
             if (w <= 0f)
                 return;
 
-            _animator.SetIKPosition(AvatarIKGoal.LeftHand, ToPreTwistWorld(GetAimGripLocal() + _leftIkCorrection));
+            float bowTwist = aimTorsoTwist * _aimWeight;
+            _animator.SetIKPosition(AvatarIKGoal.LeftHand, ToPreTwistWorld(GetAimGripLocal() + _leftIkCorrection, bowTwist));
             if (_nockedArrow != null)
             {
                 Vector3 nockLocal = transform.InverseTransformPoint(_desiredNockWorld);
-                _animator.SetIKPosition(AvatarIKGoal.RightHand, ToPreTwistWorld(nockLocal + _rightIkCorrection));
+                _animator.SetIKPosition(AvatarIKGoal.RightHand, ToPreTwistWorld(nockLocal + _rightIkCorrection, bowTwist));
             }
         }
 
@@ -396,6 +592,38 @@ namespace Combat
         {
             _isCharging = false;
             StopFlameEffect();
+            StopAttackRecovery();
+        }
+
+        /// <summary>
+        /// 공격 직후 잠깐 이동을 막는다(후딜). 공격 딜레이가 큰 무기일수록 반동을 생각해 더 오래 막는다.
+        /// </summary>
+        private void StartAttackRecovery(float attackDelay)
+        {
+            float seconds = Mathf.Min(attackRecoveryBase + attackDelay * attackRecoveryPerDelay, attackRecoveryMax);
+            StopAttackRecovery();
+            if (seconds > 0f)
+                _attackRecoveryRoutine = StartCoroutine(AttackRecoveryRoutine(seconds));
+        }
+
+        private void StopAttackRecovery()
+        {
+            // 후딜이 진행 중일 때만 잠금을 푼다. 빈손일 때는 CancelOngoingActions가 매 프레임 불리므로,
+            // 무조건 풀면 맨손 공격(FistAttackRoutine)이 건 이동 잠금까지 바로 풀려 버린다.
+            if (_attackRecoveryRoutine == null)
+                return;
+
+            StopCoroutine(_attackRecoveryRoutine);
+            _attackRecoveryRoutine = null;
+            LockMovement(false);
+        }
+
+        private IEnumerator AttackRecoveryRoutine(float seconds)
+        {
+            LockMovement(true);
+            yield return new WaitForSeconds(seconds);
+            LockMovement(false);
+            _attackRecoveryRoutine = null;
         }
 
         /// <summary>
@@ -406,36 +634,8 @@ namespace Combat
             if (_heldBow != null || bowPrefab == null)
                 return;
 
-            Transform hand = null;
-            _rightHand = null;
-            _chest = null;
-            _head = null;
-            if (_animator != null && _animator.isHuman)
-            {
-                hand = _animator.GetBoneTransform(HumanBodyBones.LeftHand);
-                _rightHand = _animator.GetBoneTransform(HumanBodyBones.RightHand);
-                Transform shoulder = _animator.GetBoneTransform(HumanBodyBones.LeftUpperArm);
-                Transform elbow = _animator.GetBoneTransform(HumanBodyBones.LeftLowerArm);
-                _chest = _animator.GetBoneTransform(HumanBodyBones.Chest);
-                if (_chest == null)
-                    _chest = _animator.GetBoneTransform(HumanBodyBones.Spine);
-                _head = _animator.GetBoneTransform(HumanBodyBones.Head);
-
-                if (hand != null && shoulder != null && elbow != null && _chest != null)
-                {
-                    // 조준 자세 계산용: 장착 순간(상체를 돌리기 전) 가슴·왼쪽 어깨 위치와 왼팔 길이.
-                    _chestLocal = transform.InverseTransformPoint(_chest.position);
-                    _leftShoulderLocal = transform.InverseTransformPoint(shoulder.position);
-                    _leftArmLength = Vector3.Distance(shoulder.position, elbow.position) +
-                                     Vector3.Distance(elbow.position, hand.position);
-                }
-                else
-                {
-                    _chest = null;
-                }
-            }
-            if (hand == null)
-                hand = transform;
+            CacheArmBones();
+            Transform hand = _leftHandBone != null ? _leftHandBone : transform;
 
             _aimWeight = 0f;
             _bowHand = hand;
@@ -463,15 +663,155 @@ namespace Combat
 
         private void UnequipBow()
         {
-            if (_heldBow != null)
-                Destroy(_heldBow);
+            if (_heldBow == null)
+                return;
+
+            Destroy(_heldBow);
             _heldBow = null;
             _nockedArrow = null;
             _bowHand = null;
+            _aimWeight = 0f;
+        }
+
+        /// <summary>
+        /// 활·총 자세 계산에 쓰는 뼈대를 찾아 둔다. 위치는 장착 순간(상체를 돌리기 전) 캐릭터 로컬 좌표로 기록한다.
+        /// 휴머노이드가 아니거나 필요한 뼈대가 없으면 _chest가 null이 되고, 이때는 IK 없이 모델만 붙인다.
+        /// </summary>
+        private void CacheArmBones()
+        {
+            _leftHandBone = null;
             _rightHand = null;
             _chest = null;
             _head = null;
-            _aimWeight = 0f;
+            if (_animator == null || !_animator.isHuman)
+                return;
+
+            _leftHandBone = _animator.GetBoneTransform(HumanBodyBones.LeftHand);
+            _rightHand = _animator.GetBoneTransform(HumanBodyBones.RightHand);
+            Transform leftShoulder = _animator.GetBoneTransform(HumanBodyBones.LeftUpperArm);
+            Transform rightShoulder = _animator.GetBoneTransform(HumanBodyBones.RightUpperArm);
+            Transform elbow = _animator.GetBoneTransform(HumanBodyBones.LeftLowerArm);
+            _chest = _animator.GetBoneTransform(HumanBodyBones.Chest);
+            if (_chest == null)
+                _chest = _animator.GetBoneTransform(HumanBodyBones.Spine);
+            _head = _animator.GetBoneTransform(HumanBodyBones.Head);
+
+            if (_leftHandBone == null || _rightHand == null || leftShoulder == null || rightShoulder == null ||
+                elbow == null || _chest == null)
+            {
+                _chest = null;
+                return;
+            }
+
+            _chestLocal = transform.InverseTransformPoint(_chest.position);
+            _leftShoulderLocal = transform.InverseTransformPoint(leftShoulder.position);
+            _rightShoulderLocal = transform.InverseTransformPoint(rightShoulder.position);
+            _leftArmLength = Vector3.Distance(leftShoulder.position, elbow.position) +
+                             Vector3.Distance(elbow.position, _leftHandBone.position);
+        }
+
+        /// <summary>
+        /// 저격총을 두 손으로 든다. 오른손은 손잡이, 왼손은 총열 아래 LeftGrip을 IK로 잡는다.
+        /// </summary>
+        private void EquipRifle()
+        {
+            if (_heldRifle != null || rifleHeldPrefab == null)
+                return;
+
+            CacheArmBones();
+            _heldRifle = Instantiate(rifleHeldPrefab, transform);
+            _heldRifle.name = "HeldRifle";
+            _rifleLeftGrip = _heldRifle.transform.Find("LeftGrip");
+            _rifleMuzzle = _heldRifle.transform.Find("Muzzle");
+            DisableColliders(_heldRifle);
+            _rifleWeight = 0f;
+            _rifleRecoil = 0f;
+            UpdateRifle();
+        }
+
+        private void UnequipRifle()
+        {
+            if (_heldRifle == null)
+                return;
+
+            Destroy(_heldRifle);
+            _heldRifle = null;
+            _rifleLeftGrip = null;
+            _rifleMuzzle = null;
+            _rifleWeight = 0f;
+        }
+
+        /// <summary>
+        /// 오른손 목표: 상체를 돌린 뒤의 오른쪽 어깨에서 rifleGripOffset만큼 떨어진 지점(캐릭터 로컬).
+        /// </summary>
+        private Vector3 GetRifleGripLocal()
+        {
+            Quaternion twist = Quaternion.AngleAxis(rifleTorsoTwist * _rifleWeight, Vector3.up);
+            return _chestLocal + twist * (_rightShoulderLocal - _chestLocal) + rifleGripOffset;
+        }
+
+        /// <summary>
+        /// 총 자세: 상체를 돌리고(머리는 정면), 손 IK 보정을 갱신한 뒤 총을 실제 오른손 위치에 맞춰 놓는다.
+        /// 반동(_rifleRecoil)이 있으면 총을 살짝 뒤로 밀고 총구를 들어 올린다.
+        /// </summary>
+        private void UpdateRifle()
+        {
+            if (_heldRifle == null)
+                return;
+
+            float blendSpeed = aimBlendTime > 0f ? Time.deltaTime / aimBlendTime : 1f;
+            _rifleWeight = Mathf.MoveTowards(_rifleWeight, 1f, blendSpeed);
+            _rifleRecoil = Mathf.MoveTowards(_rifleRecoil, 0f, Time.deltaTime / 0.15f);
+
+            if (_chest != null)
+            {
+                Quaternion twist = Quaternion.AngleAxis(rifleTorsoTwist * _rifleWeight, transform.up);
+                _chest.rotation = twist * _chest.rotation;
+                if (_head != null)
+                    _head.rotation = Quaternion.Inverse(twist) * _head.rotation;
+
+                if (_rifleWeight >= 0.99f && _rifleLeftGrip != null)
+                {
+                    // 이 리그는 IK 결과가 목표에서 일정하게 어긋나므로(손 뼈대 3배 스케일) 차이만큼 목표를 보정한다.
+                    const float gain = 0.5f;
+                    const float maxCorrection = 0.3f;
+                    Vector3 rightError = GetRifleGripLocal() - transform.InverseTransformPoint(_rightHand.position);
+                    _rifleRightIkCorrection = Vector3.ClampMagnitude(_rifleRightIkCorrection + rightError * gain, maxCorrection);
+                    Vector3 leftError = transform.InverseTransformPoint(_rifleLeftGrip.position) -
+                                        transform.InverseTransformPoint(_leftHandBone.position);
+                    _rifleLeftIkCorrection = Vector3.ClampMagnitude(_rifleLeftIkCorrection + leftError * gain, maxCorrection);
+                }
+            }
+
+            Transform rifle = _heldRifle.transform;
+            rifle.rotation = Quaternion.LookRotation(transform.forward, Vector3.up) *
+                             Quaternion.Euler(-8f * _rifleRecoil, 0f, 0f);
+            Vector3 gripWorld = _chest != null ? _rightHand.position : transform.TransformPoint(new Vector3(0.05f, 0.25f, 0.2f));
+            rifle.position = gripWorld - transform.forward * (0.05f * _rifleRecoil);
+        }
+
+        /// <summary>
+        /// 총구에서 조준점으로 총알을 쏜다. 근처에 적이 있으면 자동 조준, 없으면 마우스 방향.
+        /// </summary>
+        private void FireBullet(WeaponStats stats)
+        {
+            // 캐릭터를 돌리기 전에 총구 위치를 캐릭터 기준으로 기억해 두고, 돌린 뒤 다시 월드 좌표로 바꾼다.
+            Vector3 muzzleLocal = _rifleMuzzle != null
+                ? transform.InverseTransformPoint(_rifleMuzzle.position)
+                : new Vector3(0f, 1.2f, 0.5f);
+
+            Vector3 aimPoint = GetAutoAimPoint(stats.range, transform.TransformPoint(muzzleLocal).y);
+            FaceDirection(aimPoint - transform.position);
+
+            Vector3 muzzle = transform.TransformPoint(muzzleLocal);
+            Vector3 dir = aimPoint - muzzle;
+            dir = dir.sqrMagnitude < 0.0001f ? transform.forward : dir.normalized;
+
+            ArrowProjectile bullet = Instantiate(bulletPrefab, muzzle, Quaternion.LookRotation(dir));
+            bullet.Launch(dir * bulletSpeed, stats.damage, stats.range, hitMask, transform);
+
+            SpawnImpact(muzzle, new Color(1f, 0.85f, 0.4f));
+            _rifleRecoil = 1f;
         }
 
         private static void DisableColliders(GameObject go)
@@ -494,7 +834,7 @@ namespace Combat
             else
                 spawnPos = transform.position + Vector3.up * 1.2f + transform.forward * 0.3f;
 
-            Vector3 target = GetMouseAimPoint(stats.range, spawnPos.y);
+            Vector3 target = GetAutoAimPoint(stats.range, spawnPos.y);
             Vector3 toTarget = target - spawnPos;
             if (toTarget.sqrMagnitude < 0.01f)
                 toTarget = transform.forward;
@@ -504,6 +844,41 @@ namespace Combat
             ArrowProjectile arrow = Instantiate(arrowPrefab, spawnPos, Quaternion.LookRotation(toTarget));
             Vector3 velocity = toTarget.normalized * speed + Vector3.up * (0.5f * arrow.Gravity * flightTime);
             arrow.Launch(velocity, damage, stats.range * 1.5f, hitMask, transform);
+        }
+
+        /// <summary>
+        /// 화학 독가스 수류탄: 마우스가 가리키는 지점으로 포물선을 그리며 던진다.
+        /// 맞으면 즉시 폭발 피해를 주고, 자리에 독가스 구름을 남긴다.
+        /// </summary>
+        private void FireGrenade(WeaponStats stats)
+        {
+            Vector3 spawnPos = transform.position + Vector3.up * 1.3f + transform.forward * 0.4f;
+            Vector3 target = GetMouseAimPoint(stats.range, spawnPos.y);
+            Vector3 toTarget = target - spawnPos;
+            if (toTarget.sqrMagnitude < 0.01f)
+                toTarget = transform.forward * (stats.range * 0.5f);
+
+            float speed = stats.throwSpeed;
+            float flightTime = toTarget.magnitude / speed;
+
+            GameObject go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            go.name = "GrenadeProjectile";
+            go.transform.position = spawnPos;
+            go.transform.localScale = Vector3.one * 0.18f;
+
+            Material mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            if (mat.HasProperty("_BaseColor"))
+                mat.SetColor("_BaseColor", stats.effectColor);
+            go.GetComponent<Renderer>().sharedMaterial = mat;
+
+            Collider col = go.GetComponent<Collider>();
+            if (col != null)
+                col.enabled = false;
+
+            GrenadeProjectile grenade = go.AddComponent<GrenadeProjectile>();
+            Vector3 velocity = toTarget.normalized * speed + Vector3.up * (0.5f * grenade.Gravity * flightTime);
+            grenade.Launch(velocity, stats.damage, stats.blastRadius, stats.gasDuration, stats.gasTickInterval,
+                stats.gasTickDamage, hitMask, transform);
         }
 
         private Vector3 GetMouseAimPoint(float range, float fallbackHeight)
@@ -529,6 +904,168 @@ namespace Combat
 
             Plane plane = new Plane(Vector3.up, new Vector3(0f, fallbackHeight, 0f));
             return plane.Raycast(ray, out float enter) ? ray.GetPoint(enter) : ray.origin + ray.direction * range;
+        }
+
+        /// <summary>
+        /// 맨손(빈손) 상태일 때의 공격. 원신처럼 근처 가장 가까운 대상을 자동으로 바라보며 때리고,
+        /// 공격이 진행되는 동안(락온+타격)에는 WASD 이동을 잠근다.
+        /// </summary>
+        private void UpdateFistAttack(bool handEmpty)
+        {
+            if (!handEmpty || _fistAttacking)
+                return;
+
+            if (Input.GetMouseButtonDown(0) && Time.time >= _nextFistTime)
+            {
+                bool vetoed = RaycastHitsWorldInteractable(fistStrikeRadius);
+                if (!vetoed)
+                {
+                    _nextFistTime = Time.time + fistCooldown;
+                    StartCoroutine(FistAttackRoutine());
+                }
+            }
+        }
+
+        private IEnumerator FistAttackRoutine()
+        {
+            _fistAttacking = true;
+            LockMovement(true);
+
+            AutoFaceNearestTarget(fistDetectRange);
+
+            yield return new WaitForSeconds(fistImpactDelay);
+            FireFistStrike();
+
+            float remaining = fistWindup - fistImpactDelay;
+            if (remaining > 0f)
+                yield return new WaitForSeconds(remaining);
+
+            LockMovement(false);
+            _fistAttacking = false;
+        }
+
+        private void FireFistStrike()
+        {
+            Vector3 origin = transform.position + Vector3.up * 1f;
+            Collider[] hits = Physics.OverlapSphere(origin, fistStrikeRadius, hitMask);
+
+            Damageable nearest = null;
+            Vector3 nearestPoint = origin;
+            float nearestDist = float.MaxValue;
+
+            foreach (Collider col in hits)
+            {
+                Damageable d = col.GetComponentInParent<Damageable>();
+                if (d == null)
+                    continue;
+
+                float dist = (col.transform.position - transform.position).sqrMagnitude;
+                if (dist < nearestDist)
+                {
+                    nearestDist = dist;
+                    nearest = d;
+                    nearestPoint = col.ClosestPoint(origin);
+                }
+            }
+
+            if (nearest != null)
+            {
+                nearest.TakeDamage(fistDamage, nearestPoint);
+                SpawnImpact(nearestPoint, new Color(0.95f, 0.8f, 0.65f));
+            }
+        }
+
+        private Damageable FindNearestDamageable(float range)
+        {
+            Collider[] hits = Physics.OverlapSphere(transform.position, range, hitMask);
+            Damageable nearest = null;
+            float nearestDist = float.MaxValue;
+
+            foreach (Collider col in hits)
+            {
+                Damageable d = col.GetComponentInParent<Damageable>();
+                if (d == null)
+                    continue;
+
+                float dist = (col.transform.position - transform.position).sqrMagnitude;
+                if (dist < nearestDist)
+                {
+                    nearestDist = dist;
+                    nearest = d;
+                }
+            }
+
+            return nearest;
+        }
+
+        private void LockMovement(bool locked)
+        {
+            if (_playerMove != null)
+                _playerMove.SetMovementLocked(locked);
+        }
+
+        /// <summary>
+        /// 활을 당기는 중이거나 화염방사기·분무기를 뿜는 중에는 이동 속도를 낮춘다.
+        /// 무기를 바꾸거나 멈추면 CancelOngoingActions/StopFlameEffect로 상태가 풀려 다음 프레임에 원래 속도로 돌아온다.
+        /// </summary>
+        private void UpdateChargingSlowdown()
+        {
+            if (_playerMove == null)
+                return;
+
+            bool slowed = _isCharging || _isFlameActive;
+            _playerMove.SetSpeedMultiplier(slowed ? chargingMoveSpeedMultiplier : 1f);
+        }
+
+        /// <summary>
+        /// 원신처럼, 지정한 반경 안의 가장 가까운 대상 쪽으로 캐릭터를 자동으로 돌린다(공격 직전 락온용).
+        /// </summary>
+        /// <summary>탐지 범위 안의 가장 가까운 대상을 바라보도록 돌린다. 대상을 찾아 돌렸으면 true.</summary>
+        private bool AutoFaceNearestTarget(float detectRange)
+        {
+            Damageable target = FindNearestDamageable(detectRange);
+            if (target == null)
+                return false;
+
+            Vector3 toTarget = target.transform.position - transform.position;
+            toTarget.y = 0f;
+            if (toTarget.sqrMagnitude <= 0.01f)
+                return false;
+
+            FaceDirection(toTarget);
+            return true;
+        }
+
+        /// <summary>캐릭터를 즉시 해당 수평 방향으로 돌린다.</summary>
+        private void FaceDirection(Vector3 direction)
+        {
+            direction.y = 0f;
+            if (direction.sqrMagnitude < 0.0001f)
+                return;
+
+            Quaternion faceRotation = Quaternion.LookRotation(direction.normalized);
+
+            // transform.rotation을 즉시 반영해야 같은 프레임에서 바로 이어지는 판정(부채꼴/레이캐스트 등)이
+            // 새 방향을 기준으로 계산된다(그렇지 않으면 물리 스텝 전까지 이전 방향으로 판정됨).
+            transform.rotation = faceRotation;
+
+            // PlayerMove가 Rigidbody(보간 On)로 회전을 관리하므로, transform만 바꾸면 다음 물리
+            // 스텝에서 Rigidbody의 이전 회전값으로 되돌아간다. Rigidbody도 같은 값으로 맞춰준다.
+            if (_playerMove != null && _playerMove.rigidbody != null)
+                _playerMove.rigidbody.MoveRotation(faceRotation);
+        }
+
+        /// <summary>
+        /// 원거리 무기 자동 조준용 조준점. 범위 안에 대상이 있으면 그 대상을, 없으면 기존처럼 마우스 조준점을 반환한다.
+        /// (수류탄은 이 함수를 쓰지 않고 항상 마우스 커서를 직접 조준한다.)
+        /// </summary>
+        private Vector3 GetAutoAimPoint(float range, float fallbackHeight)
+        {
+            Damageable target = FindNearestDamageable(range);
+            if (target != null)
+                return target.transform.position + Vector3.up * 1f;
+
+            return GetMouseAimPoint(range, fallbackHeight);
         }
 
         private void StopFlameEffect()
@@ -576,11 +1113,17 @@ namespace Combat
 
         private void FireHitscan(WeaponStats stats, int damage)
         {
-            Ray ray = targetCamera.ScreenPointToRay(Input.mousePosition);
             Vector3 muzzle = transform.position + Vector3.up * 1.2f;
-            Vector3 endPoint;
 
-            if (Physics.Raycast(ray, out RaycastHit hit, stats.range, hitMask))
+            // 근처에 대상이 있으면 그쪽을 자동으로 바라보며 쏘고(원신 락온 스타일),
+            // 없으면 기존처럼 마우스 커서 방향을 조준한다.
+            Vector3 aimPoint = GetAutoAimPoint(stats.range, muzzle.y);
+            Vector3 dir = aimPoint - muzzle;
+            dir = dir.sqrMagnitude < 0.0001f ? transform.forward : dir.normalized;
+            FaceDirection(dir);
+
+            Vector3 endPoint;
+            if (Physics.Raycast(muzzle, dir, out RaycastHit hit, stats.range, hitMask))
             {
                 endPoint = hit.point;
                 Damageable target = hit.collider.GetComponentInParent<Damageable>();
@@ -591,7 +1134,7 @@ namespace Combat
             }
             else
             {
-                endPoint = ray.origin + ray.direction * stats.range;
+                endPoint = muzzle + dir * stats.range;
             }
 
             SpawnTracer(muzzle, endPoint, stats.effectColor);

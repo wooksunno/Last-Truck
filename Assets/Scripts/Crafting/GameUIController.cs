@@ -83,7 +83,9 @@ private int _withdrawMax;
         {
             public RecipeData recipe;
             public float remaining;
-            public bool done;
+            public int pending;
+            public int ready;
+            public bool running;
         }
 
         private readonly Dictionary<ProcessingFacility, FacilityJob> _facilityJobs = new Dictionary<ProcessingFacility, FacilityJob>();
@@ -991,8 +993,6 @@ private void BuildTruckProcessingPanel()
             for (int i = 0; i < TruckProcessingFacilities.Length; i++)
                 CreateFacilityTab(i < 4 ? tabRow : tabRow2, TruckProcessingFacilities[i]);
 
-            bool hasJob = _truckJob != null;
-
             CreateTruckFurnacePanel(_popupBody, _truckJob);
 
             if (!string.IsNullOrEmpty(_truckProcessMessage))
@@ -1008,7 +1008,7 @@ private void BuildTruckProcessingPanel()
                 return;
             }
 
-            CreateLabel(_popupBody, hasJob ? "가공이 끝나면 오른쪽 아이템을 눌러 받으세요" : "재료를 누르면 재료창에 올라가 자동으로 가공됩니다", 16, FontStyle.Bold);
+            CreateLabel(_popupBody, "재료를 누를 때마다 1개씩 가공 목록에 추가됩니다 (1개당 1분)", 16, FontStyle.Bold);
             RectTransform grid = CreateScrollableGrid(_popupBody, "재료 선택", 4, 200f);
             foreach (RecipeData recipe in unlocked)
             {
@@ -1018,12 +1018,7 @@ private void BuildTruckProcessingPanel()
 
                 bool canCraft = truckInv != null && truckInv.HasIngredients(recipe);
                 RecipeData captured = recipe;
-                CreateRecipeSelectIcon(grid, recipe, canCraft, false, () =>
-                {
-                    if (_truckJob != null)
-                        return;
-                    StartTruckProcessing(captured);
-                });
+                CreateRecipeSelectIcon(grid, recipe, canCraft, false, () => StartTruckProcessing(captured));
             }
         }
 
@@ -1040,7 +1035,8 @@ private void CreateTruckFurnacePanel(RectTransform parent, FacilityJob activeJob
             RectTransform containerRt = container.GetComponent<RectTransform>();
 
             bool hasJob = activeJob != null;
-            bool done = hasJob && activeJob.done;
+            int pending = hasJob ? activeJob.pending : 0;
+            int ready = hasJob ? activeJob.ready : 0;
             RecipeData recipe = hasJob ? activeJob.recipe : null;
 
             ItemData inputItem = null;
@@ -1054,20 +1050,15 @@ private void CreateTruckFurnacePanel(RectTransform parent, FacilityJob activeJob
             ItemData outputItem = recipe != null && recipe.output != null ? recipe.output.item : null;
             int outputCount = recipe != null && recipe.output != null ? recipe.output.count : 0;
 
-            CreateFurnaceSlot(containerRt, new Vector2(0f, 0.5f), new Vector2(90f, 0f), inputItem,
-                inputItem != null ? $"x{needCount}" : "재료 선택");
+            string inText = inputItem == null ? "재료 선택" : (pending > 0 ? $"대기 x{pending * needCount}" : "-");
+            CreateFurnaceSlot(containerRt, new Vector2(0f, 0.5f), new Vector2(90f, 0f), inputItem, inText);
 
             CreateTruckFurnaceMiddle(containerRt, activeJob);
 
-            string outText = !hasJob ? "-" : (done ? $"클릭! x{outputCount}" : "가공 중");
+            string outText = !hasJob ? "-" : (ready > 0 ? $"클릭! x{ready * outputCount}" : "가공 중");
             GameObject outSlot = CreateFurnaceSlot(containerRt, new Vector2(1f, 0.5f), new Vector2(-90f, 0f), outputItem, outText);
 
-            if (hasJob && !done)
-            {
-                Image dim = outSlot.transform.Find("Icon").GetComponent<Image>();
-                dim.color = new Color(dim.color.r, dim.color.g, dim.color.b, 0.35f);
-            }
-            else if (done)
+            if (ready > 0)
             {
                 Image slotImg = outSlot.GetComponent<Image>();
                 slotImg.color = new Color(0.2f, 0.42f, 0.26f, 0.95f);
@@ -1075,12 +1066,18 @@ private void CreateTruckFurnacePanel(RectTransform parent, FacilityJob activeJob
                 claimBtn.targetGraphic = slotImg;
                 claimBtn.onClick.AddListener(ClaimTruckOutput);
             }
+            else if (hasJob)
+            {
+                Image dim = outSlot.transform.Find("Icon").GetComponent<Image>();
+                dim.color = new Color(dim.color.r, dim.color.g, dim.color.b, 0.35f);
+            }
         }
 
 private void CreateTruckFurnaceMiddle(RectTransform parent, FacilityJob activeJob)
         {
             bool hasJob = activeJob != null;
-            bool done = hasJob && activeJob.done;
+            int pending = hasJob ? activeJob.pending : 0;
+            int ready = hasJob ? activeJob.ready : 0;
 
             var go = new GameObject("TruckFurnaceMiddle", typeof(RectTransform));
             go.transform.SetParent(parent, false);
@@ -1120,15 +1117,15 @@ private void CreateTruckFurnaceMiddle(RectTransform parent, FacilityJob activeJo
             timerText.fontStyle = FontStyle.Bold;
             timerText.alignment = TextAnchor.MiddleCenter;
             timerText.raycastTarget = false;
-            if (done)
-            {
-                timerText.text = "완료";
-                timerText.color = new Color(0.5f, 0.95f, 0.55f);
-            }
-            else if (hasJob)
+            if (pending > 0)
             {
                 timerText.text = FormatClock(activeJob.remaining);
                 timerText.color = new Color(1f, 0.85f, 0.4f);
+            }
+            else if (ready > 0)
+            {
+                timerText.text = "완료";
+                timerText.color = new Color(0.5f, 0.95f, 0.55f);
             }
             else
             {
@@ -1149,16 +1146,23 @@ private void CreateTruckFurnaceMiddle(RectTransform parent, FacilityJob activeJo
             hintText.fontSize = 12;
             hintText.alignment = TextAnchor.MiddleCenter;
             hintText.color = new Color(0.75f, 0.75f, 0.8f);
-            hintText.text = done ? "오른쪽을 눌러 받기" : (hasJob ? "가공 중..." : "재료를 고르면 시작");
+            hintText.text = pending > 0 ? $"남은 {pending}개 가공 중" : (ready > 0 ? "오른쪽을 눌러 받기" : "재료를 고르면 시작");
 
-            _truckCountdownText = hasJob && !done ? timerText : null;
+            _truckCountdownText = pending > 0 ? timerText : null;
         }
 
 private void StartTruckProcessing(RecipeData recipe)
         {
             TruckStation truck = _activeTruck;
-            if (recipe == null || truck == null || _truckJob != null)
+            if (recipe == null || truck == null)
                 return;
+
+            if (_truckJob != null && _truckJob.recipe != recipe)
+            {
+                _truckProcessMessage = "다른 재료를 가공 중입니다. 결과물을 모두 받은 뒤에 바꿀 수 있습니다.";
+                ShowPopup("트럭 거점", BuildTruckContent);
+                return;
+            }
 
             TruckInventory truckInv = truck.TruckInventory;
             if (truckInv == null || !truckInv.HasIngredients(recipe))
@@ -1176,47 +1180,83 @@ private void StartTruckProcessing(RecipeData recipe)
             }
 
             _truckProcessMessage = null;
-            _truckJob = new FacilityJob { recipe = recipe, remaining = Mathf.Max(0f, recipe.processingSeconds) };
+            if (_truckJob == null)
+                _truckJob = new FacilityJob { recipe = recipe };
+
+            _truckJob.pending++;
+            if (!_truckJob.running)
+            {
+                _truckJob.remaining = Mathf.Max(0f, recipe.processingSeconds);
+                StartCoroutine(TruckProcessRoutine(truck, _truckJob));
+            }
+
             ShowPopup("트럭 거점", BuildTruckContent);
-            StartCoroutine(TruckProcessRoutine(truck, _truckJob));
         }
 
 private IEnumerator TruckProcessRoutine(TruckStation truck, FacilityJob job)
         {
-            while (job.remaining > 0f)
+            job.running = true;
+
+            while (job.pending > 0)
             {
-                yield return null;
-                job.remaining -= Time.deltaTime;
-                if (_truckJob == job && _truckCountdownText != null && IsPopupOpen)
-                    _truckCountdownText.text = FormatClock(job.remaining);
+                while (job.remaining > 0f)
+                {
+                    yield return null;
+                    job.remaining -= Time.deltaTime;
+                    if (_truckJob == job && _truckCountdownText != null && IsPopupOpen)
+                        _truckCountdownText.text = FormatClock(job.remaining);
+                }
+
+                job.pending--;
+                job.ready++;
+                job.remaining = job.pending > 0 ? Mathf.Max(0f, job.recipe.processingSeconds) : 0f;
+
+                if (_activeTruck == truck && IsPopupOpen)
+                    ShowPopup("트럭 거점", BuildTruckContent);
             }
 
-            job.remaining = 0f;
-            job.done = true;
-
-            if (_activeTruck == truck && IsPopupOpen)
-                ShowPopup("트럭 거점", BuildTruckContent);
+            job.running = false;
         }
 
 private void ClaimTruckOutput()
         {
             FacilityJob job = _truckJob;
-            if (job == null || !job.done)
+            if (job == null || job.ready <= 0)
                 return;
 
             PlayerInventory player = _activePlayer != null ? _activePlayer : playerInventory;
             RecipeIngredient output = job.recipe != null ? job.recipe.output : null;
 
-            if (player != null && output != null && output.item != null && !player.AddItem(output.item, output.count))
+            int claimed = 0;
+            if (player != null && output != null && output.item != null)
+            {
+                while (claimed < job.ready && player.AddItem(output.item, output.count))
+                    claimed++;
+            }
+            else
+            {
+                claimed = job.ready;
+            }
+
+            job.ready -= claimed;
+
+            if (claimed == 0)
             {
                 _truckProcessMessage = "인벤토리가 가득 찼습니다. 아래 내 인벤토리 칸을 눌러 트럭에 넣어 자리를 만드세요.";
                 Debug.LogWarning("인벤토리 공간이 부족하여 가공 결과물을 받을 수 없습니다.");
-                ShowPopup("트럭 거점", BuildTruckContent);
-                return;
+            }
+            else if (job.ready > 0)
+            {
+                _truckProcessMessage = "인벤토리 공간이 부족해 일부만 받았습니다. 남은 결과물은 자리를 만든 뒤 다시 눌러 받으세요.";
+            }
+            else
+            {
+                _truckProcessMessage = null;
             }
 
-            _truckProcessMessage = null;
-            _truckJob = null;
+            if (job.ready <= 0 && job.pending <= 0)
+                _truckJob = null;
+
             ShowPopup("트럭 거점", BuildTruckContent);
         }
 
@@ -1845,6 +1885,15 @@ private void ClaimTruckOutput()
             truckInv.AddItem(catalog.GetItem(ItemIds.Stone), amount);
             truckInv.AddItem(catalog.GetItem(ItemIds.IronOre), amount);
             truckInv.AddItem(catalog.GetItem(ItemIds.CopperOre), amount);
+
+            // 테스트 편의: 아직 하나도 없는 아이템(무기/도구/식료품 등 전부)은 최소 1개씩 채워 넣는다.
+            foreach (ItemData item in catalog.Items)
+            {
+                if (item == null)
+                    continue;
+                if (truckInv.GetItemCount(item) <= 0)
+                    truckInv.AddItem(item, 1);
+            }
         }
 
         private RectTransform CreateScrollableGrid(RectTransform parent, string title, int columns, float height = 380f)

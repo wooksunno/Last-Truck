@@ -9,7 +9,7 @@ namespace CraftingSystem
     /// </summary>
     public class TruckInventory : MonoBehaviour
     {
-        [SerializeField] private int maxSlots = 64;
+        [SerializeField] private int maxSlots = 120;
         [SerializeField] private bool fillDefaultsOnStart = true;
         [SerializeField] private ItemStackInventory inventory = new ItemStackInventory();
 
@@ -53,6 +53,9 @@ public void FillDefaultResources()
             AddItem(catalog.GetItem(ItemIds.Herb), 20);
             AddItem(catalog.GetItem(ItemIds.Oil), 20);
             AddItem(catalog.GetItem(ItemIds.Meat), 20);
+            AddItem(catalog.GetItem(ItemIds.EmergencyPatchBoard), 2);
+            AddItem(catalog.GetItem(ItemIds.WeldingKit), 2);
+            AddItem(catalog.GetItem(ItemIds.HighTensionRepairPack), 2);
 
             // 테스트용: 무기 5종 + 곡괭이 3종. 무기/도구는 겹치지 않아 각각 한 칸씩 차지한다.
             AddItem(catalog.GetItem(ItemIds.Ak47), 1);
@@ -65,7 +68,16 @@ public void FillDefaultResources()
             AddItem(catalog.GetItem(ItemIds.CopperPickaxe), 1);
             AddItem(catalog.GetItem(ItemIds.IronPickaxe), 1);
 
-            Debug.Log($"[TruckInventory] 기본 원재료/테스트용 무기·곡괭이 지급\n{GetInventorySummary()}");
+            // 테스트 편의: 위에서 지급되지 않은 나머지 모든 아이템도 최소 1개씩 채워 넣는다.
+            foreach (ItemData item in catalog.Items)
+            {
+                if (item == null)
+                    continue;
+                if (GetItemCount(item) <= 0)
+                    AddItem(item, 1);
+            }
+
+            Debug.Log($"[TruckInventory] 기본 원재료/테스트용 무기·곡괭이 + 전체 아이템 1개씩 지급\n{GetInventorySummary()}");
         }
 
         public bool HasIngredients(IEnumerable<RecipeIngredient> ingredients) =>

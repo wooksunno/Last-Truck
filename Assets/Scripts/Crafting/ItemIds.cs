@@ -99,6 +99,7 @@ namespace CraftingSystem
         public const string EmergencyRevivalKit = "emergency_revival_kit"; // 응급 소생 키트
         public const string CombatStimulant = "combat_stimulant"; // 전투 각성제
         public const string ChemicalGasGrenade = "chemical_gas_grenade"; // 화학 독가스 수류탄
+        public const string FragGrenade = "frag_grenade"; // 일반 수류탄
         public const string LureTrap = "lure_trap"; // 유인 미끼 트랩
 
         // 맵 특산물 구역 전용 자원 (기존 유지)

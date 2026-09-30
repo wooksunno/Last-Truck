@@ -16,5 +16,5 @@ MonoBehaviour:
   itemName: "\uB864\uB7EC \uD504\uB808\uC2A4\uAE30"
   itemType: 2
   maxStack: 5
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 7ae5aa6acee05fb4fb1d58d11c9a0f13, type: 3}
   toolTier: 0

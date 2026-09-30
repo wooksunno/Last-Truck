@@ -7,16 +7,24 @@ namespace LastTruck
         [Header("트럭 내구도")]
         [SerializeField] private float maxDurability = 100f;
         private float curDurability;
+        [Tooltip("게임 시작 시 깎아둘 내구도(수리 테스트용).")]
+        [SerializeField] private float startingDamage = 60f;
 
-        void Start()
+        public event System.Action<float, float> OnDurabilityChanged;
+        public float CurrentDurability => curDurability;
+        public float MaxDurability => maxDurability;
+
+void Start()
         {
-            curDurability = maxDurability;
+            curDurability = Mathf.Max(1f, maxDurability - startingDamage);
+            OnDurabilityChanged?.Invoke(curDurability, maxDurability);
         }
 
-        public void Take_Damage(float amount)
+public void Take_Damage(float amount)
         {
             curDurability -= amount;
             curDurability = Mathf.Clamp(curDurability, 0, maxDurability);
+            OnDurabilityChanged?.Invoke(curDurability, maxDurability);
 
             if (curDurability <= 0)
             {
@@ -24,10 +32,11 @@ namespace LastTruck
             }
         }
 
-        public void Repair(float amount)
+public void Repair(float amount)
         {
             curDurability += amount;
             curDurability = Mathf.Clamp(curDurability, 0, maxDurability);
+            OnDurabilityChanged?.Invoke(curDurability, maxDurability);
         }
 
         private void Breakdown()

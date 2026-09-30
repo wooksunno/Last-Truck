@@ -8521,6 +8521,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 1169272897128839033, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 1468491293229256806, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
       propertyPath: m_IsActive
       value: 1
@@ -8532,6 +8536,10 @@ PrefabInstance:
     - target: {fileID: 2280835593623785861, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
       propertyPath: m_IsActive
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2605751876976479816, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
+      propertyPath: m_IsActive
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 2624997696128740491, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
       propertyPath: lightController
@@ -8644,6 +8652,14 @@ PrefabInstance:
     - target: {fileID: 4388384186325488258, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
       propertyPath: m_IsActive
       value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5474217524256032044, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5798319895712415082, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
+      propertyPath: maxSlots
+      value: 120
       objectReference: {fileID: 0}
     - target: {fileID: 5895585654395106095, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
       propertyPath: m_IsActive

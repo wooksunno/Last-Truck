@@ -16,9 +16,15 @@ namespace Combat
         private Renderer[] _renderers;
         private Color[] _originalColors;
         private Coroutine _flashRoutine;
+        private Rigidbody _rigidbody;
+        private Coroutine _rootRoutine;
+        private float _rootUntilTime;
 
         public int CurrentHealth => _currentHealth;
         public int MaxHealth => maxHealth;
+
+        /// <summary>덫 등으로 이동이 묶인 상태인지. 이동/AI 스크립트는 이 값을 보고 움직임을 멈춰야 한다.</summary>
+        public bool IsRooted => Time.time < _rootUntilTime;
 
         private void Awake()
         {
@@ -29,6 +35,30 @@ namespace Combat
             {
                 _originalColors[i] = GetColor(_renderers[i]);
             }
+            _rigidbody = GetComponent<Rigidbody>();
+        }
+
+        /// <summary>지정한 시간(초) 동안 이동을 묶는다. 겹쳐 걸리면 더 긴 쪽으로 갱신된다.</summary>
+        public void Root(float duration)
+        {
+            if (duration <= 0f)
+                return;
+
+            _rootUntilTime = Mathf.Max(_rootUntilTime, Time.time + duration);
+            if (_rootRoutine == null)
+                _rootRoutine = StartCoroutine(RootRoutine());
+        }
+
+        private IEnumerator RootRoutine()
+        {
+            while (Time.time < _rootUntilTime)
+            {
+                if (_rigidbody != null && !_rigidbody.isKinematic)
+                    _rigidbody.linearVelocity = Vector3.zero;
+                yield return null;
+            }
+
+            _rootRoutine = null;
         }
 
         //public void TakeDamage(int amount, Vector3 hitPoint)
