@@ -16,7 +16,7 @@ namespace LastTruck
         public float HoldProgress01 { get; private set; }
         public bool HasNearbyInteractable => currentInteractable != null;
 
-private void Update()
+        private void Update()
         {
             Detect_Interactable();
 
@@ -58,7 +58,7 @@ private void Update()
             }
         }
 
-private void Detect_Interactable()
+        private void Detect_Interactable()
         {
             Collider[] hitColliders = Physics.OverlapSphere(transform.position, interactRange, interactLayer);
 

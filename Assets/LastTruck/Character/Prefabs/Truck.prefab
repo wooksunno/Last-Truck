@@ -871,11 +871,11 @@ GameObject:
   - component: {fileID: 318736929483444450}
   - component: {fileID: 8909990751826654165}
   - component: {fileID: 6134962674858467722}
+  - component: {fileID: 7313451405434990046}
   - component: {fileID: 3421343053134575936}
   - component: {fileID: 8331265628883833466}
   - component: {fileID: 2624997696128740491}
   - component: {fileID: 3039562301929832434}
-  - component: {fileID: 7313451405434990046}
   - component: {fileID: 5798319895712415082}
   - component: {fileID: 9196892555056109946}
   - component: {fileID: 6610594855164413199}
@@ -973,6 +973,33 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!54 &7313451405434990046
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4388384186325488258}
+  serializedVersion: 5
+  m_Mass: 1000
+  m_LinearDamping: 0.1
+  m_AngularDamping: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 1
+  m_IsKinematic: 0
+  m_Interpolate: 0
+  m_Constraints: 0
+  m_CollisionDetection: 0
 --- !u!65 &3421343053134575936
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -1024,6 +1051,7 @@ MonoBehaviour:
   exitPoint: {fileID: 7452458705061552991}
   virtualCam: {fileID: 0}
   exitCooldown: 0.2
+  lightController: {fileID: 0}
 --- !u!114 &3039562301929832434
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1059,33 +1087,6 @@ MonoBehaviour:
     wheelCollider: {fileID: 3456958735036498817}
     accelerator: 1
   _isDriving: 0
---- !u!54 &7313451405434990046
-Rigidbody:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4388384186325488258}
-  serializedVersion: 5
-  m_Mass: 1000
-  m_LinearDamping: 0.1
-  m_AngularDamping: 0.05
-  m_CenterOfMass: {x: 0, y: 0, z: 0}
-  m_InertiaTensor: {x: 1, y: 1, z: 1}
-  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ImplicitCom: 1
-  m_ImplicitTensor: 1
-  m_UseGravity: 1
-  m_IsKinematic: 0
-  m_Interpolate: 0
-  m_Constraints: 0
-  m_CollisionDetection: 0
 --- !u!114 &5798319895712415082
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -139,13 +139,23 @@ namespace CraftingSystem
 
             ItemData gatherItem = RollGatherItem();
 
-            if (!inventory.AddItem(gatherItem, amount))
+            ////////////////////////
+            //탐험가 능력 적용
+            int finalAmount = amount;
+
+            if (player.TryGetComponent<LastTruck.CharacterAbilityController>(out var abilityController))
+            {
+                finalAmount = abilityController.GetCalculatedResourceAmount(amount);
+            }
+            //////////////////////
+
+            if (!inventory.AddItem(gatherItem, finalAmount))
             {
                 Debug.LogWarning($"[SpecialResourceNode] 인벤토리 공간이 부족하여 {gatherItem.itemName}을(를) 획득하지 못했습니다.");
                 return;
             }
 
-            Debug.Log($"[SpecialResourceNode] {displayName}에서 {gatherItem.itemName} x{amount} 획득.");
+            Debug.Log($"[SpecialResourceNode] {displayName}에서 {gatherItem.itemName} x{finalAmount} 획득.");
 
             if (_remainingHits > 0)
             {

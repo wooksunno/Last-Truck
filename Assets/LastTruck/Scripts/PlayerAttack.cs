@@ -48,7 +48,7 @@ namespace LastTruck
             }
 
             Collider[] hitColliders = Physics.OverlapSphere(attackPoint.position, attackRange);
-            float damageToApply = (character != null && character.stats != null) ? character.stats.attackPower : 10f;
+            float damageToApply = (character != null && character.StatsData != null) ? character.StatsData.AttackPower : 10f;
 
             foreach (var col in hitColliders)
             {

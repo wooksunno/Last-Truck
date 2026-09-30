@@ -12,10 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1136d65906ee4a44abea798f62a5e429, type: 3}
   m_Name: CharacterData_Explorer
   m_EditorClassIdentifier: Assembly-CSharp::CharacterStatsData
-  playerName: 
-  maxHealth: 100
-  attackPower: 10
-  moveSpeed: 20
-  costReducation: 0
-  harvestSpeed: 2
-  repairBonus: 0
+  basicStats:
+    playerName: Explorer
+    maxHealth: 100
+    attackPower: 10
+    moveSpeed: 20
+  utilityStats:
+    costReduction: 0
+    harvestSpeed: 0
+    repairBonus: 0
+  uniqueAbility: {fileID: 0}

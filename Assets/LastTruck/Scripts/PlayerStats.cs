@@ -11,16 +11,16 @@ namespace LastTruck
         [SerializeField] private Animator anim;
 
         public event Action<float, float> OnHealthChanged;
-        public float MaxHealth => (character != null && character.stats != null) ? character.stats.maxHealth : 100f;
+        public float MaxHealth => (character != null && character.StatsData != null) ? character.StatsData.MaxHealth : 100f;
 
         private void Start()
         {
             character = GetComponent<Character>();
             anim = GetComponentInChildren<Animator>();
 
-            if (character != null && character.stats != null)
+            if (character != null && character.StatsData != null)
             {
-                currentHealth = character.stats.maxHealth;
+                currentHealth = character.StatsData.MaxHealth;
             }
 
             OnHealthChanged?.Invoke(currentHealth, MaxHealth);

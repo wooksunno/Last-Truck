@@ -4,17 +4,18 @@ namespace LastTruck
 {
     public class PlayerMove : MonoBehaviour
     {
+        [Header("Movement Settings")]
         public float speed = 5f;
         public Transform cameraTransform;
         public Rigidbody rigidbody;
 
-        float hAxis;
-        float vAxis;
-        bool wDown;
+        private float hAxis;
+        private float vAxis;
+        private bool wDown;
 
-        Vector3 moveVec;
-        Animator anim;
-        Character character;
+        private Vector3 moveVec;
+        private Animator anim;
+        private Character character;
 
         private void Start()
         {
@@ -29,19 +30,31 @@ namespace LastTruck
             if (rigidbody != null)
             {
                 rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
-                // 회전은 전부 스크립트가 정한다. Y까지 고정하지 않으면 몬스터/트럭에 비스듬히 부딪힐 때
-                // 생긴 회전 속도가 계속 남아서, 키를 놓은 뒤에도 캐릭터가 제자리에서 빙글빙글 돈다.
                 rigidbody.constraints = RigidbodyConstraints.FreezeRotation;
-            }
-
-            if (character != null && character.stats != null && character.stats.moveSpeed > 0)
-            {
-                speed = character.stats.baseSpeed;
             }
 
             if (cameraTransform == null && Camera.main != null)
             {
                 cameraTransform = Camera.main.transform;
+            }
+
+            SyncSpeedFromCharacter();
+        }
+
+        private void OnEnable()
+        {
+            // Ʈ�� ���� �� ��ũ��Ʈ�� �ٽ� Ȱ��ȭ�� �� ���� ����ȭ
+            SyncSpeedFromCharacter();
+        }
+
+        private void SyncSpeedFromCharacter()
+        {
+            if (character != null)
+            {
+                if (character.CurrentMoveSpeed > 0)
+                {
+                    speed = character.CurrentMoveSpeed;
+                }
             }
         }
 
@@ -54,8 +67,8 @@ namespace LastTruck
             if (anim != null)
             {
                 bool isMoving = (hAxis != 0 || vAxis != 0);
-                anim.SetBool("isRun", isMoving);
-                anim.SetBool("isWalk", wDown);
+                anim.SetBool("isRun", isMoving && !wDown);
+                anim.SetBool("isWalk", isMoving && wDown);
             }
         }
 
@@ -73,7 +86,7 @@ namespace LastTruck
 
             moveVec = (camForward * vAxis + camRight * hAxis).normalized;
 
-            float currentSpeed = speed * (wDown ? 0.3f : 1f);
+            float currentSpeed = speed * (wDown ? 0.5f : 1f);
 
             Vector3 targetVelocity = moveVec * currentSpeed;
             targetVelocity.y = rigidbody.linearVelocity.y;

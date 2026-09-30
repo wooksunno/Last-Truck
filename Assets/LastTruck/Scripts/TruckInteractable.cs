@@ -51,6 +51,7 @@ namespace LastTruck
             isDriving = true;
             driverPlayer = player;
             driveStartTime = Time.time;
+            gameObject.tag = "Player";
 
             if (player.TryGetComponent<PlayerMove>(out var moveScript)) moveScript.enabled = false;
             if (player.TryGetComponent<PlayerAttack>(out var attackScript)) attackScript.enabled = false;
@@ -87,9 +88,9 @@ namespace LastTruck
 
         private void GetOut_Truck()
         {
-            if (driverPlayer == null) return;
-
+            if (driverPlayer == null) { return; }
             isDriving = false;
+            gameObject.tag = "Untagged";
 
             if (truckController != null)
             {

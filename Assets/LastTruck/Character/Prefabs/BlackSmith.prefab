@@ -108,19 +108,25 @@ PrefabInstance:
       addedObject: {fileID: 4333959419104466822}
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: efd331d4b11709f40b82377af7a18459, type: 3}
       insertIndex: -1
+      addedObject: {fileID: 801994096007266160}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: efd331d4b11709f40b82377af7a18459, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 7861670347433292010}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: efd331d4b11709f40b82377af7a18459, type: 3}
+      insertIndex: -1
       addedObject: {fileID: 5274113359485452381}
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: efd331d4b11709f40b82377af7a18459, type: 3}
       insertIndex: -1
       addedObject: {fileID: 2882078418701320787}
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: efd331d4b11709f40b82377af7a18459, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 801994096007266160}
-    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: efd331d4b11709f40b82377af7a18459, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 5386324572335248184}
-    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: efd331d4b11709f40b82377af7a18459, type: 3}
-      insertIndex: -1
       addedObject: {fileID: 1921756594223472106}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: efd331d4b11709f40b82377af7a18459, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 8482115384231880724}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: efd331d4b11709f40b82377af7a18459, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 5349461931536387589}
   m_SourcePrefab: {fileID: 100100000, guid: efd331d4b11709f40b82377af7a18459, type: 3}
 --- !u!1 &1570441015787563531 stripped
 GameObject:
@@ -177,6 +183,33 @@ CapsuleCollider:
   m_Height: 1.4374988
   m_Direction: 1
   m_Center: {x: -0.0058998466, y: 0.54323375, z: 0}
+--- !u!114 &801994096007266160
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1570441015787563531}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e313c0d95b3fbd946ad2027b699bed5c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Character
+  statsData: {fileID: 0}
+--- !u!114 &7861670347433292010
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1570441015787563531}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fa17b5252e97040409331d3c33fa51e5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LastTruck.CharacterAbilityController
+  weaponController: {fileID: 5349461931536387589}
+  currentAbility: {fileID: 11400000, guid: 45b9884b7a06f5d45af911fc9a675a0b, type: 2}
 --- !u!114 &5274113359485452381
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -191,6 +224,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMove
   speed: 5
   cameraTransform: {fileID: 0}
+  rigidbody: {fileID: 0}
 --- !u!114 &2882078418701320787
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -208,37 +242,6 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 16
   interactKey: 101
---- !u!114 &801994096007266160
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1570441015787563531}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e313c0d95b3fbd946ad2027b699bed5c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Character
-  stats: {fileID: 11400000, guid: ad305e8f407a1bc40a77ae509141545e, type: 2}
---- !u!114 &5386324572335248184
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1570441015787563531}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9558d62362d890847bf22fe44788fd1a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LastTruck.PlayerAttack
-  attackPoint: {fileID: 0}
-  attackRange: 1.5
-  attackCooldown: 0.5
-  targetTags:
-  - Player
-  - Enemy
 --- !u!114 &1921756594223472106
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -254,3 +257,45 @@ MonoBehaviour:
   currentHealth: 0
   character: {fileID: 0}
   anim: {fileID: 0}
+--- !u!114 &8482115384231880724
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1570441015787563531}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 856eb99757da0c449bd690c02fdb4dac, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.PlayerInventory
+  maxSlots: 3
+  grantStarterItems: 1
+  inventory:
+    maxSlots: 32
+    slots: []
+--- !u!114 &5349461931536387589
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1570441015787563531}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: adb9b0ce85954f44fa94f3c5f30116b2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Combat.WeaponController
+  targetCamera: {fileID: 0}
+  hitMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  bowPrefab: {fileID: 0}
+  arrowPrefab: {fileID: 0}
+  minArrowSpeed: 15
+  maxArrowSpeed: 35
+  maxDrawDistance: 0.25
+  carryTiltAngle: 50
+  aimArmExtension: 0.8
+  aimTorsoTwist: 60
+  aimBlendTime: 0.15

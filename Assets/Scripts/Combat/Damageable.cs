@@ -1,3 +1,4 @@
+using LastTruck;
 using System.Collections;
 using UnityEngine;
 
@@ -30,13 +31,41 @@ namespace Combat
             }
         }
 
+        //public void TakeDamage(int amount, Vector3 hitPoint)
+        //{
+        //    if (amount <= 0)
+        //        return;
+
+        //    _currentHealth -= amount;
+        //    SpawnDamagePopup(hitPoint, amount);
+
+        //    if (_flashRoutine != null)
+        //        StopCoroutine(_flashRoutine);
+        //    _flashRoutine = StartCoroutine(FlashRed());
+
+        //    if (_currentHealth <= 0)
+        //    {
+        //        // Debug.Log($"[Damageable] {name} 체력 소진 - 초기화");
+        //        // _currentHealth = maxHealth;
+        //        Destroy(gameObject);
+        //    }
+        //}
+
         public void TakeDamage(int amount, Vector3 hitPoint)
         {
             if (amount <= 0)
                 return;
 
-            _currentHealth -= amount;
-            SpawnDamagePopup(hitPoint, amount);
+            int finalDamage = amount;
+
+            var abilityController = FindObjectOfType<CharacterAbilityController>();
+            if (abilityController != null)
+            {
+                finalDamage = abilityController.GetCalculatedDamage(amount, out bool isEnhanced);
+            }
+
+            _currentHealth -= finalDamage;
+            SpawnDamagePopup(hitPoint, finalDamage);
 
             if (_flashRoutine != null)
                 StopCoroutine(_flashRoutine);
@@ -44,8 +73,6 @@ namespace Combat
 
             if (_currentHealth <= 0)
             {
-                // Debug.Log($"[Damageable] {name} 체력 소진 - 초기화");
-                // _currentHealth = maxHealth;
                 Destroy(gameObject);
             }
         }

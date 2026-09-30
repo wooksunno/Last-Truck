@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using LastTruck;
 
 namespace CraftingSystem
 {
@@ -20,7 +21,7 @@ namespace CraftingSystem
         }
         public IReadOnlyList<RecipeData> Recipes => recipes;
 
-private void Awake()
+        private void Awake()
         {
             _ = Inventory;
         }
@@ -53,13 +54,15 @@ private void Awake()
             SetRecipes(catalog.GetRecipesForFacility(FacilityType.None));
         }
 
-public bool TryCraft(RecipeData recipe)
+        public bool TryCraft(RecipeData recipe)
         {
             if (recipe == null)
             {
                 Debug.LogWarning("[TruckCrafting] 레시피가 null입니다.");
                 return false;
             }
+
+
 
             TruckInventory inv = Inventory;
             if (inv == null)
@@ -74,32 +77,55 @@ public bool TryCraft(RecipeData recipe)
                 return false;
             }
 
-            if (!inv.HasIngredients(recipe))
-            {
-                Debug.LogWarning($"[TruckCrafting] 재료 부족: {recipe.recipeID}");
-                return false;
-            }
+            // 대장장이 능력 추가
+            CharacterAbilityController abilityController = FindObjectOfType<CharacterAbilityController>();
 
-            var removed = new List<RecipeIngredient>();
+            ItemType type = recipe.output.item.itemType;
+            bool isWeapon = (type == ItemType.Finished);
+
             foreach (RecipeIngredient ingredient in recipe.inputs)
             {
                 if (ingredient == null || ingredient.item == null || ingredient.count <= 0)
                     continue;
 
-                if (!inv.RemoveItem(ingredient.item, ingredient.count))
+                int requiredCount = ingredient.count;
+                if (abilityController != null)
                 {
-                    foreach (RecipeIngredient r in removed)
+                    requiredCount = abilityController.GetCalculatedCraftingCost(ingredient.count, isWeapon);
+                }
+
+                if (inv.GetItemCount(ingredient.item) < requiredCount)
+                {
+                    Debug.LogWarning($"[TruckCrafting] 재료 부족: {recipe.recipeID}");
+                    return false;
+                }
+            }
+
+            var removed = new List<(ItemData item, int count)>();
+            foreach (RecipeIngredient ingredient in recipe.inputs)
+            {
+                if (ingredient == null || ingredient.item == null || ingredient.count <= 0)
+                    continue;
+
+                int requiredCount = ingredient.count;
+                if (abilityController != null)
+                {
+                    requiredCount = abilityController.GetCalculatedCraftingCost(ingredient.count, isWeapon);
+                }
+
+                if (!inv.RemoveItem(ingredient.item, requiredCount))
+                {
+                    foreach (var r in removed)
                         inv.AddItem(r.item, r.count);
                     return false;
                 }
 
-                removed.Add(ingredient);
+                removed.Add((ingredient.item, requiredCount));
             }
 
             if (!inv.AddItem(recipe.output.item, recipe.output.count))
             {
-                // 결과물을 넣을 공간이 없으면 이미 소모한 재료를 되돌려 손실을 막는다.
-                foreach (RecipeIngredient r in removed)
+                foreach (var r in removed)
                     inv.AddItem(r.item, r.count);
                 Debug.LogError($"[TruckCrafting] 결과물 수납 실패(공간 부족): {recipe.output.item.itemName}");
                 return false;
