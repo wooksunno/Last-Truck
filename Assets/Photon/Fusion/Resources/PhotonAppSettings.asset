@@ -20,7 +20,7 @@ MonoBehaviour:
     AppIdVoice: 
     AppVersion: 
     UseNameServer: 1
-    FixedRegion: 
+    FixedRegion: kr
     Server: 
     Port: 0
     ProxyServer: 
@@ -28,7 +28,7 @@ MonoBehaviour:
     EnableProtocolFallback: 1
     AuthMode: 2
     EnableLobbyStatistics: 0
-    NetworkLogging: 1
-    ClientLogging: 2
+    NetworkLogging: 0
+    ClientLogging: 0
     encryptionMode: 0
     emptyRoomTtl: 0
