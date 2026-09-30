@@ -266,6 +266,22 @@ MonoBehaviour:
   aimArmExtension: 0.8
   aimTorsoTwist: 60
   aimBlendTime: 0.15
+  rifleHeldPrefab: {fileID: 2779038113132478828, guid: 532382e13c93b85438b72c004ff3b75b, type: 3}
+  bulletPrefab: {fileID: 8284179023095087468, guid: f64da22345d982648955f8310811656f, type: 3}
+  bulletSpeed: 90
+  rifleTorsoTwist: 50
+  rifleGripOffset: {x: -0.08, y: 0, z: 0.14}
+  chargingMoveSpeedMultiplier: 0.5
+  meleeAutoFaceRange: 6
+  attackRecoveryBase: 0.15
+  attackRecoveryPerDelay: 0.2
+  attackRecoveryMax: 0.7
+  fistDetectRange: 6
+  fistStrikeRadius: 1.4
+  fistDamage: 8
+  fistCooldown: 0.5
+  fistImpactDelay: 0.15
+  fistWindup: 0.35
 --- !u!114 &4958026202253226086
 MonoBehaviour:
   m_ObjectHideFlags: 0
