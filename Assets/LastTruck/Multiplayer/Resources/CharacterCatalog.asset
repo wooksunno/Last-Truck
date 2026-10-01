@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c9ff47b1f57cf424a932201a5d17af43, type: 3}
+  m_Name: CharacterCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::LastTruck.Networking.CharacterCatalog
+  characters:
+  - {fileID: 11400000, guid: ca88d2452de253145bd9fb965bbebcb1, type: 2}
+  - {fileID: 11400000, guid: ad305e8f407a1bc40a77ae509141545e, type: 2}
+  - {fileID: 11400000, guid: dff90d1b5a7864e429863a66a0ec5967, type: 2}
+  - {fileID: 11400000, guid: 90dade404507249419595010ad907d76, type: 2}

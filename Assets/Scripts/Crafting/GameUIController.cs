@@ -126,6 +126,11 @@ private int _withdrawMax;
 
         private void EnsureFont()
         {
+            // 한글이 선명하게 보이도록 프로젝트 폰트(Pretendard)를 우선 사용한다.
+            Font preferred = LastTruck.Networking.InGameFonts.LegacyFont;
+            if (preferred != null)
+                uiFont = preferred;
+
             if (uiFont == null)
                 uiFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             if (uiFont == null)
@@ -136,6 +141,8 @@ private int _withdrawMax;
         {
             if (Instance == this)
                 Instance = null;
+
+            WatchTruckInventory(null);
 
             if (playerInventory != null)
             {
@@ -267,6 +274,10 @@ public void OpenPouchPanel(PouchInventory pouch, PlayerInventory player)
 
 private void ShowPopup(string title, System.Action builder)
         {
+            _lastPopupTitle = title;
+            _lastPopupBuilder = builder;
+            WatchTruckInventory(_activeTruck != null ? _activeTruck.TruckInventory : null);
+
             _popupRoot.SetActive(true);
             _popupTitle.text = title;
 
@@ -276,6 +287,58 @@ private void ShowPopup(string title, System.Action builder)
             ClearChildren(_popupBody);
             builder?.Invoke();
         }
+
+        #region 트럭 인벤토리 실시간 갱신 (멀티플레이)
+
+        // 다른 플레이어가 트럭에서 아이템을 넣고/빼면 호스트 → 모두에게 트럭 인벤토리가 동기화되고,
+        // 그 Changed 이벤트를 받아 열려 있는 트럭 창을 다시 그린다 (같은 프레임에 여러 번 바뀌어도 한 번만).
+        private TruckInventory _watchedTruckInventory;
+        private bool _truckViewDirty;
+        private string _lastPopupTitle;
+        private System.Action _lastPopupBuilder;
+
+        private void WatchTruckInventory(TruckInventory truckInventory)
+        {
+            if (_watchedTruckInventory == truckInventory)
+                return;
+
+            if (_watchedTruckInventory != null)
+                _watchedTruckInventory.Changed -= OnWatchedTruckInventoryChanged;
+
+            _watchedTruckInventory = truckInventory;
+
+            if (_watchedTruckInventory != null)
+                _watchedTruckInventory.Changed += OnWatchedTruckInventoryChanged;
+        }
+
+        private void OnWatchedTruckInventoryChanged() => _truckViewDirty = true;
+
+        private void LateUpdate()
+        {
+            if (!_truckViewDirty)
+                return;
+            _truckViewDirty = false;
+
+            if (!IsPopupOpen || _activeTruck == null || _lastPopupBuilder == null)
+                return;
+            if (_lastPopupBuilder != (System.Action)BuildTruckContent)
+                return;
+
+            // 꺼내려던 아이템을 다른 사람이 다 가져갔으면 입력창을 닫는다.
+            if (_withdrawItem != null && _activeTruck.TruckInventory != null &&
+                _activeTruck.TruckInventory.GetItemCount(_withdrawItem) <= 0)
+                _withdrawItem = null;
+
+            float scroll = _popupScrollRect != null ? _popupScrollRect.verticalNormalizedPosition : 1f;
+            ShowPopup(_lastPopupTitle, _lastPopupBuilder);
+            if (_popupScrollRect != null)
+            {
+                Canvas.ForceUpdateCanvases();
+                _popupScrollRect.verticalNormalizedPosition = scroll;
+            }
+        }
+
+        #endregion
 
         private void BindPlayerInventory()
         {
@@ -312,7 +375,8 @@ private void ShowPopup(string title, System.Action builder)
                 {
                     if (_activeTruck != null)
                     {
-                        TransferItem(playerInventory.Inventory, _activeTruck.TruckInventory.Inventory, captured.item, captured.count);
+                        // 멀티플레이: 호스트에게 요청 (모든 플레이어의 트럭 창에 반영된다)
+                        LastTruck.Networking.TruckInventorySync.Deposit(_activeTruck.TruckInventory, playerInventory, captured.item, captured.count);
                         ShowPopup("트럭 거점", BuildTruckContent);
                     }
                     else if (_activePouch != null)
@@ -768,7 +832,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             RectTransform actionRow = CreateRow(_popupBody);
             CreateSmallActionButton(actionRow, "원재료 +10", new Color(0.3f, 0.5f, 0.35f), () =>
             {
-                GrantRawMaterialsToTruck(truckInv, 10);
+                LastTruck.Networking.TruckInventorySync.GrantRaw(truckInv, 10);
                 ShowPopup("트럭 거점", BuildTruckContent);
             });
             CreateFlexibleSpacer(actionRow);
@@ -845,7 +909,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 if (!int.TryParse(field.text, out int amount))
                     amount = 1;
                 amount = Mathf.Clamp(amount, 1, max);
-                TransferItem(truckInv.Inventory, _activePlayer.Inventory, item, amount);
+                LastTruck.Networking.TruckInventorySync.Withdraw(truckInv, _activePlayer, item, amount);
                 _withdrawItem = null;
                 ShowPopup("트럭 거점", BuildTruckContent);
             });
@@ -1147,9 +1211,7 @@ private void CreateFacilityTab(RectTransform parent, FacilityType facility)
 
             if (recipe.processingSeconds <= 0f)
             {
-                bool ok = craft.TryCraft(recipe);
-                if (!ok)
-                    Debug.LogWarning("재료가 부족합니다.");
+                LastTruck.Networking.TruckInventorySync.Craft(craft, recipe);
                 ShowPopup("트럭 거점", BuildTruckContent);
                 return;
             }
@@ -1169,11 +1231,8 @@ private void CreateFacilityTab(RectTransform parent, FacilityType facility)
                     _truckCountdownText.text = $"{Mathf.Max(0f, job.remaining):0.0}초 남음";
             }
 
-            bool ok = craft.TryCraft(recipe);
+            LastTruck.Networking.TruckInventorySync.Craft(craft, recipe);
             _truckJob = null;
-
-            if (!ok)
-                Debug.LogWarning("재료가 부족합니다.");
 
             if (_activeTruck == truck && IsPopupOpen)
                 ShowPopup("트럭 거점", BuildTruckContent);
@@ -1231,7 +1290,7 @@ private void CreateFacilityTab(RectTransform parent, FacilityType facility)
             CreateCraftConfirmButton(container.GetComponent<RectTransform>(), canCraft, () =>
             {
                 if (craft != null)
-                    craft.TryCraft(recipe);
+                    LastTruck.Networking.TruckInventorySync.Craft(craft, recipe);
                 ShowPopup(_craftingPanelOpen ? "제작" : "트럭 거점", BuildTruckContent);
             });
         }

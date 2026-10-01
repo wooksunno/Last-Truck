@@ -32,6 +32,19 @@ namespace CraftingSystem
 
         private float _refreshTimer;
 
+        #region 외부 표시용 (멀티플레이 동료 마커 - LastTruck.Networking.MinimapTeammateMarkers)
+
+        /// <summary>점/마커를 올리는 레이어 (중앙 = 내 캐릭터). UI가 아직 없으면 null.</summary>
+        public RectTransform DotLayer => _dotLayer;
+        /// <summary>미니맵 중심이 되는 내 캐릭터.</summary>
+        public Transform PlayerTransform => _player;
+        /// <summary>미니맵이 보여주는 월드 반경(m).</summary>
+        public float ViewRadiusWorld => viewRadiusWorld;
+        /// <summary>미니맵 반지름(픽셀).</summary>
+        public float PixelRadius => minimapPixelRadius;
+
+        #endregion
+
         public void Initialize(Transform player, Transform truck)
         {
             _player = player;

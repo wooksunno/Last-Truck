@@ -183,6 +183,24 @@ namespace CraftingSystem
             NotifyChanged();
         }
 
+        /// <summary>
+        /// 슬롯 전체를 주어진 목록으로 덮어쓴다 (멀티플레이 클라이언트가 호스트의 트럭 인벤토리를 받아올 때 사용).
+        /// </summary>
+        public void ReplaceAll(IEnumerable<InventorySlot> newSlots)
+        {
+            slots.Clear();
+            if (newSlots != null)
+            {
+                foreach (InventorySlot slot in newSlots)
+                {
+                    if (slot != null && !slot.IsEmpty)
+                        slots.Add(new InventorySlot(slot.item, slot.count));
+                }
+            }
+
+            NotifyChanged();
+        }
+
         public bool TransferAllTo(ItemStackInventory target)
         {
             if (target == null)

@@ -16,9 +16,16 @@ using UnityEngine;
 /// - gameManager 필드가 연결되어 있으면, 밤이 시작될 때(OnNightStarted) 그 밤의 쿼터만큼 자동 스폰함.
 /// - 스폰된 각 몬스터에는 MonsterKillNotifier가 자동으로 부착되어, 몬스터가 파괴될 때
 ///   GameManager에 킬을 자동으로 보고함 (몬스터 프리팹 자체는 수정할 필요 없음).
+///
+/// [멀티플레이]
+/// - 몬스터는 호스트만 스폰한다 (네트워크 몬스터 프리팹, 모든 참가자에게 같은 몬스터가 보임).
+/// - 스폰 기준점은 트럭 (플레이어가 여러 명이라서).
+/// - 동시에 살아 있는 몬스터 수가 maxAliveMonsters를 넘지 않게 기다렸다가 스폰한다.
 /// </summary>
 public class MonsterSpawner : MonoBehaviour
 {
+    #region 인스펙터
+
     [Header("참조")]
     [SerializeField] private Transform player;
     [SerializeField] private GameObject monsterPrefab;
@@ -64,7 +71,21 @@ public class MonsterSpawner : MonoBehaviour
     [Tooltip("몬스터 한 마리를 스폰한 뒤 다음 몬스터를 스폰하기까지의 최대 대기 시간(초)")]
     [SerializeField] private float maxSpawnInterval = 1.5f;
 
+    [Header("동시 생존 상한 (성능/네트워크 부담 방지)")]
+    [Tooltip("살아 있는 몬스터가 이 수 이상이면 줄어들 때까지 다음 스폰을 기다린다. 0이면 제한 없음.")]
+    [SerializeField] private int maxAliveMonsters = 30;
+
+    #endregion
+
+    #region 상태
+
     private Coroutine spawnRoutine;
+    private Transform _spawnCenter;
+    private readonly List<GameObject> _aliveMonsters = new List<GameObject>();
+
+    #endregion
+
+    #region 생명주기 / GameManager 연동
 
     private void OnEnable()
     {
@@ -88,7 +109,7 @@ public class MonsterSpawner : MonoBehaviour
     {
         // gameManager가 연결되어 있으면 밤 시작 이벤트가 스폰을 트리거하므로,
         // 테스트용 자동 스폰(spawnOnStart)은 gameManager가 없을 때만 동작시킨다.
-        if (gameManager == null && spawnOnStart)
+        if (gameManager == null && spawnOnStart && LastTruck.Networking.NetworkMonsterSpawning.CanSpawnMonsters)
         {
             SpawnMonsters(spawnCountOnStart);
         }
@@ -99,6 +120,10 @@ public class MonsterSpawner : MonoBehaviour
     /// </summary>
     private void HandleNightStarted(int quota)
     {
+        // 멀티플레이 클라이언트는 스폰하지 않는다 (호스트가 스폰한 몬스터가 보인다).
+        if (!LastTruck.Networking.NetworkMonsterSpawning.CanSpawnMonsters)
+            return;
+
         SpawnMonsters(quota);
     }
 
@@ -119,11 +144,19 @@ public class MonsterSpawner : MonoBehaviour
     /// count마리의 몬스터를 시간차를 두고 스폰한다. 서로 minSpacing 이상 떨어지도록 분산 배치됨.
     /// 이미 진행 중인 스폰 코루틴이 있다면 중단하고 새로 시작한다.
     /// </summary>
+    #endregion
+
+    #region 스폰
+
     public void SpawnMonsters(int count)
     {
-        if (player == null)
+        _spawnCenter = LastTruck.Networking.NetworkMonsterSpawning.UseNetworkSpawn
+            ? LastTruck.Networking.NetworkMonsterSpawning.GetSpawnCenter()
+            : player;
+
+        if (_spawnCenter == null)
         {
-            Debug.LogError("[MonsterSpawner] player가 설정되지 않았습니다.");
+            Debug.LogError("[MonsterSpawner] 스폰 기준(player / 트럭)이 설정되지 않았습니다.");
             return;
         }
 
@@ -144,6 +177,13 @@ public class MonsterSpawner : MonoBehaviour
 
         for (int i = 0; i < count; i++)
         {
+            // 동시 생존 상한: 줄어들 때까지 기다린다.
+            while (maxAliveMonsters > 0 && CountAliveMonsters() >= maxAliveMonsters)
+                yield return new WaitForSeconds(0.5f);
+
+            if (_spawnCenter == null || LastTruck.Networking.NetworkGameState.IsGameOver)
+                break;
+
             Vector3? spawnPos = null;
             yield return FindValidSpawnPosition(spawnedPositions, result => spawnPos = result);
 
@@ -155,10 +195,13 @@ public class MonsterSpawner : MonoBehaviour
 
             spawnedPositions.Add(spawnPos.Value);
 
-            if (monsterPrefab != null)
+            GameObject monster = SpawnOne(spawnPos.Value);
+            if (monster != null)
             {
-                GameObject monster = Instantiate(monsterPrefab, spawnPos.Value, Quaternion.identity);
-                AttachKillNotifier(monster);
+                // 멀티플레이 몬스터의 킬 집계는 NetworkMonsterSpawning이 체력 0 시점에 한다.
+                if (!LastTruck.Networking.NetworkMonsterSpawning.UseNetworkSpawn)
+                    AttachKillNotifier(monster);
+                _aliveMonsters.Add(monster);
             }
 
             // 마지막 몬스터를 스폰한 뒤에는 굳이 대기하지 않음
@@ -173,6 +216,23 @@ public class MonsterSpawner : MonoBehaviour
     }
 
     /// <summary>
+    /// 몬스터 한 마리 생성. 멀티플레이면 네트워크 몬스터(호스트), 아니면 기존처럼 Instantiate.
+    /// </summary>
+    private GameObject SpawnOne(Vector3 position)
+    {
+        if (LastTruck.Networking.NetworkMonsterSpawning.UseNetworkSpawn)
+            return LastTruck.Networking.NetworkMonsterSpawning.Spawn(position, Quaternion.identity);
+
+        return monsterPrefab != null ? Instantiate(monsterPrefab, position, Quaternion.identity) : null;
+    }
+
+    private int CountAliveMonsters()
+    {
+        _aliveMonsters.RemoveAll(m => m == null);
+        return _aliveMonsters.Count;
+    }
+
+    /// <summary>
     /// 스폰된 몬스터에 킬카운트 알림 컴포넌트를 부착한다.
     /// 몬스터 프리팹에 이미 붙어 있다면 중복 부착하지 않는다.
     /// </summary>
@@ -183,6 +243,10 @@ public class MonsterSpawner : MonoBehaviour
             monster.AddComponent<MonsterKillNotifier>();
         }
     }
+
+    #endregion
+
+    #region 스폰 위치 계산
 
     /// <summary>
     /// 바닥 위 + 기존 스폰 위치들과 최소 간격을 만족하는 위치를 찾을 때까지 매 프레임 한 번씩 시도한다.
@@ -197,7 +261,10 @@ public class MonsterSpawner : MonoBehaviour
         {
             iterations++;
 
-            Vector3 candidateXZ = GetRandomPointInAnnulus(player.position, minDistance, maxDistance);
+            if (_spawnCenter == null)
+                break;
+
+            Vector3 candidateXZ = GetRandomPointInAnnulus(_spawnCenter.position, minDistance, maxDistance);
 
             if (TryRaycastGround(candidateXZ, out Vector3 groundPoint) &&
                 IsFarEnoughFromOthers(groundPoint, alreadySpawned))
@@ -272,15 +339,18 @@ public class MonsterSpawner : MonoBehaviour
         return true;
     }
 
-    // ─────────────────────────────────────────────
+    #endregion
+
+    #region 기즈모
+
     // Scene 뷰 기즈모: minDistance / maxDistance 원을 항상 표시
-    // ─────────────────────────────────────────────
     private void OnDrawGizmos()
     {
-        if (player == null) return;
+        Transform center = _spawnCenter != null ? _spawnCenter : player;
+        if (center == null) return;
 
-        DrawFlatWireCircle(player.position, minDistance, minDistanceColor);
-        DrawFlatWireCircle(player.position, maxDistance, maxDistanceColor);
+        DrawFlatWireCircle(center.position, minDistance, minDistanceColor);
+        DrawFlatWireCircle(center.position, maxDistance, maxDistanceColor);
     }
 
     private void DrawFlatWireCircle(Vector3 center, float radius, Color color)
@@ -298,4 +368,6 @@ public class MonsterSpawner : MonoBehaviour
             prevPoint = nextPoint;
         }
     }
+
+    #endregion
 }

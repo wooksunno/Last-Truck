@@ -1,0 +1,177 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1001 &6366147105804283069
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 4780963940045373100, guid: 1e5fa0617f150934db39c2375bddd438, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 4.23195
+      objectReference: {fileID: 0}
+    - target: {fileID: 4780963940045373100, guid: 1e5fa0617f150934db39c2375bddd438, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: -0.81
+      objectReference: {fileID: 0}
+    - target: {fileID: 4780963940045373100, guid: 1e5fa0617f150934db39c2375bddd438, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1.86208
+      objectReference: {fileID: 0}
+    - target: {fileID: 4780963940045373100, guid: 1e5fa0617f150934db39c2375bddd438, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4780963940045373100, guid: 1e5fa0617f150934db39c2375bddd438, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4780963940045373100, guid: 1e5fa0617f150934db39c2375bddd438, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4780963940045373100, guid: 1e5fa0617f150934db39c2375bddd438, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4780963940045373100, guid: 1e5fa0617f150934db39c2375bddd438, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4780963940045373100, guid: 1e5fa0617f150934db39c2375bddd438, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4780963940045373100, guid: 1e5fa0617f150934db39c2375bddd438, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6079350888388269832, guid: 1e5fa0617f150934db39c2375bddd438, type: 3}
+      propertyPath: m_Name
+      value: Monster_Network
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 6079350888388269832, guid: 1e5fa0617f150934db39c2375bddd438, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 7396410701426843143}
+    - targetCorrespondingSourceObject: {fileID: 6079350888388269832, guid: 1e5fa0617f150934db39c2375bddd438, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 6222678886565085998}
+    - targetCorrespondingSourceObject: {fileID: 6079350888388269832, guid: 1e5fa0617f150934db39c2375bddd438, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2684881792940048010}
+    - targetCorrespondingSourceObject: {fileID: 6079350888388269832, guid: 1e5fa0617f150934db39c2375bddd438, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 8171540485204498871}
+  m_SourcePrefab: {fileID: 100100000, guid: 1e5fa0617f150934db39c2375bddd438, type: 3}
+--- !u!1 &866705968112532405 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6079350888388269832, guid: 1e5fa0617f150934db39c2375bddd438, type: 3}
+  m_PrefabInstance: {fileID: 6366147105804283069}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &7396410701426843143
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 866705968112532405}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -1552182283, guid: e725a070cec140c4caffb81624c8c787, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkObject
+  SortKey: 488883084
+  SendPriority: 1
+  EnableInterpolation: 1
+  Flags: 262402
+  NestedObjects: []
+  NetworkedBehaviours:
+  - {fileID: 6222678886565085998}
+  - {fileID: 2684881792940048010}
+  - {fileID: 8171540485204498871}
+  ForceRemoteRenderTimeframe: 0
+--- !u!114 &6222678886565085998
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 866705968112532405}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 158639473, guid: e725a070cec140c4caffb81624c8c787, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkTransform
+  _stateAuthorityChangeErrorCorrectionDelta: 0
+  SyncScale: 0
+  SyncParent: 0
+  _autoAOIOverride: 1
+  ConfigFlags: 0
+  PhysicsSettings:
+    ForecastEnabled: 1
+    DebugPhysics: 0
+    GravityForecast: 2
+    MaxExtrapolationTime: 0.15
+    MinLinearDetectedError: 0.02
+    MinAngularDetectedError: 3
+    MaxLinearError: 0
+    MaxAngularError: 0
+    LowCorrectionProgressThreshold: 0.015
+    HighErrorSimilarityThreshold: 1
+    MaxErrorTotalTime: 0.5
+    MaxRemoteSleepIgnoreTime: 0.5
+    ErrorCorrectionType: 0
+    LinearVelCorrectionMul: 1
+    AngularVelCorrectionMul: 1
+    PositionCorrectionLerp: 0.15
+    RotationCorrectionLerp: 0.15
+    Spring: 75
+    Damper: 2
+    MinImpactfulCollisionAlignment: 0.3
+    ImpactStartCorrectionTime: 0.1
+    ImpactCorrectionTimeComplete: 0.3
+--- !u!114 &2684881792940048010
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 866705968112532405}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 90f915c43ec0c114da36ac757ecd909c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LastTruck.Networking.NetworkHealth
+  isPlayer: 0
+  despawnDelay: 0.3
+  fallbackMaxHealth: 100
+  maxDamagePerHit: 1000
+  _Current: 0
+  _Max: 0
+  _IsDead:
+    RawValue: 0
+--- !u!114 &8171540485204498871
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 866705968112532405}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 034080cfff7885445a9e353792303c12, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LastTruck.Networking.NetworkMonster
+  detectionRange: 12
+  loseRange: 15
+  retargetInterval: 0.3
+  attackRange: 1.5
+  playerDamage: 10
+  truckDamage: 10
+  attackCooldown: 1.2

@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 09d04ee8cd78f7643be408c84004cafc, type: 3}
+  m_Name: NetworkPrefabRegistry
+  m_EditorClassIdentifier: Assembly-CSharp::LastTruck.Networking.NetworkPrefabRegistry
+  gameStatePrefab: {fileID: 7615849450806733799, guid: b3028d7a9080bc541ade3d1e509fb7cd, type: 3}
+  monsterPrefab: {fileID: 7396410701426843143, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+  uiFont: {fileID: 12800000, guid: 22a428bbf4b419f49a2110a1106d6b32, type: 3}
+  tmpFont: {fileID: 11400000, guid: ee08c7788285ac84ba3740e218a4da0f, type: 2}

@@ -1,4 +1,4 @@
-﻿using Unity.Cinemachine;
+using Unity.Cinemachine;
 using UnityEngine;
 
 namespace LastTruck
@@ -40,6 +40,14 @@ namespace LastTruck
 
         public void Interact(GameObject player)
         {
+            // 멀티플레이: 운전자 1명 + 동승자 방식 (호스트가 좌석을 정한다 - LastTruck.Networking.NetworkTruck).
+            // 캐릭터를 끄는 기존 방식은 네트워크 캐릭터를 망가뜨리므로 쓰지 않는다.
+            if (LastTruck.Networking.GameLauncher.IsOnlineSession)
+            {
+                LastTruck.Networking.NetworkTruck.RequestBoard();
+                return;
+            }
+
             if (!isDriving)
             {
                 GetIn_Truck(player);
@@ -133,4 +141,4 @@ namespace LastTruck
             driverPlayer = null;
         }
     }
-}
+}

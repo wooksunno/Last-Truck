@@ -159,6 +159,17 @@ namespace CraftingSystem
             Generate();
         }
 
+        /// <summary>
+        /// 맵 배치용 난수. 멀티플레이에서는 호스트가 정한 시드(모두 같은 값)를 써서 모든 컴퓨터의 맵이 똑같이 만들어진다.
+        /// 싱글플레이(Demo_01에서 바로 Play)에서는 예전처럼 매번 다른 맵.
+        /// </summary>
+        private static System.Random CreateRandom(int salt)
+        {
+            if (LastTruck.Networking.NetworkMapSeed.TryGetSeed(out int seed))
+                return new System.Random(unchecked(seed * 31 + salt));
+            return new System.Random();
+        }
+
         public void Generate()
         {
             // _root는 직렬화되지 않는 private 필드라 Play 진입 시 도메인 리로드로 null로 리셋될 수 있다.
@@ -192,7 +203,7 @@ namespace CraftingSystem
         private List<ZoneInstance> PickZoneInstances()
         {
             var zones = new List<ZoneInstance>();
-            var rng = new System.Random();
+            var rng = CreateRandom(0);
 
             for (int d = 0; d < ZoneDefs.Length; d++)
             {
@@ -458,7 +469,7 @@ namespace CraftingSystem
         private void SpawnResourceNodes(List<ZoneInstance> zones)
         {
             ItemCatalog catalog = ItemCatalog.GetOrCreate();
-            var rng = new System.Random();
+            var rng = CreateRandom(1);
 
             for (int i = 0; i < zones.Count; i++)
             {

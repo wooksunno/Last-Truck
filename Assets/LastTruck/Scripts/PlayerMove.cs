@@ -16,8 +16,59 @@ namespace LastTruck
         Animator anim;
         Character character;
 
+        // 멀티플레이 캐릭터(NetworkPlayerMovement가 붙은 프리팹)는 이동/회전/애니메이션을 네트워크 쪽이 처리한다.
+        // 이 스크립트는 다른 스크립트(무기, 트럭 탑승 등)가 쓰는 창구 역할만 한다.
+        private bool _networkControlled;
+        private float _facingTime = float.NegativeInfinity;
+        private Quaternion _pendingFacing;
+
+        // 조준 요청은 한 프레임에 한 번 오지만 네트워크 틱은 한 프레임에 여러 번 돌 수 있으므로,
+        // 마지막 요청 후 이 시간 동안은 계속 같은 방향을 보낸다 (조준 중 떨림 방지).
+        private const float FacingHoldSeconds = 0.12f;
+
+        /// <summary>멀티플레이 캐릭터면 true (이동은 LastTruck.Networking.NetworkPlayerMovement가 담당).</summary>
+        public bool IsNetworkControlled => _networkControlled;
+
+        private void Awake()
+        {
+            _networkControlled = GetComponent<LastTruck.Networking.NetworkPlayerMovement>() != null;
+        }
+
+        /// <summary>
+        /// 캐릭터가 바라보는 방향을 즉시 바꾼다 (무기 조준 등).
+        /// 멀티플레이에서는 transform만 바꾸면 다음 네트워크 틱에 원래 방향으로 되돌아가므로,
+        /// 이 함수를 통해 바꿔야 방향이 입력으로 호스트에게 전달되어 모두에게 동기화된다.
+        /// </summary>
+        public static void SetFacing(Transform target, Quaternion rotation)
+        {
+            if (target == null) return;
+            target.rotation = rotation;
+
+            PlayerMove move = target.GetComponent<PlayerMove>();
+            if (move == null) return;
+
+            if (move._networkControlled)
+            {
+                move._pendingFacing = rotation;
+                move._facingTime = Time.unscaledTime;
+            }
+            else if (move.rigidbody != null)
+            {
+                move.rigidbody.MoveRotation(rotation);
+            }
+        }
+
+        /// <summary>네트워크 입력을 만들 때 호출: 최근(조준 중)에 요청된 방향이 있으면 돌려준다.</summary>
+        public bool TryConsumeFacing(out Quaternion rotation)
+        {
+            rotation = _pendingFacing;
+            return Time.unscaledTime - _facingTime <= FacingHoldSeconds;
+        }
+
         private void Start()
         {
+            if (_networkControlled) return;
+
             anim = GetComponentInChildren<Animator>();
             character = GetComponent<Character>();
 
@@ -47,6 +98,8 @@ namespace LastTruck
 
         private void Update()
         {
+            if (_networkControlled) return;
+
             hAxis = Input.GetAxisRaw("Horizontal");
             vAxis = Input.GetAxisRaw("Vertical");
             wDown = Input.GetButton("Walk");
@@ -61,6 +114,7 @@ namespace LastTruck
 
         private void FixedUpdate()
         {
+            if (_networkControlled) return;
             if (cameraTransform == null || rigidbody == null) return;
 
             Vector3 camForward = cameraTransform.forward;

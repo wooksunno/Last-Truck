@@ -28,7 +28,8 @@ namespace CraftingSystem
 
         private void Start()
         {
-            if (fillDefaultsOnStart && inventory.UsedSlotCount == 0)
+            // 멀티플레이 클라이언트는 기본 지급을 하지 않는다 (호스트의 트럭 인벤토리를 그대로 받아온다).
+            if (fillDefaultsOnStart && inventory.UsedSlotCount == 0 && !LastTruck.Networking.TruckInventorySync.IsRemoteClient)
                 FillDefaultResources();
         }
 

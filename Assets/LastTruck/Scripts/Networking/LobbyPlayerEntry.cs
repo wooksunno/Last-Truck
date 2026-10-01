@@ -10,7 +10,7 @@ namespace LastTruck.Networking
     /// 화면에 보이는 3D 오브젝트가 아니며, 실제 게임 캐릭터와도 별개다.
     ///
     /// - 호스트가 플레이어가 들어올 때마다 하나씩 스폰한다 (Input Authority = 그 플레이어).
-    /// - 값(닉네임/방장 여부/준비 여부)은 호스트(State Authority)만 바꿀 수 있고, 자동으로 모두에게 복제된다.
+    /// - 값(닉네임/방장 여부/준비 여부/고른 캐릭터)은 호스트(State Authority)만 바꿀 수 있고, 자동으로 모두에게 복제된다.
     /// - 각 클라이언트는 자기 값을 바꾸고 싶을 때 RPC로 호스트에게 "바꿔 달라"고 요청한다.
     /// - DontDestroyOnLoad 처리되어 게임 씬으로 넘어가도 유지된다 (인게임에서 방장 닉네임 등을 알기 위해).
     ///
@@ -46,6 +46,14 @@ namespace LastTruck.Networking
 
         [Networked, OnChangedRender(nameof(OnNetworkDataChanged))]
         public NetworkBool IsReady { get; set; }
+
+        /// <summary>고른 캐릭터 번호 (CharacterCatalog 순서). 게임 씬에서 이 캐릭터로 스폰된다.</summary>
+        [Networked, OnChangedRender(nameof(OnNetworkDataChanged))]
+        public int CharacterIndex { get; set; }
+
+        /// <summary>방장 엔트리에만 값이 있다: 게임 맵 시드 (호스트가 게임 시작 시 정함, NetworkMapSeed 참고).</summary>
+        [Networked]
+        public int MapSeed { get; set; }
 
         /// <summary>이 엔트리의 주인(플레이어).</summary>
         public PlayerRef Owner => Object != null ? Object.InputAuthority : PlayerRef.None;
@@ -103,6 +111,7 @@ namespace LastTruck.Networking
             if (Object.HasInputAuthority)
             {
                 RPC_SetNickname(PlayerProfile.Nickname);
+                RPC_SetCharacter(PlayerProfile.CharacterIndex);
             }
 
             if (!AllEntries.Contains(this)) AllEntries.Add(this);
@@ -153,6 +162,28 @@ namespace LastTruck.Networking
         {
             if (IsHost) return; // 방장은 준비 버튼이 없다.
             IsReady = ready;
+        }
+
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        public void RPC_SetCharacter(int characterIndex)
+        {
+            // 게임 시작 버튼을 누른 뒤에는 바꿀 수 없다 (이미 그 캐릭터로 스폰 준비 중).
+            GameLauncher launcher = GameLauncher.Instance;
+            if (launcher != null && (launcher.State == LauncherState.StartingGame || launcher.State == LauncherState.InGame))
+            {
+                return;
+            }
+            CharacterIndex = CharacterCatalog.SafeClamp(characterIndex);
+        }
+
+        /// <summary>이 PlayerRef의 엔트리 (없으면 null).</summary>
+        public static LobbyPlayerEntry Find(PlayerRef player)
+        {
+            foreach (LobbyPlayerEntry entry in All)
+            {
+                if (entry.Owner == player) return entry;
+            }
+            return null;
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]

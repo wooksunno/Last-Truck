@@ -22,6 +22,8 @@ namespace LastTruck.Networking
     /// </summary>
     public class LobbyUIController : MonoBehaviour
     {
+        #region 인스펙터 참조 / 상태
+
         [Header("패널")]
         [SerializeField] private GameObject sessionListPanel;
         [SerializeField] private GameObject createRoomPanel;
@@ -41,7 +43,6 @@ namespace LastTruck.Networking
         [SerializeField] private TMP_Text maxPlayersText;
         [SerializeField] private Button maxPlayersMinusButton;
         [SerializeField] private Button maxPlayersPlusButton;
-        [SerializeField] private TMP_Text maxPlayersHintText;
         [SerializeField] private Toggle privateToggle;
         [SerializeField] private TMP_Text privateToggleText;
         [SerializeField] private TMP_InputField createPasswordInput;
@@ -77,9 +78,9 @@ namespace LastTruck.Networking
         private SessionInfo _pendingPasswordSession;
         private float _refreshTimer;
 
-        // =====================================================================
-        // 초기화
-        // =====================================================================
+        #endregion
+
+        #region 초기화
 
         private void Start()
         {
@@ -148,9 +149,9 @@ namespace LastTruck.Networking
             RefreshRoom();
         }
 
-        // =====================================================================
-        // 상태에 따른 화면 전환
-        // =====================================================================
+        #endregion
+
+        #region 상태에 따른 화면 전환
 
         private void OnLauncherStateChanged(LauncherState state)
         {
@@ -176,9 +177,9 @@ namespace LastTruck.Networking
             if (inRoom) RefreshRoom();
         }
 
-        // =====================================================================
-        // 방 목록
-        // =====================================================================
+        #endregion
+
+        #region 방 목록
 
         private void OnNicknameEdited(string value)
         {
@@ -249,9 +250,9 @@ namespace LastTruck.Networking
             }
         }
 
-        // =====================================================================
-        // 비밀번호 입력
-        // =====================================================================
+        #endregion
+
+        #region 비밀번호 입력
 
         private void OnPasswordConfirmClicked()
         {
@@ -273,9 +274,9 @@ namespace LastTruck.Networking
             passwordPanel.SetActive(false);
         }
 
-        // =====================================================================
-        // 방 만들기
-        // =====================================================================
+        #endregion
+
+        #region 방 만들기
 
         private void OpenCreateRoomPanel()
         {
@@ -312,9 +313,6 @@ namespace LastTruck.Networking
             maxPlayersText.text = _createMaxPlayers.ToString();
             maxPlayersMinusButton.interactable = _createMaxPlayers > LobbyRules.MinPlayers;
             maxPlayersPlusButton.interactable = _createMaxPlayers < LobbyRules.MaxPlayersLimit;
-            maxPlayersHintText.text = _createMaxPlayers == 1
-                ? "1인 방은 방 목록에 표시되지 않아요 (혼자 하기)"
-                : string.Empty;
         }
 
         private void RefreshPasswordFieldState()
@@ -351,9 +349,9 @@ namespace LastTruck.Networking
             _launcher.CreateSession(title, _createMaxPlayers, isPrivate, password);
         }
 
-        // =====================================================================
-        // 대기실
-        // =====================================================================
+        #endregion
+
+        #region 대기실
 
         private void OnReadyClicked()
         {
@@ -400,7 +398,8 @@ namespace LastTruck.Networking
                     _playerRows.Add(row);
                 }
                 row.gameObject.SetActive(true);
-                row.Set(entries[i].DisplayName, entries[i].IsHost, entries[i].IsReady, entries[i].IsLocal);
+                row.Set(entries[i].DisplayName, entries[i].IsHost, entries[i].IsReady, entries[i].IsLocal,
+                    entries[i].CharacterIndex);
             }
             for (int i = entries.Count; i < _playerRows.Count; i++)
             {
@@ -442,5 +441,7 @@ namespace LastTruck.Networking
         {
             privateToggleText.text = privateToggle.isOn ? "비공개" : "공개";
         }
+
+        #endregion
     }
 }

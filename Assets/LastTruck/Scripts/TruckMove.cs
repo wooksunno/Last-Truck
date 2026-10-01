@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System;
 using System.Collections.Generic;
 
@@ -58,6 +58,19 @@ namespace LastTruck
         private float steerInput;
         private bool isBrakingInput;
 
+        /// <summary>
+        /// 멀티플레이: true면 키보드를 직접 읽지 않고 SetExternalInput으로 받은 값으로 운전한다
+        /// (호스트가 운전자의 네트워크 입력을 넣어 준다 - LastTruck.Networking.NetworkTruck).
+        /// </summary>
+        [HideInInspector] public bool useExternalInput;
+
+        public void SetExternalInput(float move, float steer, bool brake)
+        {
+            moveInput = move;
+            steerInput = steer;
+            isBrakingInput = brake;
+        }
+
         private void Start()
         {
             carRb = GetComponent<Rigidbody>();
@@ -91,6 +104,8 @@ namespace LastTruck
 
         private void GetInputs()
         {
+            if (useExternalInput) return;
+
             moveInput = Input.GetAxis("Vertical");
             steerInput = Input.GetAxis("Horizontal");
             isBrakingInput = Input.GetKey(KeyCode.Space);
@@ -222,4 +237,4 @@ namespace LastTruck
             }
         }
     }
-}
+}

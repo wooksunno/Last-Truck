@@ -8,10 +8,12 @@ namespace LastTruck.Networking
     /// - 사용자가 닉네임 칸에서 직접 바꾼 경우에만 PlayerPrefs에 저장해서 다음 실행에도 유지한다.
     ///   (같은 PC에서 여러 개 띄워서 테스트할 때 전부 같은 이름이 되지 않도록, 자동 생성 이름은 저장하지 않는다.)
     /// - 닉네임 중복은 허용한다. 내부적으로는 PlayerRef로 사람을 구분하므로 이름이 같아도 로직은 꼬이지 않는다.
+    /// - 마지막으로 고른 캐릭터(CharacterCatalog 번호)도 저장해서 다음 접속 때 이어서 쓴다.
     /// </summary>
     public static class PlayerProfile
     {
         private const string PrefKey = "LastTruck.Nickname";
+        private const string CharacterPrefKey = "LastTruck.CharacterIndex";
 
         private static string _nickname;
 
@@ -25,6 +27,22 @@ namespace LastTruck.Networking
                     _nickname = Validate(saved, out _) ? saved : GenerateRandomNickname();
                 }
                 return _nickname;
+            }
+        }
+
+        /// <summary>마지막으로 고른 캐릭터 번호 (CharacterCatalog 순서). 목록 범위를 벗어나면 0번으로 본다.</summary>
+        public static int CharacterIndex
+        {
+            get
+            {
+                int saved = PlayerPrefs.GetInt(CharacterPrefKey, 0);
+                CharacterCatalog catalog = CharacterCatalog.Instance;
+                return catalog != null ? catalog.ClampIndex(saved) : Mathf.Max(0, saved);
+            }
+            set
+            {
+                PlayerPrefs.SetInt(CharacterPrefKey, Mathf.Max(0, value));
+                PlayerPrefs.Save();
             }
         }
 

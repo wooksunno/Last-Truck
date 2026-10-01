@@ -11,8 +11,21 @@ namespace LastTruck.Networking
     /// </summary>
     public struct NetworkInputData : INetworkInput
     {
+        /// <summary>이동 방향 (월드 기준, y=0, 길이 0~1).</summary>
         public Vector3 MoveDirection;
+
+        /// <summary>
+        /// 이번 틱에 캐릭터가 바라봐야 할 방향 (무기 조준 등). 길이가 0이면 "요청 없음" → 이동 방향을 따라 회전한다.
+        /// </summary>
+        public Vector3 FaceDirection;
+
         public NetworkButtons Buttons;
+
+        /// <summary>트럭 운전석에 앉아 있을 때: 앞(+1)/뒤(-1) 가속.</summary>
+        public float TruckThrottle;
+
+        /// <summary>트럭 운전석에 앉아 있을 때: 핸들 왼쪽(-1)/오른쪽(+1).</summary>
+        public float TruckSteer;
     }
 
     /// <summary>NetworkButtons 비트에 매핑되는 입력 종류.</summary>
@@ -21,5 +34,6 @@ namespace LastTruck.Networking
         Walk,
         Attack,
         Interact,
+        TruckBrake,
     }
 }

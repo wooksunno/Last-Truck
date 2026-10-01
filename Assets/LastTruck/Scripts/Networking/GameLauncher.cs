@@ -39,6 +39,8 @@ namespace LastTruck.Networking
     {
         public static GameLauncher Instance { get; private set; }
 
+        #region 이벤트 / 인스펙터 / 상태
+
         // ---------------- 이벤트 (UI가 구독) ----------------
         public event Action<LauncherState> StateChanged;
         public event Action<IReadOnlyList<SessionInfo>> SessionListUpdated;
@@ -51,13 +53,11 @@ namespace LastTruck.Networking
         [SerializeField] private string menuSceneName = "Menu";
         [SerializeField] private string gameSceneName = "Demo_01";
 
-        [Header("네트워크 캐릭터 스폰 (게임플레이 스크립트 네트워크 전환 후 켤 것)")]
-        [Tooltip("켜면 게임 씬 로드 후 호스트가 플레이어마다 characterPrefabs 중 하나를 스폰한다. " +
-                 "PlayerMove 등이 아직 NetworkBehaviour가 아니면 끈 상태로 둔다.")]
-        [SerializeField] private bool spawnNetworkCharacters = false;
-        [SerializeField] private NetworkObject[] characterPrefabs;
+        [Header("플레이어 캐릭터 스폰 (캐릭터는 CharacterCatalog에서 각자 고른 것)")]
+        [Tooltip("게임 씬에 싱글플레이용 캐릭터가 없어서 스폰 위치를 못 찾았을 때 쓸 중심점.")]
         [SerializeField] private Vector3 spawnOrigin = Vector3.zero;
-        [SerializeField] private float spawnSpacing = 3f;
+        [Tooltip("스폰 중심점에서 각 플레이어까지의 거리 (서로 겹치지 않게).")]
+        [SerializeField] private float spawnRadius = 1.5f;
 
         // ---------------- 상태 ----------------
         private NetworkRunner _runner;
@@ -98,9 +98,24 @@ namespace LastTruck.Networking
 
         public int RoomPlayerCount => _runner != null && _runner.IsRunning ? _runner.ActivePlayers.Count() : 0;
 
-        // =====================================================================
-        // Unity 생명주기
-        // =====================================================================
+        /// <summary>
+        /// 지금 네트워크 세션(방/게임) 안에 있는가? 게임 씬 스크립트가 "멀티플레이로 들어왔는지" 판단할 때 쓴다.
+        /// Demo_01에서 바로 Play를 누른 경우(싱글플레이)에는 false.
+        /// </summary>
+        public static bool IsOnlineSession
+        {
+            get
+            {
+                GameLauncher launcher = Instance;
+                return launcher != null && launcher._runner != null && launcher._runner.IsRunning
+                       && (launcher._state == LauncherState.StartingGame || launcher._state == LauncherState.InGame
+                           || launcher._state == LauncherState.InRoom);
+            }
+        }
+
+        #endregion
+
+        #region Unity 생명주기
 
         private void Awake()
         {
@@ -120,7 +135,7 @@ namespace LastTruck.Networking
 
         private void Start()
         {
-            Screen.SetResolution(500, 500, FullScreenMode.Windowed);
+            Screen.SetResolution(800, 800, FullScreenMode.Windowed);
             if (_isDuplicate) return;
             EnterLobby();
         }
@@ -148,9 +163,9 @@ namespace LastTruck.Networking
             }
         }
 
-        // =====================================================================
-        // 1. 로비(방 목록) 접속
-        // =====================================================================
+        #endregion
+
+        #region 1. 로비(방 목록) 접속
 
         /// <summary>새 러너를 만들어 로비에 접속한다. 이미 접속 중이면 무시한다.</summary>
         public async void EnterLobby()
@@ -189,9 +204,9 @@ namespace LastTruck.Networking
             SystemUI.HideLoading();
         }
 
-        // =====================================================================
-        // 2. 방 만들기 (호스트)
-        // =====================================================================
+        #endregion
+
+        #region 2. 방 만들기 (호스트)
 
         public async void CreateSession(string title, int maxPlayers, bool isPrivate, string password)
         {
@@ -247,9 +262,9 @@ namespace LastTruck.Networking
             // 호스트 자신의 참가자 엔트리는 OnPlayerJoined(호스트 본인)에서 스폰된다.
         }
 
-        // =====================================================================
-        // 3. 방 참가 (클라이언트)
-        // =====================================================================
+        #endregion
+
+        #region 3. 방 참가 (클라이언트)
 
         /// <summary>비공개 방이면 password에 입력한 비밀번호, 공개 방이면 null.</summary>
         public async void JoinSession(SessionInfo session, string password)
@@ -294,9 +309,9 @@ namespace LastTruck.Networking
             SystemUI.HideLoading();
         }
 
-        // =====================================================================
-        // 4. 준비 / 게임 시작
-        // =====================================================================
+        #endregion
+
+        #region 4. 준비 / 게임 시작
 
         /// <summary>클라이언트의 준비 버튼. 호스트에게 RPC로 요청한다.</summary>
         public void SetLocalReady(bool ready)
@@ -346,14 +361,21 @@ namespace LastTruck.Networking
             // 전환 중/게임 중에는 아무도 못 들어오게 닫는다 → 방 목록에서 회색으로 보인다.
             _runner.SessionInfo.IsOpen = false;
 
+            // 모든 참가자가 같은 맵을 만들도록 시드를 정해 방장 엔트리에 넣는다 (씬 로드보다 먼저 복제됨).
+            NetworkPlayer.ClearLoadedPlayers();
+            _gameOver = false;
+
+            LobbyPlayerEntry hostEntry = LobbyPlayerEntry.Local;
+            if (hostEntry != null) hostEntry.MapSeed = NetworkMapSeed.CreateSeed();
+
             SetState(LauncherState.StartingGame);
             SystemUI.ShowLoading("게임을 불러오는 중...");
             _runner.LoadScene(SceneRef.FromIndex(gameIndex), LoadSceneMode.Single);
         }
 
-        // =====================================================================
-        // 5. 나가기 / 취소 / 로비 복귀
-        // =====================================================================
+        #endregion
+
+        #region 5. 나가기 / 취소 / 로비 복귀
 
         /// <summary>
         /// 방(또는 게임)에서 나가기. 호스트는 모든 참가자가 함께 나가게 되므로 확인 팝업을 먼저 띄운다.
@@ -373,6 +395,17 @@ namespace LastTruck.Networking
             {
                 LeaveSession();
             }
+        }
+
+        /// <summary>인게임 ESC 메뉴: 게임에서 나가 방 목록으로 (확인 팝업 후).</summary>
+        public void RequestLeaveFromGame()
+        {
+            if (_state != LauncherState.InGame) return;
+
+            string message = IsHost && RoomPlayerCount > 1
+                ? "방장이 나가면 게임이 끝나고\n모든 참가자가 방 목록으로 돌아갑니다.\n나가시겠습니까?"
+                : "게임에서 나가 방 목록으로 돌아가시겠습니까?";
+            SystemUI.Confirm("게임 나가기", message, LeaveSession, null, "나가기", "계속하기");
         }
 
         private async void LeaveSession()
@@ -401,6 +434,8 @@ namespace LastTruck.Networking
             _roomTitle = string.Empty;
             _roomIsPrivate = false;
             _hostPassword = null;
+            _gameOver = false;
+            PlayerSpawnArea.Clear();
 
             if (SceneManager.GetActiveScene().name != menuSceneName)
             {
@@ -431,6 +466,16 @@ namespace LastTruck.Networking
                                 || previous == LauncherState.StartingGame
                                 || previous == LauncherState.InGame;
 
+            // 게임 오버 후 방장이 먼저 나가서 끊긴 경우: 이미 게임 오버 팝업이 떠 있으니 조용히 돌아간다.
+            if (_gameOver)
+            {
+                _gameOver = false;
+                BeginOperation();
+                SetState(LauncherState.Leaving);
+                await ReturnToLobbyAsync();
+                return;
+            }
+
             string message;
             if (wasInSession && !_wasHostInSession)
             {
@@ -448,9 +493,9 @@ namespace LastTruck.Networking
             await ReturnToLobbyAsync();
         }
 
-        // =====================================================================
-        // 러너 관리 / 공용 도우미
-        // =====================================================================
+        #endregion
+
+        #region 러너 관리 / 공용 도우미
 
         private NetworkRunner CreateRunner()
         {
@@ -641,9 +686,9 @@ namespace LastTruck.Networking
             return session != null && session.IsValid && session.IsOpen && !IsFull(session);
         }
 
-        // =====================================================================
-        // INetworkRunnerCallbacks
-        // =====================================================================
+        #endregion
+
+        #region INetworkRunnerCallbacks
 
         public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList)
         {
@@ -727,16 +772,89 @@ namespace LastTruck.Networking
             if (SceneManager.GetActiveScene().name != gameSceneName) return;
 
             SetState(LauncherState.InGame);
-            SystemUI.HideLoading();
+            _gameOver = false;
 
-            if (runner.IsServer && spawnNetworkCharacters)
+            // 모든 참가자가 준비될 때까지 대기 화면 (NetworkGameState가 시작되면 닫는다).
+            NetworkPrefabRegistry registry = NetworkPrefabRegistry.Instance;
+            if (registry != null && registry.gameStatePrefab != null)
             {
-                foreach (PlayerRef player in runner.ActivePlayers)
-                {
-                    SpawnCharacterFor(runner, player);
-                }
+                SystemUI.ShowLoading("다른 플레이어를 기다리는 중...");
+                StartCoroutine(HideWaitingLoadingAfterTimeout(runner));
+            }
+            else
+            {
+                SystemUI.HideLoading();
+            }
+
+            // 호스트가 모든 참가자의 캐릭터를 스폰한다 (각자 대기실에서 고른 캐릭터로).
+            // 아직 씬을 불러오는 중인 참가자에게는 로딩이 끝나는 대로 Fusion이 전달해 준다.
+            if (runner.IsServer)
+            {
+                // 한 프레임 뒤에 스폰: 씬 오브젝트들의 Start(맵 생성 등)가 끝난 다음 바닥 높이를 재기 위해.
+                StartCoroutine(SpawnAllCharactersNextFrame(runner));
             }
         }
+
+        private System.Collections.IEnumerator SpawnAllCharactersNextFrame(NetworkRunner runner)
+        {
+            yield return null;
+            if (runner != _runner || !IsRunnerAlive() || _state != LauncherState.InGame) yield break;
+
+            int slot = 0;
+            foreach (PlayerRef player in runner.ActivePlayers.OrderBy(p => p.PlayerId))
+            {
+                SpawnCharacterFor(runner, player, slot++);
+            }
+
+            // 게임 진행 상태 (준비 대기 → 낮/밤 동기화 → 게임 오버)
+            NetworkPrefabRegistry registry = NetworkPrefabRegistry.Instance;
+            if (registry != null && registry.gameStatePrefab != null)
+            {
+                runner.Spawn(registry.gameStatePrefab, Vector3.zero, Quaternion.identity);
+            }
+            else
+            {
+                Debug.LogWarning("[GameLauncher] NetworkPrefabRegistry.gameStatePrefab이 없어 낮/밤 동기화가 되지 않습니다. " +
+                                 "메뉴 'LastTruck > Multiplayer > 1. 네트워크 프리팹 생성'을 실행하세요.");
+            }
+        }
+
+        /// <summary>안전장치: 게임 상태 오브젝트를 끝내 못 받으면 대기 화면을 닫는다.</summary>
+        private System.Collections.IEnumerator HideWaitingLoadingAfterTimeout(NetworkRunner runner)
+        {
+            yield return new WaitForSecondsRealtime(45f);
+            bool stateMissing = NetworkGameState.Instance == null;
+            if (runner == _runner && _state == LauncherState.InGame && stateMissing)
+            {
+                Debug.LogWarning("[GameLauncher] 게임 상태를 받지 못해 대기 화면을 닫습니다.");
+                SystemUI.HideLoading();
+            }
+        }
+
+        #endregion
+
+        #region 게임 오버
+
+        private bool _gameOver;
+
+        /// <summary>NetworkGameState가 게임 오버를 알리면 호출 (이후 방장 이탈을 "호스트 끊김"으로 보여주지 않음).</summary>
+        public void NotifyGameOver()
+        {
+            _gameOver = true;
+        }
+
+        /// <summary>게임 오버 팝업의 확인 버튼: 방 목록으로 돌아간다 (방장이면 방이 닫힌다).</summary>
+        public void LeaveAfterGameOver()
+        {
+            if (_state == LauncherState.InGame || _state == LauncherState.InRoom)
+            {
+                LeaveSession();
+            }
+        }
+
+        #endregion
+
+        #region INetworkRunnerCallbacks (계속)
 
         public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
         {
@@ -771,6 +889,11 @@ namespace LastTruck.Networking
 
             var data = new NetworkInputData();
 
+            // 내 캐릭터 상태: 트럭에 타는 등으로 PlayerMove가 꺼져 있으면 이동 입력을 보내지 않는다.
+            NetworkPlayer localPlayer = NetworkPlayer.Local;
+            PlayerMove localMove = localPlayer != null ? localPlayer.GetComponent<PlayerMove>() : null;
+            bool canMove = localMove == null || (localMove.isActiveAndEnabled && localPlayer.gameObject.activeInHierarchy);
+
             Camera cam = Camera.main;
             float h = Input.GetAxisRaw("Horizontal");
             float v = Input.GetAxisRaw("Vertical");
@@ -786,10 +909,35 @@ namespace LastTruck.Networking
 
                 Vector3 moveDir = camForward * v + camRight * h;
                 if (moveDir.sqrMagnitude > 1f) moveDir.Normalize();
-                data.MoveDirection = moveDir;
+                data.MoveDirection = canMove && NetworkGameState.AllowPlayerControl ? moveDir : Vector3.zero;
+            }
+
+            // 무기 조준 등으로 바라보는 방향을 바꾼 경우 (PlayerMove.SetFacing) 그 방향을 함께 보낸다.
+            if (localMove != null && localMove.TryConsumeFacing(out Quaternion facing))
+            {
+                Vector3 forward = facing * Vector3.forward;
+                forward.y = 0f;
+                if (forward.sqrMagnitude > 0.0001f) data.FaceDirection = forward.normalized;
+            }
+
+            // 트럭에 타 있으면 캐릭터는 움직이지 않고, 운전석이면 같은 키로 트럭을 운전한다.
+            int seat = localPlayer != null ? NetworkTruck.SeatOfPlayer(localPlayer.Owner) : -1;
+            bool driving = false;
+            if (seat >= 0)
+            {
+                data.MoveDirection = Vector3.zero;
+                data.FaceDirection = Vector3.zero;
+                bool dialogOpen = SystemUI.Instance != null && SystemUI.Instance.IsPopupVisible;
+                if (seat == NetworkTruck.DriverSeat && NetworkGameState.AllowPlayerControl && !dialogOpen)
+                {
+                    driving = true;
+                    data.TruckThrottle = Input.GetAxis("Vertical");
+                    data.TruckSteer = Input.GetAxis("Horizontal");
+                }
             }
 
             var buttons = new NetworkButtons();
+            buttons.Set(NetworkInputButton.TruckBrake, driving && Input.GetKey(KeyCode.Space));
             buttons.Set(NetworkInputButton.Walk, Input.GetButton("Walk"));
             buttons.Set(NetworkInputButton.Attack, Input.GetMouseButton(0));
             buttons.Set(NetworkInputButton.Interact, Input.GetKey(KeyCode.E));
@@ -798,22 +946,32 @@ namespace LastTruck.Networking
             input.Set(data);
         }
 
-        private void SpawnCharacterFor(NetworkRunner runner, PlayerRef player)
+        /// <summary>호스트 전용: 한 참가자의 캐릭터를 스폰한다 (대기실에서 고른 캐릭터, 닉네임 포함).</summary>
+        private void SpawnCharacterFor(NetworkRunner runner, PlayerRef player, int slot)
         {
-            if (characterPrefabs == null || characterPrefabs.Length == 0)
-            {
-                Debug.LogError("[GameLauncher] spawnNetworkCharacters가 켜져 있지만 characterPrefabs가 비어 있습니다.");
-                return;
-            }
             if (_characterObjects.ContainsKey(player)) return;
 
-            NetworkObject prefab = characterPrefabs[Mathf.Abs(player.PlayerId) % characterPrefabs.Length];
-            if (prefab == null) return;
+            LobbyPlayerEntry entry = LobbyPlayerEntry.Find(player);
+            int characterIndex = entry != null ? entry.CharacterIndex : 0;
+            string nickname = entry != null ? entry.Nickname.ToString() : "player";
 
-            int slot = Mathf.Abs(player.PlayerId) % LobbyRules.MaxPlayersLimit;
-            Vector3 position = spawnOrigin + new Vector3(slot * spawnSpacing, 1f, 0f);
+            CharacterCatalog catalog = CharacterCatalog.Instance;
+            NetworkObject prefab = catalog != null ? catalog.ResolveSpawnPrefab(ref characterIndex) : null;
+            if (prefab == null)
+            {
+                Debug.LogError("[GameLauncher] 스폰할 네트워크 캐릭터 프리팹이 없습니다. " +
+                               "메뉴 'LastTruck > Multiplayer > 1. 네트워크 프리팹 생성'을 실행하세요.");
+                return;
+            }
 
-            NetworkObject character = runner.Spawn(prefab, position, Quaternion.identity, player);
+            PlayerSpawnArea.GetSpawnPose(slot, spawnOrigin, spawnRadius, out Vector3 position, out Quaternion rotation);
+
+            NetworkObject character = runner.Spawn(prefab, position, rotation, player,
+                (spawnRunner, spawned) =>
+                {
+                    NetworkPlayer networkPlayer = spawned.GetComponent<NetworkPlayer>();
+                    if (networkPlayer != null) networkPlayer.InitializeBeforeSpawn(nickname, characterIndex);
+                });
             if (character != null) _characterObjects[player] = character;
         }
 
@@ -834,5 +992,7 @@ namespace LastTruck.Networking
         {
             Instance = null;
         }
+
+        #endregion
     }
 }

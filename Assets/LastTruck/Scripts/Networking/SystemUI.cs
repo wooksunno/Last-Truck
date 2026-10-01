@@ -19,6 +19,8 @@ namespace LastTruck.Networking
     /// </summary>
     public class SystemUI : MonoBehaviour
     {
+        #region 인스펙터 참조 / 상태 / 생명주기
+
         public static SystemUI Instance { get; private set; }
 
         [Header("로딩 패널")]
@@ -92,9 +94,9 @@ namespace LastTruck.Networking
             }
         }
 
-        // ------------------------------------------------------------------
-        // 로딩
-        // ------------------------------------------------------------------
+        #endregion
+
+        #region 로딩
 
         /// <summary>로딩 패널을 띄운다. onCancel을 넘기면 취소 버튼이 보인다.</summary>
         public void ShowLoadingPanel(string message, Action onCancel = null)
@@ -119,9 +121,9 @@ namespace LastTruck.Networking
             cancel?.Invoke();
         }
 
-        // ------------------------------------------------------------------
-        // 팝업 (큐)
-        // ------------------------------------------------------------------
+        #endregion
+
+        #region 팝업 (큐)
 
         public void EnqueueAlert(string title, string message, Action onClosed = null, string confirmLabel = "확인")
         {
@@ -207,9 +209,9 @@ namespace LastTruck.Networking
             }
         }
 
-        // ------------------------------------------------------------------
-        // 어디서든 부를 수 있는 정적 단축 함수 (SystemUI가 없는 씬에서 테스트해도 에러 없이 로그만 남긴다)
-        // ------------------------------------------------------------------
+        #endregion
+
+        #region 어디서든 부를 수 있는 정적 단축 함수 (SystemUI가 없는 씬에서 테스트해도 에러 없이 로그만 남긴다)
 
         public static void ShowLoading(string message, Action onCancel = null)
         {
@@ -248,5 +250,7 @@ namespace LastTruck.Networking
         {
             Instance = null;
         }
+
+        #endregion
     }
 }

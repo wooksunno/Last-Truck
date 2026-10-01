@@ -19,3 +19,7 @@ MonoBehaviour:
   costReducation: 0
   harvestSpeed: 1
   repairBonus: 0
+  portrait: {fileID: 21300000, guid: 830c19c7bd2ac4f4cb5d7281e70c31e3, type: 3}
+  description: "\uAD70\uC778"
+  modelPrefab: {fileID: 5094976572766362071, guid: 187a73a9568bccd40aa007db144c2ecc, type: 3}
+  networkPrefab: {fileID: 7954943106950695460, guid: d4cf9bc0c5327b0459f9d6e9459e2fb8, type: 3}

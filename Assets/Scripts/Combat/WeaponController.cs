@@ -137,11 +137,20 @@ namespace Combat
 
         private void OnDisable()
         {
+            // 꺼질 때(사망/트럭 탑승 등) 진행 중이던 차징/화염도 정리해서 다른 사람 화면에 남지 않게 한다.
+            CancelOngoingActions();
             UnequipBow();
         }
 
         private void Update()
         {
+            // 멀티플레이: 다른 사람 캐릭터(복제본)는 입력을 읽지 않고 네트워크로 받은 상태만 보여준다.
+            if (_remoteView)
+            {
+                UpdateRemoteView();
+                return;
+            }
+
             if (targetCamera == null)
                 targetCamera = Camera.main;
 
@@ -162,6 +171,8 @@ namespace Combat
                 EquipBow();
             else
                 UnequipBow();
+
+            ReportHeldWeapon(selected != null && Weapons.ContainsKey(selected.itemID) ? selected.itemID : null);
 
             if (!hasWeapon || selected.itemID != _activeWeaponId)
             {
@@ -210,6 +221,7 @@ namespace Combat
                         {
                             _isFlameActive = true;
                             _flameEffectRoutine = StartCoroutine(FlameEffectRoutine(stats));
+                            if (!_remoteView) FlameChanged?.Invoke(true);
                         }
 
                         if (Time.time >= _nextFireTime)
@@ -230,9 +242,9 @@ namespace Combat
                         _pressVetoed = RaycastHitsWorldInteractable(stats.range);
                         if (!_pressVetoed)
                         {
-                            _isCharging = true;
                             _chargeStartTime = Time.time;
                             _bowStats = stats;
+                            SetCharging(true);
                         }
                     }
                     else if (_isCharging && Input.GetMouseButton(0))
@@ -241,7 +253,7 @@ namespace Combat
                     }
                     else if (Input.GetMouseButtonUp(0) && _isCharging)
                     {
-                        _isCharging = false;
+                        SetCharging(false);
                         float fraction = GetChargeFraction(stats);
                         if (fraction >= stats.minChargeFraction)
                         {
@@ -255,6 +267,127 @@ namespace Combat
                     break;
             }
         }
+
+        #region 멀티플레이: 다른 사람 화면에 무기 보여주기 (LastTruck.Networking.NetworkWeaponVisuals)
+
+        // 내 캐릭터: 아래 이벤트로 "무엇을 들었는지 / 쐈는지"를 알린다 → 네트워크로 다른 사람에게 전달.
+        // 다른 사람 캐릭터(복제본): SetRemoteView(true) 상태에서 SetRemote*/PlayRemote*로 받은 대로 보여주기만 한다
+        //   (피해 계산은 쏜 사람 컴퓨터 → 호스트가 한다. 여기서는 연출만).
+
+        /// <summary>손에 든 무기 ID가 바뀜 (무기가 아니면 null).</summary>
+        public event System.Action<string> HeldWeaponChanged;
+        /// <summary>활 차징 시작(true)/끝(false).</summary>
+        public event System.Action<bool> ChargingChanged;
+        /// <summary>화염방사기 분사 시작(true)/끝(false).</summary>
+        public event System.Action<bool> FlameChanged;
+        /// <summary>총알 궤적 (무기 ID, 시작, 끝).</summary>
+        public event System.Action<string, Vector3, Vector3> ShotFired;
+        /// <summary>맞은 곳 이펙트 (무기 ID, 위치).</summary>
+        public event System.Action<string, Vector3> ImpactSpawned;
+        /// <summary>화살 발사 (위치, 속도).</summary>
+        public event System.Action<Vector3, Vector3> ArrowFired;
+
+        private bool _remoteView;
+        private string _remoteWeaponId;
+        private bool _remoteCharging;
+        private float _remoteChargeStart;
+        private bool _remoteFlame;
+        private string _reportedHeldWeapon;
+        private bool _hasReportedHeld;
+
+        public bool IsRemoteView => _remoteView;
+
+        /// <summary>다음 프레임에 들고 있는 무기를 다시 알린다 (네트워크 연결 직후 한 번).</summary>
+        public void ResendHeldWeapon() => _hasReportedHeld = false;
+
+        public void SetRemoteView(bool remote)
+        {
+            _remoteView = remote;
+            if (!remote)
+                return;
+            CancelOngoingActions();
+            UnequipBow();
+        }
+
+        public void SetRemoteHeldWeapon(string weaponId) => _remoteWeaponId = weaponId;
+
+        public void SetRemoteCharging(bool charging)
+        {
+            if (charging && !_remoteCharging)
+                _remoteChargeStart = Time.time;
+            _remoteCharging = charging;
+        }
+
+        public void SetRemoteFlame(bool flaming) => _remoteFlame = flaming;
+
+        public void PlayRemoteShot(string weaponId, Vector3 from, Vector3 to) => SpawnTracer(from, to, GetEffectColor(weaponId));
+
+        public void PlayRemoteImpact(string weaponId, Vector3 position) => SpawnImpact(position, GetEffectColor(weaponId));
+
+        /// <summary>보여주기용 화살 (피해 없음 - 실제 피해는 쏜 사람 쪽 화살이 준다).</summary>
+        public void PlayRemoteArrow(Vector3 position, Vector3 velocity)
+        {
+            if (arrowPrefab == null || velocity.sqrMagnitude < 0.0001f)
+                return;
+            WeaponStats stats = Weapons[ItemIds.HuntingBow];
+            ArrowProjectile arrow = Instantiate(arrowPrefab, position, Quaternion.LookRotation(velocity));
+            arrow.LaunchVisual(velocity, stats.range * 1.5f, hitMask, transform);
+        }
+
+        public static Color GetEffectColor(string weaponId)
+        {
+            return weaponId != null && Weapons.TryGetValue(weaponId, out WeaponStats stats) ? stats.effectColor : Color.white;
+        }
+
+        private void UpdateRemoteView()
+        {
+            WeaponStats stats = default;
+            bool hasWeapon = _remoteWeaponId != null && Weapons.TryGetValue(_remoteWeaponId, out stats);
+
+            bool holdingBow = hasWeapon && stats.behavior == WeaponBehavior.ChargeAndRelease;
+            if (holdingBow)
+            {
+                EquipBow();
+                _bowStats = stats;
+                _chargeStartTime = _remoteChargeStart;
+            }
+            else
+            {
+                UnequipBow();
+            }
+            _isCharging = holdingBow && _remoteCharging;
+
+            bool flaming = hasWeapon && stats.behavior == WeaponBehavior.ContinuousCone && _remoteFlame;
+            if (flaming && !_isFlameActive)
+            {
+                _isFlameActive = true;
+                _flameEffectRoutine = StartCoroutine(FlameEffectRoutine(stats));
+            }
+            else if (!flaming && _isFlameActive)
+            {
+                StopFlameEffect();
+            }
+        }
+
+        private void ReportHeldWeapon(string weaponId)
+        {
+            if (_hasReportedHeld && _reportedHeldWeapon == weaponId)
+                return;
+            _hasReportedHeld = true;
+            _reportedHeldWeapon = weaponId;
+            HeldWeaponChanged?.Invoke(weaponId);
+        }
+
+        private void SetCharging(bool charging)
+        {
+            if (_isCharging == charging)
+                return;
+            _isCharging = charging;
+            if (!_remoteView)
+                ChargingChanged?.Invoke(charging);
+        }
+
+        #endregion
 
         private void LateUpdate()
         {
@@ -393,7 +526,7 @@ namespace Combat
 
         private void CancelOngoingActions()
         {
-            _isCharging = false;
+            SetCharging(false);
             StopFlameEffect();
         }
 
@@ -503,6 +636,7 @@ namespace Combat
             ArrowProjectile arrow = Instantiate(arrowPrefab, spawnPos, Quaternion.LookRotation(toTarget));
             Vector3 velocity = toTarget.normalized * speed + Vector3.up * (0.5f * arrow.Gravity * flightTime);
             arrow.Launch(velocity, damage, stats.range * 1.5f, hitMask, transform);
+            ArrowFired?.Invoke(spawnPos, velocity);
         }
 
         private Vector3 GetMouseAimPoint(float range, float fallbackHeight)
@@ -532,6 +666,8 @@ namespace Combat
 
         private void StopFlameEffect()
         {
+            if (_isFlameActive && !_remoteView)
+                FlameChanged?.Invoke(false);
             _isFlameActive = false;
             if (_flameEffectRoutine != null)
             {
@@ -569,7 +705,7 @@ namespace Combat
             Vector3 dir = targetPoint - transform.position;
             dir.y = 0f;
             if (dir.sqrMagnitude > 0.01f)
-                transform.rotation = Quaternion.LookRotation(dir.normalized);
+                LastTruck.PlayerMove.SetFacing(transform, Quaternion.LookRotation(dir.normalized)); // 멀티플레이에서도 방향이 동기화되도록
         }
 
 
@@ -705,6 +841,9 @@ namespace Combat
 
         private void SpawnTracer(Vector3 from, Vector3 to, Color color)
         {
+            if (!_remoteView)
+                ShotFired?.Invoke(_activeWeaponId, from, to);
+
             var go = new GameObject("WeaponTracer");
             LineRenderer lr = go.AddComponent<LineRenderer>();
             lr.positionCount = 2;
@@ -721,6 +860,9 @@ namespace Combat
 
         private void SpawnImpact(Vector3 pos, Color color)
         {
+            if (!_remoteView)
+                ImpactSpawned?.Invoke(_activeWeaponId, pos);
+
             GameObject go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             go.name = "WeaponImpact";
             Destroy(go.GetComponent<Collider>());
