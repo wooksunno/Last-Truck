@@ -17,11 +17,18 @@ namespace LastTruck
         Character character;
 
         private bool _movementLocked;
+        private float _speedMultiplier = 1f;
 
         /// <summary>공격 중 등 특정 동작 동안 WASD 이동을 잠글 때 사용한다.</summary>
         public void SetMovementLocked(bool locked)
         {
             _movementLocked = locked;
+        }
+
+        /// <summary>활 차징·화염방사 중처럼 이동을 느리게 해야 할 때 사용한다. 1이면 원래 속도.</summary>
+        public void SetSpeedMultiplier(float multiplier)
+        {
+            _speedMultiplier = Mathf.Max(0f, multiplier);
         }
 
         private void Start()
@@ -90,7 +97,7 @@ namespace LastTruck
 
             moveVec = (camForward * vAxis + camRight * hAxis).normalized;
 
-            float currentSpeed = speed * (wDown ? 0.3f : 1f);
+            float currentSpeed = speed * (wDown ? 0.3f : 1f) * _speedMultiplier;
 
             Vector3 targetVelocity = moveVec * currentSpeed;
             targetVelocity.y = rigidbody.linearVelocity.y;
