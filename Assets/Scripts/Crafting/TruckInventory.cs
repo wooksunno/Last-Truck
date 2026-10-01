@@ -1,3 +1,4 @@
+using LastTruck;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -110,5 +111,30 @@ public void FillDefaultResources()
         }
 
         private void OnInventoryChanged() => Changed?.Invoke();
+
+        public bool HasIngredients(RecipeData recipe, CharacterAbilityController abilityController)
+        {
+            if (recipe == null || recipe.inputs == null) return false;
+
+            bool isWeapon = recipe.output != null && recipe.output.item != null &&
+                           (recipe.output.item.itemType == ItemType.Weapon || recipe.output.item.isWeapon);
+
+            foreach (var ingredient in recipe.inputs)
+            {
+                if (ingredient == null || ingredient.item == null || ingredient.count <= 0)
+                    continue;
+
+                int requiredCount = ingredient.count;
+                if (abilityController != null)
+                {
+                    requiredCount = abilityController.GetCalculatedCraftingCost(ingredient.count, isWeapon);
+                }
+
+                if (GetItemCount(ingredient.item) < requiredCount)
+                    return false;
+            }
+
+            return true;
+        }
     }
 }

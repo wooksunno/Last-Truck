@@ -15,6 +15,7 @@ MonoBehaviour:
   itemID: hunting_bow
   itemName: "\uC0AC\uB0E5\uC6A9 \uD65C"
   itemType: 2
+  isWeapon: 1
   maxStack: 1
   icon: {fileID: 21300000, guid: cce2c4374d3ea924280c4102eb44534e, type: 3}
   toolTier: 0

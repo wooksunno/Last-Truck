@@ -309,7 +309,7 @@ namespace CraftingSystem
             sprites.TryGetValue(id, out Sprite icon);
             if (icon == null)
                 icon = CreateSolidSprite(id);
-            return ItemData.CreateRuntime(id, name, type, maxStack, icon, toolTier);
+            return ItemData.CreateRuntime(id, name, type, false, maxStack, icon, toolTier);
         }
 
         private static RecipeData MakeRecipe(

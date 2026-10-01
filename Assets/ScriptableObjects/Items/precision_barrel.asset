@@ -15,6 +15,7 @@ MonoBehaviour:
   itemID: precision_barrel
   itemName: "\uC815\uBC00 \uCD1D\uC5F4"
   itemType: 1
+  isWeapon: 1
   maxStack: 50
   icon: {fileID: 21300000, guid: c35919336b39dfe47b641ab403cde08b, type: 3}
   toolTier: 0

@@ -17,9 +17,9 @@ MonoBehaviour:
   requiredFacility: 0
   inputs:
   - item: {fileID: 11400000, guid: c3d776926fcb1f94193ffcf396bdae97, type: 2}
-    count: 1
+    count: 2
   - item: {fileID: 11400000, guid: 3552693a76212b546b87ef29231b4bc1, type: 2}
-    count: 1
+    count: 2
   output:
     item: {fileID: 11400000, guid: 0fb17198dfc6ffa4981da036d6eacc4c, type: 2}
     count: 1

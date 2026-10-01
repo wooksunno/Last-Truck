@@ -7,25 +7,24 @@ namespace LastTruck
     {
         [Header("대장장이 능력 설정")]
         [SerializeField] private float weaponMaterialDiscount = 0.2f;   // 무기 제작 재료비용 20% 감소
+        [SerializeField] private float processingTimeDiscount = 0.2f;   // 무기 제작 가공시간 20% 감소
 
         public override void Execute(Character caster)
         {
             Debug.Log($"{caster.name} 대장장이 능력 적용");
         }
 
+        // 1. 재료비용 계산
         public override int CalculateCraftingCost(int originalCost, bool isWeapon)
         {
             if (originalCost <= 0) return originalCost;
-
-            // 무기 제작 시에만 감소 적용
             if (!isWeapon) return originalCost;
 
-            // 20% 감소 계산
-            int discountedCost = Mathf.Max(1, Mathf.FloorToInt(originalCost * (1f - weaponMaterialDiscount)));
+            float floatCost = originalCost * (1f - weaponMaterialDiscount);
+            int discountedCost = Mathf.Max(1, Mathf.FloorToInt(floatCost + 0.0001f));
 
-            Debug.Log($"[대장장이] {originalCost}개 -> {discountedCost}개");
+            Debug.Log($"[대장장이 재료할인] {originalCost}개 -> {discountedCost}개");
             return discountedCost;
         }
     }
 }
-

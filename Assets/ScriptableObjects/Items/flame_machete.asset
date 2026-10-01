@@ -15,6 +15,7 @@ MonoBehaviour:
   itemID: flame_machete
   itemName: "\uD654\uC5FC \uB9C8\uCCB4\uD14C"
   itemType: 2
+  isWeapon: 1
   maxStack: 1
   icon: {fileID: 21300000, guid: 759196e374e662647acade292d91647a, type: 3}
   toolTier: 0

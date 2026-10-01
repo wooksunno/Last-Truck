@@ -1,3 +1,4 @@
+using LastTruck;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -909,12 +910,14 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             if (craft != null && craft.Recipes.Count == 0)
                 craft.LoadAssemblyRecipesFromCatalog();
 
+            CharacterAbilityController abilityController = FindObjectOfType<CharacterAbilityController>();
+
             RectTransform tabRow = CreateRow(_popupBody);
             CreateSmallActionButton(tabRow, "← 뒤로", new Color(0.3f, 0.3f, 0.35f), () =>
             {
                 
             _truckProcessingPanelOpen = false;
-_craftingPanelOpen = false;
+            _craftingPanelOpen = false;
                 _selectedRecipe = null;
                 ShowPopup("트럭 거점", BuildTruckContent);
             });
@@ -935,7 +938,8 @@ _craftingPanelOpen = false;
                     if (!MatchesCraftingCategory(recipe.output.item, _craftingCategory))
                         continue;
 
-                    bool canCraft = truckInv != null && truckInv.HasIngredients(recipe);
+                    //bool canCraft = truckInv != null && truckInv.HasIngredients(recipe);
+                    bool canCraft = truckInv != null && truckInv.HasIngredients(recipe, abilityController);
                     RecipeData captured = recipe;
                     CreateCraftIconView(grid, recipe, canCraft, () =>
                     {
@@ -1193,7 +1197,7 @@ private void StartTruckProcessing(RecipeData recipe)
             ShowPopup("트럭 거점", BuildTruckContent);
         }
 
-private IEnumerator TruckProcessRoutine(TruckStation truck, FacilityJob job)
+        private IEnumerator TruckProcessRoutine(TruckStation truck, FacilityJob job)
         {
             job.running = true;
 
@@ -1306,7 +1310,12 @@ private void ClaimTruckOutput()
 
             CreateLabel(container.GetComponent<RectTransform>(), recipe.GetDisplayName(), 16, FontStyle.Bold);
 
-            bool canCraft = truckInv != null && truckInv.HasIngredients(recipe);
+            // 대장장이 능력 컨트롤러 및 무기 여부 판별
+            CharacterAbilityController abilityController = FindObjectOfType<CharacterAbilityController>();
+            bool isWeapon = recipe.output != null && recipe.output.item != null &&
+                           (recipe.output.item.itemType == ItemType.Weapon || recipe.output.item.isWeapon);
+
+            bool canCraft = truckInv != null && truckInv.HasIngredients(recipe, abilityController);
 
             RectTransform ingredientRow = CreateRow(container.GetComponent<RectTransform>());
             foreach (RecipeIngredient ingredient in recipe.inputs)
@@ -1315,7 +1324,17 @@ private void ClaimTruckOutput()
                     continue;
 
                 int have = truckInv != null ? truckInv.GetItemCount(ingredient.item) : 0;
-                CreateIngredientPreviewSlot(ingredientRow, ingredient.item, have, ingredient.count);
+
+                // UI 표시 수량 -> 할인 적용 수량
+                int originalNeed = ingredient.count;
+                int requiredNeed = originalNeed;
+
+                if (abilityController != null)
+                {
+                    requiredNeed = abilityController.GetCalculatedCraftingCost(originalNeed, isWeapon);
+                }
+
+                CreateIngredientPreviewSlot(ingredientRow, ingredient.item, have, requiredNeed, originalNeed);
             }
 
             CreateCraftConfirmButton(container.GetComponent<RectTransform>(), canCraft, () =>
@@ -1326,8 +1345,9 @@ private void ClaimTruckOutput()
             });
         }
 
-        private void CreateIngredientPreviewSlot(RectTransform parent, ItemData item, int have, int need)
+        private void CreateIngredientPreviewSlot(RectTransform parent, ItemData item, int have, int need, int originalNeed = -1)
         {
+            if (originalNeed <= 0) originalNeed = need;
             bool enough = have >= need;
 
             var go = new GameObject($"Ingredient_{item.itemID}", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
@@ -1364,10 +1384,24 @@ private void ClaimTruckOutput()
             textRt.sizeDelta = new Vector2(-4, 26);
             Text text = textGo.GetComponent<Text>();
             text.font = uiFont;
-            text.fontSize = 12;
+            text.fontSize = 11;
             text.alignment = TextAnchor.MiddleCenter;
-            text.color = enough ? new Color(0.55f, 0.95f, 0.55f) : new Color(0.95f, 0.4f, 0.4f);
-            text.text = $"{have}/{need}";
+            text.supportRichText = true;
+
+            // 대장장이 할인 적용 수치 취소선
+            if (need < originalNeed)
+            {
+                string originalColorHex = "#888888";
+                string discountColorHex = "#FFD700";
+
+                text.color = enough ? new Color(0.55f, 0.95f, 0.55f) : new Color(0.95f, 0.4f, 0.4f);
+                text.text = $"{have}/<color={originalColorHex}>{originalNeed}</color>→<color={discountColorHex}>{need}</color>";
+            }
+            else
+            {
+                text.color = enough ? new Color(0.55f, 0.95f, 0.55f) : new Color(0.95f, 0.4f, 0.4f);
+                text.text = $"{have}/{need}";
+            }
         }
 
         private void CreateCraftConfirmButton(RectTransform parent, bool interactable, UnityEngine.Events.UnityAction onClick)

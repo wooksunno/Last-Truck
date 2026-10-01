@@ -15,6 +15,7 @@ MonoBehaviour:
   itemID: frag_grenade
   itemName: "\uC77C\uBC18 \uC218\uB958\uD0C4"
   itemType: 2
+  isWeapon: 1
   maxStack: 20
   icon: {fileID: 21300000, guid: d79033daf2e8afe4da7451fabf71c05c, type: 3}
   toolTier: 0

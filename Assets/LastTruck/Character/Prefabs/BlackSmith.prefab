@@ -195,7 +195,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e313c0d95b3fbd946ad2027b699bed5c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Character
-  statsData: {fileID: 0}
+  statsData: {fileID: 11400000, guid: ad305e8f407a1bc40a77ae509141545e, type: 2}
 --- !u!114 &7861670347433292010
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -299,3 +299,19 @@ MonoBehaviour:
   aimArmExtension: 0.8
   aimTorsoTwist: 60
   aimBlendTime: 0.15
+  rifleHeldPrefab: {fileID: 0}
+  bulletPrefab: {fileID: 0}
+  bulletSpeed: 90
+  rifleTorsoTwist: 50
+  rifleGripOffset: {x: -0.08, y: 0, z: 0.14}
+  chargingMoveSpeedMultiplier: 0.5
+  meleeAutoFaceRange: 6
+  attackRecoveryBase: 0.15
+  attackRecoveryPerDelay: 0.2
+  attackRecoveryMax: 0.7
+  fistDetectRange: 6
+  fistStrikeRadius: 1.4
+  fistDamage: 8
+  fistCooldown: 0.5
+  fistImpactDelay: 0.15
+  fistWindup: 0.35

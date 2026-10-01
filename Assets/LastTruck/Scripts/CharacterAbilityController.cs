@@ -58,5 +58,12 @@ namespace LastTruck
             if (!enabled || currentAbility == null) { return originalCost; }
             return currentAbility.CalculateCraftingCost(originalCost, isWeapon);
         }
+        public float GetCalculatedProcessingTime(float originalSeconds, bool isWeapon)
+        {
+            // 현재 캐릭터의 능력이 없으면 원본 시간 반환
+            if (currentAbility == null) return originalSeconds;
+
+            return currentAbility.CalculateProcessingTime(originalSeconds, isWeapon);
+        }
     }
 }

@@ -33,5 +33,7 @@ namespace LastTruck
         {
             return originalCost;
         }
+
+        public virtual float CalculateProcessingTime(float originalSeconds, bool isWeapon) => originalSeconds;
     }
 }

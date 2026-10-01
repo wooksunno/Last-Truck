@@ -62,9 +62,8 @@ namespace CraftingSystem
                 return false;
             }
 
-
-
             TruckInventory inv = Inventory;
+
             if (inv == null)
             {
                 Debug.LogError("[TruckCrafting] TruckInventory가 없습니다.");
@@ -77,11 +76,13 @@ namespace CraftingSystem
                 return false;
             }
 
-            // 대장장이 능력 추가
+            // 대장장이 능력 추가 수정
             CharacterAbilityController abilityController = FindObjectOfType<CharacterAbilityController>();
 
             ItemType type = recipe.output.item.itemType;
-            bool isWeapon = (type == ItemType.Finished);
+
+            ItemData outputItem = recipe.output.item;
+            bool isWeapon = outputItem.itemType == ItemType.Weapon || outputItem.isWeapon;
 
             foreach (RecipeIngredient ingredient in recipe.inputs)
             {

@@ -1,3 +1,4 @@
+using JetBrains.Annotations;
 using UnityEngine;
 
 namespace CraftingSystem
@@ -7,7 +8,8 @@ namespace CraftingSystem
         Raw,
         Intermediate,
         Finished,
-        Tool
+        Tool,
+        Weapon
     }
 
     [CreateAssetMenu(fileName = "NewItemData", menuName = "Crafting/Item Data")]
@@ -16,6 +18,7 @@ namespace CraftingSystem
         public string itemID;
         public string itemName;
         public ItemType itemType;
+        public bool isWeapon;
         public int maxStack = 99;
         public Sprite icon;
 
@@ -26,6 +29,7 @@ namespace CraftingSystem
             string id,
             string displayName,
             ItemType type,
+            bool isWeapon = false,
             int maxStack = 99,
             Sprite icon = null,
             int toolTier = 0)
@@ -34,6 +38,7 @@ namespace CraftingSystem
             item.itemID = id;
             item.itemName = displayName;
             item.itemType = type;
+            item.isWeapon = isWeapon;
             item.maxStack = maxStack;
             item.icon = icon;
             item.toolTier = toolTier;

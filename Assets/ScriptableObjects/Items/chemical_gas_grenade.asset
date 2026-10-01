@@ -15,6 +15,7 @@ MonoBehaviour:
   itemID: chemical_gas_grenade
   itemName: "\uD654\uD559 \uB3C5\uAC00\uC2A4 \uC218\uB958\uD0C4"
   itemType: 2
+  isWeapon: 1
   maxStack: 20
   icon: {fileID: 21300000, guid: 9b5ce3beeed7ee148bdd4ee8c67c3bff, type: 3}
   toolTier: 0
