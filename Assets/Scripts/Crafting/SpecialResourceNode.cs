@@ -68,6 +68,11 @@ namespace CraftingSystem
         {
             _cachedRenderer = GetComponent<Renderer>();
             _cachedCollider = GetComponent<Collider>();
+
+            // _remainingHits는 직렬화되지 않는다. 에디터에서 미리 Configure()를 호출해 씬에
+            // 배치해둔 노드는(런타임에 Configure가 다시 불리지 않으므로) Play 진입 시 여기서
+            // 최초 1회 굴려줘야 고갈 로직이 정상 동작한다. Configure가 나중에 또 불리면 거기서 다시 굴린다.
+            RollRemainingHits();
         }
 
         private void RollRemainingHits()
