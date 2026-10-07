@@ -7,7 +7,7 @@ namespace CraftingSystem
     /// 맵의 특산물 구역 안에 배치되는 채집 오브젝트.
     /// LastTruck.PlayerInteract(E키 꾹 누르기, OverlapSphere) 방식으로 상호작용한다.
     /// </summary>
-    public class SpecialResourceNode : MonoBehaviour, LastTruck.IHoldInteractable
+    public class SpecialResourceNode : MonoBehaviour, LastTruck.IHoldInteractable, LastTruck.IInteractLabel
     {
         [SerializeField] private string displayName = "특산물";
         [SerializeField] private ItemData item;
@@ -35,8 +35,17 @@ namespace CraftingSystem
 
         private int _remainingHits = -1;
         private bool _depleted;
-        private Renderer _cachedRenderer;
-        private Collider _cachedCollider;
+        private Renderer[] _cachedRenderers;
+        private Collider[] _cachedColliders;
+        private Collider _ownCollider;
+
+        // 채집 UI에 표시할 이름/요구 조건
+        public string InteractLabel => displayName;
+        public string InteractSubLabel => "";
+        public Color InteractLabelColor => item != null && item.itemID == ItemIds.CopperOre ? new Color(1f, 0.62f, 0.3f)
+            : item != null && item.itemID == ItemIds.IronOre ? new Color(0.72f, 0.82f, 1f)
+            : item != null && item.itemID == ItemIds.Platinum ? new Color(1f, 0.95f, 0.45f)
+            : item != null && item.itemID == ItemIds.Diamond ? new Color(0.45f, 0.9f, 1f) : Color.white;
 
         // public float RequiredHoldSeconds => gatherHoldSeconds;
 
@@ -44,14 +53,14 @@ namespace CraftingSystem
         {
             get
             {
-                if (gatherHoldSeconds <= 0f) return 0f;
-                var player = GameObject.FindWithTag("Player");
+                float baseSeconds = gatherHoldSeconds;
+                var player = GatherRules.Player;
+                bool unmet = !GatherRules.MeetsRequirement(player, requiredTier, requiredItemId);
+                if (baseSeconds <= 0f && !unmet) return 0f;
                 if (player != null && player.TryGetComponent<LastTruck.CharacterAbilityController>(out var abilityController))
-                {
-                    return abilityController.GetCalculatedMiningTime(gatherHoldSeconds);
-                }
-
-                return gatherHoldSeconds;
+                    baseSeconds = abilityController.GetCalculatedMiningTime(baseSeconds);
+                // 조건(도구 등급/장비)을 못 맞추면 훨씬 오래 걸리고, 끝나도 아이템을 얻지 못한다(Interact에서 막는다).
+                return unmet ? Mathf.Max(baseSeconds, 1f) * GatherRules.UnmetTimeMultiplier : baseSeconds;
             }
         }
 
@@ -81,8 +90,10 @@ namespace CraftingSystem
 
         private void Awake()
         {
-            _cachedRenderer = GetComponent<Renderer>();
-            _cachedCollider = GetComponent<Collider>();
+            // 자식 오브젝트로 붙은 광석 모델도 함께 숨기고/되살리기 위해 자식까지 포함해서 캐시한다.
+            _cachedRenderers = GetComponentsInChildren<Renderer>(true);
+            _cachedColliders = GetComponentsInChildren<Collider>(true);
+            _ownCollider = GetComponent<Collider>();
 
             // _remainingHits는 직렬화되지 않는다. 에디터에서 미리 Configure()를 호출해 씬에
             // 배치해둔 노드는(런타임에 Configure가 다시 불리지 않으므로) Play 진입 시 여기서
@@ -98,9 +109,14 @@ namespace CraftingSystem
         private void Deplete()
         {
             _depleted = true;
-            if (_cachedRenderer != null) _cachedRenderer.enabled = false;
-            if (_cachedCollider != null) _cachedCollider.enabled = false;
+            SetVisible(false);
             StartCoroutine(RegenRoutine());
+        }
+
+        private void SetVisible(bool on)
+        {
+            if (_cachedRenderers != null) foreach (var r in _cachedRenderers) if (r != null) r.enabled = on;
+            if (_cachedColliders != null) foreach (var c in _cachedColliders) if (c != null) c.enabled = on;
         }
 
         private IEnumerator RegenRoutine()
@@ -110,8 +126,7 @@ namespace CraftingSystem
 
             RollRemainingHits();
             _depleted = false;
-            if (_cachedRenderer != null) _cachedRenderer.enabled = true;
-            if (_cachedCollider != null) _cachedCollider.enabled = true;
+            SetVisible(true);
         }
 
         /// <summary>

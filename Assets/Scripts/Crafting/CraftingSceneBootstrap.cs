@@ -22,6 +22,8 @@ namespace CraftingSystem
 
         [SerializeField] private bool setupOnAwake = true;
         [SerializeField] private bool createFacilitiesIfMissing = true;
+        [Tooltip("트럭 근처에 데모용 Resource_Wood / Resource_Stone 노드를 자동 생성할지 여부. 맵에 실제 자원이 있으므로 기본은 끈다.")]
+        [SerializeField] private bool spawnDemoResourceNodes = false;
 
         private void Awake()
         {
@@ -307,7 +309,7 @@ private static void EnsureFacility(
 
         private void EnsureResourceNodes(ItemCatalog catalog, Vector3 origin)
         {
-            if (!createFacilitiesIfMissing)
+            if (!createFacilitiesIfMissing || !spawnDemoResourceNodes)
                 return;
 
             // 도구 등급: 맨손 0 < 돌곡괭이 1 < 구리곡괭이 2 < 철제곡괭이 3

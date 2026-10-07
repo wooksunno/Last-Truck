@@ -1,0 +1,42 @@
+using UnityEngine;
+
+namespace CraftingSystem
+{
+    /// <summary>
+    /// 채집 조건(도구 등급 / 전용 장비) 판정 공통 로직.
+    /// 조건을 못 맞춘 채로 채집을 시도해도 E키 꾹 누르기는 진행되지만 시간이 UnmetTimeMultiplier배 걸리고, 끝나도 아이템을 얻지 못한다.
+    /// </summary>
+    public static class GatherRules
+    {
+        public const float UnmetTimeMultiplier = 10f;
+
+        private static GameObject _player;
+
+        public static GameObject Player
+        {
+            get
+            {
+                if (_player == null) _player = GameObject.FindWithTag("Player");
+                return _player;
+            }
+        }
+
+        /// <summary>1/2/3 키로 선택한 손 슬롯 기준으로 요구 도구 등급/장비를 만족하는지.</summary>
+        public static bool MeetsRequirement(GameObject player, int requiredTier, string requiredItemId = "")
+        {
+            if (requiredTier <= 0 && string.IsNullOrEmpty(requiredItemId))
+                return true;
+
+            PlayerInventory inventory = player != null ? player.GetComponent<PlayerInventory>() : null;
+            InventorySlot hand = inventory != null ? inventory.SelectedSlot : null;
+            bool hasHand = hand != null && !hand.IsEmpty && hand.item != null;
+            bool tierOk = requiredTier <= 0 || (hasHand && hand.item.toolTier >= requiredTier);
+            bool itemOk = string.IsNullOrEmpty(requiredItemId) || (hasHand && hand.item.itemID == requiredItemId);
+            return tierOk && itemOk;
+        }
+
+        /// <summary>플레이어 본인이 아닌 곳(UI/프로퍼티)에서 쓰는 편의 오버로드: 태그가 Player인 오브젝트 기준.</summary>
+        public static bool MeetsRequirement(int requiredTier, string requiredItemId = "") =>
+            MeetsRequirement(Player, requiredTier, requiredItemId);
+    }
+}

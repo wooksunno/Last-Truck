@@ -59,11 +59,11 @@ PrefabInstance:
     - target: {fileID: -5028815728566405330, guid: efd331d4b11709f40b82377af7a18459, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: f08f15b0ba9bd584ba0fffa912be33f9, type: 2}
+      objectReference: {fileID: 2100000, guid: 43a7e23355740bd4da585e2c8c15bce9, type: 2}
     - target: {fileID: -610808964931467145, guid: efd331d4b11709f40b82377af7a18459, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
-      objectReference: {fileID: 2100000, guid: f08f15b0ba9bd584ba0fffa912be33f9, type: 2}
+      objectReference: {fileID: 2100000, guid: 43a7e23355740bd4da585e2c8c15bce9, type: 2}
     - target: {fileID: 572617754110402786, guid: efd331d4b11709f40b82377af7a18459, type: 3}
       propertyPath: m_LocalScale.x
       value: 3
@@ -190,7 +190,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMove
   speed: 3
+  rigidbody: {fileID: 0}
   cameraTransform: {fileID: 0}
+  cinemachineInputController: {fileID: 0}
+  stepHeight: 0.45
+  maxSlopeAngle: 50
+  groundCheckDistance: 0.3
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
 --- !u!114 &8491090780925854867
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -220,7 +228,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e313c0d95b3fbd946ad2027b699bed5c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Character
-  stats: {fileID: 11400000, guid: dff90d1b5a7864e429863a66a0ec5967, type: 2}
+  statsData: {fileID: 0}
 --- !u!114 &8628670487034936047
 MonoBehaviour:
   m_ObjectHideFlags: 0

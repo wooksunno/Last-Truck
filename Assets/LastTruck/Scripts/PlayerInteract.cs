@@ -15,6 +15,7 @@ namespace LastTruck
         public bool IsHolding { get; private set; }
         public float HoldProgress01 { get; private set; }
         public bool HasNearbyInteractable => currentInteractable != null;
+        public IInteractable CurrentInteractable => currentInteractable;
 
         private void Update()
         {

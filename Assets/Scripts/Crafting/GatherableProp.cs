@@ -8,7 +8,7 @@ namespace CraftingSystem
     /// PlayerInteract는 interactLayer(Water, 레이어 4)의 콜라이더만 찾으므로, 프롭의 자식 "GatherTrigger"
     /// (레이어 4, 트리거 콜라이더)에 이 컴포넌트를 붙여 사용한다. 설치는 에디터 메뉴 Tools/Gatherable Props 로 한다.
     /// </summary>
-    public class GatherableProp : MonoBehaviour, LastTruck.IHoldInteractable, LastTruck.IInteractPriority
+    public class GatherableProp : MonoBehaviour, LastTruck.IHoldInteractable, LastTruck.IInteractPriority, LastTruck.IInteractLabel
     {
         [SerializeField] private string displayName = "채집";
         [SerializeField] private string itemId = ItemIds.Stone;
@@ -18,9 +18,28 @@ namespace CraftingSystem
         [Tooltip("채집이 끝나면 사라질 오브젝트. 비어 있으면 부모 오브젝트.")]
         [SerializeField] private GameObject target;
 
+        [Tooltip("채집에 필요한 최소 도구 등급(1/2/3 키로 고른 손 슬롯). 돌은 항상 최소 1(나무 곡괭이) 이상이 필요하다.")]
+        [SerializeField] private int requiredTier = 0;
+
         private bool _done;
 
-        public float RequiredHoldSeconds => gatherHoldSeconds;
+        private int EffectiveTier => Mathf.Max(requiredTier, itemId == ItemIds.Stone ? 1 : 0);
+
+        public float RequiredHoldSeconds
+        {
+            get
+            {
+                int tier = EffectiveTier;
+                // 조건(곡괭이 등급)을 못 맞추면 시간이 훨씬 오래 걸리고, 끝나도 아이템을 얻지 못한다(Interact에서 막는다).
+                if (tier > 0 && !GatherRules.MeetsRequirement(tier))
+                    return Mathf.Max(gatherHoldSeconds, 1f) * GatherRules.UnmetTimeMultiplier;
+                return gatherHoldSeconds;
+            }
+        }
+
+        public string InteractLabel => displayName;
+        public string InteractSubLabel => "";
+        public Color InteractLabelColor => Color.white;
 
         // 풀(약초)은 어디에나 깔려 있으므로, 근처에 나무/돌 등 다른 대상이 있으면 그쪽을 먼저 잡게 한다.
         public int InteractPriority => itemId == ItemIds.Herb ? -1 : 0;
@@ -42,6 +61,17 @@ namespace CraftingSystem
             PlayerInventory inventory = player.GetComponent<PlayerInventory>();
             if (inventory == null)
                 return;
+
+            int tier = EffectiveTier;
+            if (tier > 0)
+            {
+                InventorySlot hand = inventory.SelectedSlot;
+                if (hand == null || hand.IsEmpty || hand.item == null || hand.item.toolTier < tier)
+                {
+                    Debug.LogWarning($"[GatherableProp] {displayName}: 1/2/3 키로 선택한 슬롯에 등급 {tier} 이상의 곡괭이를 들고 있어야 채집할 수 있습니다.");
+                    return;
+                }
+            }
 
             ItemData item = ItemCatalog.GetOrCreate().GetItem(itemId);
             if (item == null)
