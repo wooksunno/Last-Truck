@@ -73,14 +73,18 @@ namespace LastTruck
 
             IInteractable closestInteractable = null;
             float closestDistance = float.MaxValue;
+            int bestPriority = int.MinValue;
 
+            // 우선순위가 높은 대상 먼저, 같으면 가장 가까운 대상 (예: 나무 옆의 풀보다 나무를 먼저 캔다)
             foreach (var col in hitColliders)
             {
                 if (col.TryGetComponent<IInteractable>(out var interactable))
                 {
+                    int priority = interactable is IInteractPriority p ? p.InteractPriority : 0;
                     float distance = Vector3.Distance(transform.position, col.transform.position);
-                    if (distance < closestDistance)
+                    if (priority > bestPriority || (priority == bestPriority && distance < closestDistance))
                     {
+                        bestPriority = priority;
                         closestDistance = distance;
                         closestInteractable = interactable;
                     }
