@@ -15,6 +15,7 @@ MonoBehaviour:
   sceneDatas_byGuid:
     keys:
     - e324e66165d178645ba84f37bb7edc84
+    - 9c7087685c72139429e207344b726a3b
     values:
     - goDatas_byGlobalId:
         keys:
@@ -23,6 +24,64 @@ MonoBehaviour:
         - globalObjectIdString: GlobalObjectId_V1-2-e324e66165d178645ba84f37bb7edc84-1408946031-0
         values:
         - colorIndex: 2
+          iconNameOrGuid: 
+          isIconRecursive: 0
+          isColorRecursive: 0
+        - colorIndex: 3
+          iconNameOrGuid: 
+          isIconRecursive: 0
+          isColorRecursive: 0
+        - colorIndex: 6
+          iconNameOrGuid: 
+          isIconRecursive: 0
+          isColorRecursive: 0
+    - goDatas_byGlobalId:
+        keys:
+        - globalObjectIdString: GlobalObjectId_V1-2-9c7087685c72139429e207344b726a3b-7786067383137606811-4528278314032644007
+        - globalObjectIdString: GlobalObjectId_V1-2-9c7087685c72139429e207344b726a3b-1428958256-0
+        - globalObjectIdString: GlobalObjectId_V1-2-9c7087685c72139429e207344b726a3b-855543714-0
+        - globalObjectIdString: GlobalObjectId_V1-2-9c7087685c72139429e207344b726a3b-628860362938352350-1922118227
+        - globalObjectIdString: GlobalObjectId_V1-2-9c7087685c72139429e207344b726a3b-339769942-0
+        - globalObjectIdString: GlobalObjectId_V1-2-9c7087685c72139429e207344b726a3b-267242208-0
+        - globalObjectIdString: GlobalObjectId_V1-2-9c7087685c72139429e207344b726a3b-743834693-0
+        - globalObjectIdString: GlobalObjectId_V1-2-9c7087685c72139429e207344b726a3b-864217069-0
+        - globalObjectIdString: GlobalObjectId_V1-2-9c7087685c72139429e207344b726a3b-158726256-0
+        - globalObjectIdString: GlobalObjectId_V1-2-9c7087685c72139429e207344b726a3b-84544367-0
+        - globalObjectIdString: GlobalObjectId_V1-2-9c7087685c72139429e207344b726a3b-1696981856-0
+        values:
+        - colorIndex: 1
+          iconNameOrGuid: AvatarMask On Icon
+          isIconRecursive: 0
+          isColorRecursive: 0
+        - colorIndex: 0
+          iconNameOrGuid: Light Icon
+          isIconRecursive: 0
+          isColorRecursive: 0
+        - colorIndex: 0
+          iconNameOrGuid: DirectionalLight Icon
+          isIconRecursive: 0
+          isColorRecursive: 0
+        - colorIndex: 0
+          iconNameOrGuid: AvatarMask On Icon
+          isIconRecursive: 0
+          isColorRecursive: 0
+        - colorIndex: 2
+          iconNameOrGuid: 
+          isIconRecursive: 0
+          isColorRecursive: 0
+        - colorIndex: 0
+          iconNameOrGuid: Camera Icon
+          isIconRecursive: 0
+          isColorRecursive: 0
+        - colorIndex: 0
+          iconNameOrGuid: Camera Icon
+          isIconRecursive: 0
+          isColorRecursive: 0
+        - colorIndex: 2
+          iconNameOrGuid: 
+          isIconRecursive: 0
+          isColorRecursive: 0
+        - colorIndex: 6
           iconNameOrGuid: 
           isIconRecursive: 0
           isColorRecursive: 0
