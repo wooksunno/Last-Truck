@@ -5,9 +5,10 @@ namespace LastTruck
     public class PlayerMove : MonoBehaviour
     {
         [Header("Settings")]
-        public float speed = 5f;
+        [SerializeField] private float speed = 5f;
+        public new Rigidbody rigidbody;
         public Transform cameraTransform;
-        public Rigidbody rigidbody;
+        public Behaviour cinemachineInputController;
 
         private float hAxis;
         private float vAxis;
@@ -19,6 +20,10 @@ namespace LastTruck
 
         private bool _movementLocked;
         private float _speedMultiplier = 1f;
+
+        private bool _isCursorUnlocked = false;
+
+        public bool IsUIOpen { get; set; } = false;
 
         public void SetMovementLocked(bool locked)
         {
@@ -51,16 +56,28 @@ namespace LastTruck
                 cameraTransform = Camera.main.transform;
             }
 
-            // 마우스 커서
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
+            if (cinemachineInputController == null)
+            {
+                var components = FindObjectsOfType<Behaviour>();
+                foreach (var comp in components)
+                {
+                    if (comp != null && comp.GetType().Name.Contains("CinemachineInput"))
+                    {
+                        cinemachineInputController = comp;
+                        break;
+                    }
+                }
+            }
 
+            _isCursorUnlocked = false;
+            UpdateCursorState();
             SyncSpeedFromCharacter();
         }
 
         private void OnEnable()
         {
             SyncSpeedFromCharacter();
+            UpdateCursorState();
         }
 
         private void SyncSpeedFromCharacter()
@@ -73,7 +90,17 @@ namespace LastTruck
 
         private void Update()
         {
-            if (_movementLocked)
+            // Left Alt 키로 자유 커서 / 시점 고정 토글
+            if (Input.GetKeyDown(KeyCode.LeftAlt))
+            {
+                _isCursorUnlocked = !_isCursorUnlocked;
+                UpdateCursorState();
+            }
+
+            // UI가 켜져 있거나 이동이 잠긴 경우에만 이동 입력 차단
+            bool shouldLockMovement = _movementLocked || IsUIOpen;
+
+            if (shouldLockMovement)
             {
                 hAxis = 0f;
                 vAxis = 0f;
@@ -94,6 +121,35 @@ namespace LastTruck
             }
         }
 
+        /// <summary>
+        /// 카메라 및 마우스 커서 상태 제어
+        /// </summary>
+        public void UpdateCursorState()
+        {
+            bool unlockCursor = _isCursorUnlocked || IsUIOpen;
+
+            if (unlockCursor)
+            {
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+                SetCinemachineInputEnabled(false);
+            }
+            else
+            {
+                Cursor.lockState = CursorLockMode.Locked;
+                Cursor.visible = false;
+                SetCinemachineInputEnabled(true);
+            }
+        }
+
+        private void SetCinemachineInputEnabled(bool isEnabled)
+        {
+            if (cinemachineInputController != null)
+            {
+                cinemachineInputController.enabled = isEnabled;
+            }
+        }
+
         private void FixedUpdate()
         {
             if (cameraTransform == null || rigidbody == null) return;
@@ -103,22 +159,34 @@ namespace LastTruck
 
             camForward.y = 0f;
             camRight.y = 0f;
-            camForward.Normalize();
-            camRight.Normalize();
 
-            moveVec = (camForward * vAxis + camRight * hAxis).normalized;
+            if (camForward.sqrMagnitude > 0.001f) camForward.Normalize();
+            if (camRight.sqrMagnitude > 0.001f) camRight.Normalize();
+
+            moveVec = (camForward * vAxis + camRight * hAxis);
+
+            if (moveVec.sqrMagnitude > 1f)
+            {
+                moveVec.Normalize();
+            }
 
             float currentSpeed = speed * (wDown ? 0.3f : 1f) * _speedMultiplier;
 
             Vector3 targetVelocity = moveVec * currentSpeed;
+
+            // Unity 버전 호환성 지원 (linearVelocity / velocity)
+#if UNITY_6000_0_OR_NEWER
             targetVelocity.y = rigidbody.linearVelocity.y;
-
             rigidbody.linearVelocity = targetVelocity;
+#else
+            targetVelocity.y = rigidbody.velocity.y;
+            rigidbody.velocity = targetVelocity;
+#endif
 
-            if (moveVec != Vector3.zero)
+            if (moveVec.sqrMagnitude > 0.001f)
             {
                 Quaternion targetRotation = Quaternion.LookRotation(moveVec);
-                rigidbody.MoveRotation(Quaternion.Slerp(rigidbody.rotation, targetRotation, Time.fixedDeltaTime * 20f));
+                rigidbody.MoveRotation(Quaternion.Slerp(rigidbody.rotation, targetRotation, Time.fixedDeltaTime * 15f));
             }
         }
     }

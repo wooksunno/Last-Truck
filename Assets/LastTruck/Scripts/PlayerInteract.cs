@@ -20,8 +20,15 @@ namespace LastTruck
         {
             Detect_Interactable();
 
+            if (currentInteractable == null)
+            {
+                ResetHoldState();
+                return;
+            }
+
             IHoldInteractable holdable = currentInteractable as IHoldInteractable;
 
+            // 홀드형 상호작용 (누르고 있기)
             if (holdable != null && holdable.RequiredHoldSeconds > 0f)
             {
                 if (Input.GetKey(interactKey))
@@ -33,29 +40,31 @@ namespace LastTruck
                     if (_holdTimer >= holdable.RequiredHoldSeconds)
                     {
                         currentInteractable.Interact(gameObject);
-                        _holdTimer = 0f;
-                        IsHolding = false;
-                        HoldProgress01 = 0f;
+                        ResetHoldState();
                     }
                 }
                 else
                 {
-                    _holdTimer = 0f;
-                    IsHolding = false;
-                    HoldProgress01 = 0f;
+                    ResetHoldState();
                 }
             }
+            // 일반 클릭형 상호작용 (단발성 E키)
             else
             {
-                _holdTimer = 0f;
-                IsHolding = false;
-                HoldProgress01 = 0f;
+                ResetHoldState();
 
-                if (currentInteractable != null && Input.GetKeyDown(interactKey))
+                if (Input.GetKeyDown(interactKey))
                 {
                     currentInteractable.Interact(gameObject);
                 }
             }
+        }
+
+        private void ResetHoldState()
+        {
+            _holdTimer = 0f;
+            IsHolding = false;
+            HoldProgress01 = 0f;
         }
 
         private void Detect_Interactable()
@@ -80,9 +89,7 @@ namespace LastTruck
 
             if (!ReferenceEquals(closestInteractable, currentInteractable))
             {
-                _holdTimer = 0f;
-                IsHolding = false;
-                HoldProgress01 = 0f;
+                ResetHoldState();
             }
 
             currentInteractable = closestInteractable;

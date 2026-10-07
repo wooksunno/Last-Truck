@@ -1155,7 +1155,29 @@ private void CreateTruckFurnaceMiddle(RectTransform parent, FacilityJob activeJo
             _truckCountdownText = pending > 0 ? timerText : null;
         }
 
-private void StartTruckProcessing(RecipeData recipe)
+        // 대장장이 능력 반영 최종 가공 시간
+        private float GetFinalProcessingSeconds(RecipeData recipe)
+        {
+            if (recipe == null) return 0f;
+
+            float baseSeconds = recipe.processingSeconds;
+            CharacterAbilityController abilityController = FindObjectOfType<CharacterAbilityController>();
+
+            if (abilityController != null)
+            {
+                bool isWeapon = false;
+                if (recipe.output != null && recipe.output.item != null)
+                {
+                    return abilityController.GetCalculatedProcessingTime(baseSeconds, false);
+                }
+
+                return abilityController.GetCalculatedProcessingTime(baseSeconds, isWeapon);
+            }
+
+            return baseSeconds;
+        }
+
+        private void StartTruckProcessing(RecipeData recipe)
         {
             TruckStation truck = _activeTruck;
             if (recipe == null || truck == null)
@@ -1188,15 +1210,19 @@ private void StartTruckProcessing(RecipeData recipe)
                 _truckJob = new FacilityJob { recipe = recipe };
 
             _truckJob.pending++;
+
             if (!_truckJob.running)
             {
-                _truckJob.remaining = Mathf.Max(0f, recipe.processingSeconds);
+                float finalProcessingTime = GetFinalProcessingSeconds(recipe);
+                _truckJob.remaining = Mathf.Max(0f, finalProcessingTime);
+
                 StartCoroutine(TruckProcessRoutine(truck, _truckJob));
             }
 
             ShowPopup("트럭 거점", BuildTruckContent);
         }
 
+        // 가공시간
         private IEnumerator TruckProcessRoutine(TruckStation truck, FacilityJob job)
         {
             job.running = true;
@@ -1213,7 +1239,10 @@ private void StartTruckProcessing(RecipeData recipe)
 
                 job.pending--;
                 job.ready++;
-                job.remaining = job.pending > 0 ? Mathf.Max(0f, job.recipe.processingSeconds) : 0f;
+                // job.remaining = job.pending > 0 ? Mathf.Max(0f, job.recipe.processingSeconds) : 0f;
+
+                float finalProcessingTime = GetFinalProcessingSeconds(job.recipe);
+                job.remaining = job.pending > 0 ? Mathf.Max(0f, finalProcessingTime) : 0f;
 
                 if (_activeTruck == truck && IsPopupOpen)
                     ShowPopup("트럭 거점", BuildTruckContent);
@@ -1388,14 +1417,14 @@ private void ClaimTruckOutput()
             text.alignment = TextAnchor.MiddleCenter;
             text.supportRichText = true;
 
-            // 대장장이 할인 적용 수치 취소선
+            // 대장장이 할인(무기 제작) 적용 수치 취소선
             if (need < originalNeed)
             {
                 string originalColorHex = "#888888";
                 string discountColorHex = "#FFD700";
 
                 text.color = enough ? new Color(0.55f, 0.95f, 0.55f) : new Color(0.95f, 0.4f, 0.4f);
-                text.text = $"{have}/<color={originalColorHex}>{originalNeed}</color>→<color={discountColorHex}>{need}</color>";
+                text.text = $"{have}/<color={originalColorHex}>{originalNeed}</color><color={discountColorHex}>→{need}</color>";
             }
             else
             {

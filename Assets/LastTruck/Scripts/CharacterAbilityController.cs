@@ -1,17 +1,27 @@
 using Combat;
+using CraftingSystem;
 using UnityEngine;
 
 namespace LastTruck
 {
     [RequireComponent(typeof(WeaponController))]
-
     public class CharacterAbilityController : MonoBehaviour
     {
         [Header("자동 연동 컴포넌트")]
         [SerializeField] private WeaponController weaponController;
+        [SerializeField] private Character character;
 
-        [Header("현재 캐릭터 능력 데이터")]
-        [SerializeField] private CharacterAbility currentAbility;
+        public CharacterAbility CurrentAbility
+        {
+            get
+            {
+                if (character != null && character.StatsData != null)
+                {
+                    return character.StatsData.UniqueAbility;
+                }
+                return null;
+            }
+        }
 
         private void Reset()
         {
@@ -23,47 +33,84 @@ namespace LastTruck
             if (weaponController == null)
                 weaponController = GetComponent<WeaponController>();
 
-            if (currentAbility != null && TryGetComponent<Character>(out var caster))
+            if (character == null)
+                character = GetComponent<Character>();
+
+            if (CurrentAbility != null && character != null)
             {
-                currentAbility.Execute(caster);
+                CurrentAbility.Execute(character);
             }
         }
 
         // 군인
         public int GetCalculatedDamage(int originalDamage, out bool isEnhanced)
         {
-            if (!enabled || currentAbility == null)
+            var ability = CurrentAbility;
+            if (!enabled || ability == null)
             {
                 isEnhanced = false;
                 return originalDamage;
             }
 
-            return currentAbility.CalculateAttackDamage(originalDamage, out isEnhanced);
+            return ability.CalculateAttackDamage(originalDamage, out isEnhanced);
         }
 
         // 탐험가
         public int GetCalculatedResourceAmount(int baseAmount)
         {
-            if (!enabled || currentAbility == null)
+            var ability = CurrentAbility;
+            if (!enabled || ability == null)
             {
                 return baseAmount;
             }
 
-            return currentAbility.CalculateGatherAmount(baseAmount);
+            return ability.CalculateGatherAmount(baseAmount);
         }
 
         // 대장장이
         public int GetCalculatedCraftingCost(int originalCost, bool isWeapon)
         {
-            if (!enabled || currentAbility == null) { return originalCost; }
-            return currentAbility.CalculateCraftingCost(originalCost, isWeapon);
+            var ability = CurrentAbility;
+            if (!enabled || ability == null) { return originalCost; }
+            return ability.CalculateCraftingCost(originalCost, isWeapon);
         }
+
         public float GetCalculatedProcessingTime(float originalSeconds, bool isWeapon)
         {
-            // 현재 캐릭터의 능력이 없으면 원본 시간 반환
-            if (currentAbility == null) return originalSeconds;
+            var ability = CurrentAbility;
+            if (ability == null) return originalSeconds;
 
-            return currentAbility.CalculateProcessingTime(originalSeconds, isWeapon);
+            return ability.CalculateProcessingTime(originalSeconds, isWeapon);
+        }
+
+        // 광부
+        public float GetCalculatedMiningTime(float baseTime)
+        {
+            var ability = CurrentAbility;
+            if (!enabled || ability == null) return baseTime;
+
+            return ability.CalculateGatherTime(baseTime);
+        }
+
+        public int GetCalculatedMiningAmount(ItemData targetItem, int baseAmount)
+        {
+            var ability = CurrentAbility;
+            if (!enabled || ability == null) return baseAmount;
+
+            return ability.CalculateGatherAmount(targetItem, baseAmount);
+        }
+
+        // 경찰
+        // 경찰 - 표식 시스템
+        public int GetCalculatedPoliceDamage(int baseDamage, bool targetHasMark, out float markDuration)
+        {
+            markDuration = 0f;
+            var ability = CurrentAbility;
+            if (!enabled || ability == null) return baseDamage;
+
+            markDuration = ability.MarkDuration; // 경찰이면 2.0f, 다른 캐릭터면 0f 반환
+
+            return ability.CalculateMarkBonusDamage(baseDamage, targetHasMark);
         }
     }
 }

@@ -20,6 +20,10 @@ namespace Combat
         private Coroutine _rootRoutine;
         private float _rootUntilTime;
 
+        // ★ 경찰 표식 타이머
+        private float _markUntilTime;
+        public bool IsMarked => Time.time < _markUntilTime;
+
         public int CurrentHealth => _currentHealth;
         public int MaxHealth => maxHealth;
 
@@ -81,6 +85,14 @@ namespace Combat
         //    }
         //}
 
+        /// <summary>
+        /// 경찰 표식을 부여
+        /// </summary>
+        public void ApplyPoliceMark(float duration)
+        {
+            if (duration <= 0f) return;
+            _markUntilTime = Mathf.Max(_markUntilTime, Time.time + duration);
+        }
         public void TakeDamage(int amount, Vector3 hitPoint)
         {
             if (amount <= 0)
@@ -89,9 +101,36 @@ namespace Combat
             int finalDamage = amount;
 
             var abilityController = FindObjectOfType<CharacterAbilityController>();
+            
+            //if (abilityController != null)
+            //{
+            //    finalDamage = abilityController.GetCalculatedDamage(amount, out bool isEnhanced);
+            //}
+
             if (abilityController != null)
             {
+                // 1. 기본 데미지(군인 등)
                 finalDamage = abilityController.GetCalculatedDamage(amount, out bool isEnhanced);
+
+                bool wasMarked = IsMarked;
+
+                // 2. 경찰 표식 추가 피해 계산 및 표식 갱신
+                finalDamage = abilityController.GetCalculatedPoliceDamage(finalDamage, IsMarked, out float markDuration);
+
+                // 타격 시 표식 부여 (경찰 캐릭터일 경우 markDuration > 0)
+                if (markDuration > 0f)
+                {
+                    ApplyPoliceMark(markDuration);
+
+                    if (wasMarked)
+                    {
+                        Debug.Log($"[경찰] 최종 데미지: {finalDamage} (추가 피해 적용됨)");
+                    }
+                    else
+                    {
+                        Debug.Log($"[경찰] 적에게 표식을 남겼습니다. (지속시간: {markDuration}초)");
+                    }
+                }
             }
 
             _currentHealth -= finalDamage;

@@ -14,7 +14,7 @@ namespace LastTruck
             Debug.Log($"{caster.name} 대장장이 능력 적용");
         }
 
-        // 1. 재료비용 계산
+        // 1. 제작 비용 감소
         public override int CalculateCraftingCost(int originalCost, bool isWeapon)
         {
             if (originalCost <= 0) return originalCost;
@@ -23,8 +23,17 @@ namespace LastTruck
             float floatCost = originalCost * (1f - weaponMaterialDiscount);
             int discountedCost = Mathf.Max(1, Mathf.FloorToInt(floatCost + 0.0001f));
 
-            Debug.Log($"[대장장이 재료할인] {originalCost}개 -> {discountedCost}개");
             return discountedCost;
+        }
+
+        public override float CalculateProcessingTime(float originalSeconds, bool isWeapon)
+        {
+            if (originalSeconds <= 0f) { return originalSeconds; }
+
+            float discountedSeconds = originalSeconds * (1f - processingTimeDiscount);
+            discountedSeconds = Mathf.Max(0f, discountedSeconds);
+
+            return discountedSeconds;
         }
     }
 }

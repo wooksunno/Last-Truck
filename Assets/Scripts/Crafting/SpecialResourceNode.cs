@@ -38,7 +38,22 @@ namespace CraftingSystem
         private Renderer _cachedRenderer;
         private Collider _cachedCollider;
 
-        public float RequiredHoldSeconds => gatherHoldSeconds;
+        // public float RequiredHoldSeconds => gatherHoldSeconds;
+
+        public float RequiredHoldSeconds
+        {
+            get
+            {
+                if (gatherHoldSeconds <= 0f) return 0f;
+                var player = GameObject.FindWithTag("Player");
+                if (player != null && player.TryGetComponent<LastTruck.CharacterAbilityController>(out var abilityController))
+                {
+                    return abilityController.GetCalculatedMiningTime(gatherHoldSeconds);
+                }
+
+                return gatherHoldSeconds;
+            }
+        }
 
         public void Configure(string name, ItemData itemData, int amt, int tier = 0,
             int minHitsRange = 0, int maxHitsRange = 0, float minRegen = 0f, float maxRegen = 0f,
@@ -145,12 +160,15 @@ namespace CraftingSystem
             ItemData gatherItem = RollGatherItem();
 
             ////////////////////////
-            //탐험가 능력 적용
             int finalAmount = amount;
 
             if (player.TryGetComponent<LastTruck.CharacterAbilityController>(out var abilityController))
             {
-                finalAmount = abilityController.GetCalculatedResourceAmount(amount);
+                // 1. 탐험가 능력 적용
+                finalAmount = abilityController.GetCalculatedResourceAmount(finalAmount);
+
+                // 2. 광부 능력 적용 (광물 아이템일 경우 추가 보너스)
+                finalAmount = abilityController.GetCalculatedMiningAmount(gatherItem, finalAmount);
             }
             //////////////////////
 

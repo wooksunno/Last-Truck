@@ -17,11 +17,11 @@ MonoBehaviour:
   requiredFacility: 0
   inputs:
   - item: {fileID: 11400000, guid: f01af06a4769b4e4ba9538207b8cc48f, type: 2}
-    count: 1
+    count: 2
   - item: {fileID: 11400000, guid: 2334d3e84bfd3814a8d4f37d3f66ac64, type: 2}
-    count: 1
+    count: 2
   - item: {fileID: 11400000, guid: ea27a103f6f1b6b41883814ca3596c40, type: 2}
-    count: 1
+    count: 2
   output:
     item: {fileID: 11400000, guid: 86d4dbdd132c0624b9b00cbbe6f6a991, type: 2}
     count: 1

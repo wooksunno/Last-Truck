@@ -76,7 +76,7 @@ namespace CraftingSystem
                 return false;
             }
 
-            // 대장장이 능력 추가 수정
+            // 대장장이 능력(자원 소모량 감소) 추가 수정
             CharacterAbilityController abilityController = FindObjectOfType<CharacterAbilityController>();
 
             ItemType type = recipe.output.item.itemType;

@@ -21,4 +21,4 @@ MonoBehaviour:
     costReduction: 0
     harvestSpeed: 0
     repairBonus: 0
-  uniqueAbility: {fileID: 0}
+  uniqueAbility: {fileID: 11400000, guid: 537618f17b2cda54db219b0a7dfeb184, type: 2}

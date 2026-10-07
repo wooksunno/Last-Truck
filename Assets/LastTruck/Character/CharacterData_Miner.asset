@@ -10,15 +10,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1136d65906ee4a44abea798f62a5e429, type: 3}
-  m_Name: CharacterData_BlackSmith
-  m_EditorClassIdentifier: Assembly-CSharp::CharacterStatsData
+  m_Name: CharacterData_Miner
+  m_EditorClassIdentifier: Assembly-CSharp::LastTruck.CharacterStatsData
   basicStats:
-    playerName: BlackSmith
+    playerName: Miner
     maxHealth: 100
     attackPower: 10
     moveSpeed: 20
   utilityStats:
     costReduction: 0
-    harvestSpeed: 0
+    harvestSpeed: 2
     repairBonus: 0
-  uniqueAbility: {fileID: 11400000, guid: 45b9884b7a06f5d45af911fc9a675a0b, type: 2}
+  uniqueAbility: {fileID: 11400000, guid: 59765c13941ddf0459b2aac7fd70f20a, type: 2}
