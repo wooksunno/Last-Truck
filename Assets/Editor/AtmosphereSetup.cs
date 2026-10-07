@@ -49,12 +49,13 @@ public static class AtmosphereSetup
         var bl = Ensure<Bloom>(p);
         bl.threshold.Override(1.1f); bl.intensity.Override(0.22f); bl.scatter.Override(0.62f); bl.tint.Override(new Color(1f, 0.96f, 0.86f)); bl.highQualityFiltering.Override(true);
         var ca = Ensure<ColorAdjustments>(p);
-        ca.postExposure.Override(-0.2f); ca.contrast.Override(14f); ca.saturation.Override(16f); ca.colorFilter.Override(new Color(1f, 0.99f, 0.95f));
-        var wb = Ensure<WhiteBalance>(p); wb.temperature.Override(10f); wb.tint.Override(-2f);
+        // 아침: 새벽처럼 푸르고 칙칙하지 않게 - 노출을 올리고 따뜻한 톤, 그림자의 보라/청색을 줄인다
+        ca.postExposure.Override(0.35f); ca.contrast.Override(12f); ca.saturation.Override(20f); ca.colorFilter.Override(new Color(1f, 0.98f, 0.93f));
+        var wb = Ensure<WhiteBalance>(p); wb.temperature.Override(16f); wb.tint.Override(2f);
         var st = Ensure<SplitToning>(p);
-        st.shadows.Override(new Color(0.42f, 0.46f, 0.80f)); st.highlights.Override(new Color(1f, 0.86f, 0.62f)); st.balance.Override(-10f);
+        st.shadows.Override(new Color(0.55f, 0.58f, 0.78f)); st.highlights.Override(new Color(1f, 0.88f, 0.66f)); st.balance.Override(-5f);
         var vg = Ensure<Vignette>(p);
-        vg.intensity.Override(0.26f); vg.smoothness.Override(0.45f); vg.rounded.Override(false); vg.color.Override(new Color(0.12f, 0.1f, 0.2f));
+        vg.intensity.Override(0.16f); vg.smoothness.Override(0.45f); vg.rounded.Override(false); vg.color.Override(new Color(0.12f, 0.1f, 0.2f));
         EditorUtility.SetDirty(p);
         AssetDatabase.SaveAssets();
         return p;
@@ -188,6 +189,22 @@ public static class AtmosphereSetup
             PrefabUtility.UnloadPrefabContents(root);
         }
         sb.AppendLine("character prefabs updated: " + n);
+
+        // KayKit 캐릭터(엔지니어 등)는 자체 머티리얼을 쓰므로 머티리얼의 셰이더만 교체한다(텍스처 유지)
+        int kk = 0;
+        foreach (var g in AssetDatabase.FindAssets("t:Material", new[] { "Assets/KayKit/Characters/KayKit - Adventurers (for Unity)/Materials" }))
+        {
+            var km = AssetDatabase.LoadAssetAtPath<Material>(AssetDatabase.GUIDToAssetPath(g));
+            if (km == null) continue;
+            Texture tex = km.HasProperty("_BaseMap") ? km.GetTexture("_BaseMap") : null;
+            if (tex == null && km.HasProperty("_MainTex")) tex = km.GetTexture("_MainTex");
+            km.shader = shader;
+            if (tex != null) km.SetTexture("_BaseMap", tex);
+            km.SetColor("_BaseColor", Color.white);
+            km.SetColor("_ShadeColor", new Color(0.78f, 0.74f, 0.92f));
+            EditorUtility.SetDirty(km); kk++;
+        }
+        sb.AppendLine("KayKit materials restyled: " + kk);
 
         // 몬스터(임시 캡슐/구체) - 같은 셰이더로, 원래 색 유지 + 빨간 림
         var mp = "Assets/Mr.No/Monster/Monster.prefab";

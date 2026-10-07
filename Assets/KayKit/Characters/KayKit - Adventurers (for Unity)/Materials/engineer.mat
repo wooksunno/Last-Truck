@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: engineer
-  m_Shader: {fileID: 4800000, guid: 5ec47ed68dd8aed43ad4948f4e1051e8, type: 3}
+  m_Shader: {fileID: 4800000, guid: c81c48afc456be049ab1adbcf8831019, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -138,7 +138,7 @@ Material:
     - _FlashColor: {r: 1, g: 1, b: 1, a: 1}
     - _OutlineColor: {r: 0.12, g: 0.08, b: 0.14, a: 1}
     - _RimColor: {r: 0.75, g: 0.88, b: 1, a: 1}
-    - _ShadeColor: {r: 0.7, g: 0.66, b: 0.88, a: 1}
+    - _ShadeColor: {r: 0.78, g: 0.74, b: 0.92, a: 1}
     - _SpecColor: {r: 0.2, g: 0.2, b: 0.2, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

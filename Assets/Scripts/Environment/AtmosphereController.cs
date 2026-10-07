@@ -30,12 +30,12 @@ namespace LastTruck
         [Range(0f, 1f)] [SerializeField] private float startNightFactor = 0f;
 
         [Header("낮")]
-        [SerializeField] private Color daySunColor = new Color(1f, 0.95f, 0.82f);
-        [SerializeField] private float daySunIntensityScale = 1f;
-        [SerializeField] private Color dayAmbient = new Color(0.22f, 0.26f, 0.34f);
-        [SerializeField] private float dayAmbientIntensity = 0.5f;
-        [SerializeField] private Color dayBackground = new Color(0.52f, 0.78f, 0.97f);
-        [SerializeField] private Color dayFog = new Color(0.78f, 0.88f, 0.96f);
+        [SerializeField] private Color daySunColor = new Color(1f, 0.96f, 0.84f);
+        [SerializeField] private float daySunIntensityScale = 0.95f;
+        [SerializeField] private Color dayAmbient = new Color(0.34f, 0.36f, 0.40f);
+        [SerializeField] private float dayAmbientIntensity = 0.8f;
+        [SerializeField] private Color dayBackground = new Color(0.55f, 0.80f, 0.98f);
+        [SerializeField] private Color dayFog = new Color(0.84f, 0.91f, 0.97f);
         [SerializeField] private float dayFogDensity = 0.0022f;
 
         [Header("밤")]
