@@ -22,3 +22,7 @@ MonoBehaviour:
     harvestSpeed: 0
     repairBonus: 0
   uniqueAbility: {fileID: 11400000, guid: 45b9884b7a06f5d45af911fc9a675a0b, type: 2}
+  portrait: {fileID: 21300000, guid: 6a5109fd370e80049877bcb0de01cd22, type: 3}
+  description: "\uB300\uC7A5\uC7A5\uC774"
+  modelPrefab: {fileID: 1570441015787563531, guid: 78c0e08efdab2614f87c838829ca6cac, type: 3}
+  networkPrefab: {fileID: 1914612745307859672, guid: 26055e5961a785f4d93cded369cf38bb, type: 3}

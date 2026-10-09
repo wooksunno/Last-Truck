@@ -5,9 +5,14 @@ using UnityEngine;
 namespace Combat
 {
     /// <summary>
-    /// 피격 가능한 대상(허수아비 등). 데미지를 받으면 잠깐 빨갛게 변하고 데미지 숫자를 띄운다.
+    /// 피격 가능한 대상(허수아비, 몬스터 등). 데미지를 받으면 잠깐 빨갛게 변하고 데미지 숫자를 띄운다.
+    ///
+    /// 멀티플레이: 같은 오브젝트에 NetworkHealth가 있으면 체력은 호스트가 관리한다.
+    ///  - TakeDamage는 호스트에게 피해를 "요청"만 하고,
+    ///  - 빨간색 깜빡임/데미지 숫자는 호스트가 적용한 뒤 모든 컴퓨터에서 똑같이 나온다 (OnNetworkHit).
+    ///  - 체력 0이면 호스트가 오브젝트를 없앤다 (Destroy 대신 네트워크 Despawn).
     /// </summary>
-    public class Damageable : MonoBehaviour
+    public class Damageable : MonoBehaviour, LastTruck.Networking.INetworkHealthListener
     {
         [SerializeField] private int maxHealth = 100;
         [SerializeField] private float hitFlashDuration = 0.15f;
@@ -24,11 +29,18 @@ namespace Combat
         private float _markUntilTime;
         public bool IsMarked => Time.time < _markUntilTime;
 
+        private LastTruck.Networking.NetworkHealth _networkHealth;
+
         public int CurrentHealth => _currentHealth;
         public int MaxHealth => maxHealth;
 
         /// <summary>덫 등으로 이동이 묶인 상태인지. 이동/AI 스크립트는 이 값을 보고 움직임을 멈춰야 한다.</summary>
         public bool IsRooted => Time.time < _rootUntilTime;
+
+        /// <summary>멀티플레이에서 체력을 호스트가 관리하는 오브젝트인가.</summary>
+        private bool IsNetworked => _networkHealth != null && _networkHealth.Object != null && _networkHealth.Object.IsValid;
+
+        #region 생명주기
 
         private void Awake()
         {
@@ -40,7 +52,12 @@ namespace Combat
                 _originalColors[i] = GetColor(_renderers[i]);
             }
             _rigidbody = GetComponent<Rigidbody>();
+            _networkHealth = GetComponent<LastTruck.Networking.NetworkHealth>();
         }
+
+        #endregion
+
+        #region 이동 묶기 / 경찰 표식
 
         /// <summary>최대 체력을 바꾸고 체력을 가득 채운다(허수아비처럼 쉽게 죽지 않는 대상을 만들 때).</summary>
         public void SetMaxHealth(int value)
@@ -100,6 +117,11 @@ namespace Combat
             if (duration <= 0f) return;
             _markUntilTime = Mathf.Max(_markUntilTime, Time.time + duration);
         }
+
+        #endregion
+
+        #region 피해
+
         public void TakeDamage(int amount, Vector3 hitPoint)
         {
             if (amount <= 0)
@@ -107,12 +129,9 @@ namespace Combat
 
             int finalDamage = amount;
 
-            var abilityController = FindObjectOfType<CharacterAbilityController>();
-            
-            //if (abilityController != null)
-            //{
-            //    finalDamage = abilityController.GetCalculatedDamage(amount, out bool isEnhanced);
-            //}
+            // 캐릭터 고유 능력(군인 추가 피해, 경찰 표식)은 "때린 사람" 기준이다.
+            // 멀티플레이에서는 내 캐릭터의 능력을 쓴다 (아무 플레이어나 찾으면 다른 사람 능력이 적용될 수 있음).
+            var abilityController = LastTruck.Networking.LocalPlayerLookup.AbilityController;
 
             if (abilityController != null)
             {
@@ -140,17 +159,34 @@ namespace Combat
                 }
             }
 
-            _currentHealth -= finalDamage;
-            SpawnDamagePopup(hitPoint, finalDamage);
+            // 멀티플레이: 호스트에게 요청만 한다. 연출은 호스트가 적용한 뒤 OnNetworkHit으로 모두에게 나온다.
+            if (IsNetworked)
+            {
+                _networkHealth.RequestDamage(finalDamage, hitPoint, true);
+                return;
+            }
 
-            if (_flashRoutine != null)
-                StopCoroutine(_flashRoutine);
-            _flashRoutine = StartCoroutine(FlashRed());
+            _currentHealth -= finalDamage;
+            PlayHitEffect(hitPoint, finalDamage);
 
             if (_currentHealth <= 0)
             {
                 Destroy(gameObject);
             }
+        }
+
+        #endregion
+
+        #region 피격 연출 (빨간색 깜빡임 + 데미지 숫자)
+
+        private void PlayHitEffect(Vector3 hitPoint, int amount)
+        {
+            SpawnDamagePopup(hitPoint, amount);
+
+            if (_flashRoutine != null)
+                StopCoroutine(_flashRoutine);
+            if (isActiveAndEnabled)
+                _flashRoutine = StartCoroutine(FlashRed());
         }
 
         private IEnumerator FlashRed()
@@ -194,5 +230,28 @@ namespace Combat
             // (여기서 코루틴을 돌리면 이 오브젝트가 파괴될 때 코루틴도 멈춰 숫자가 남는다)
             DamagePopup.Spawn(worldPos, amount);
         }
+
+        #endregion
+
+        #region 멀티플레이 (NetworkHealth가 호출)
+
+        float LastTruck.Networking.INetworkHealthListener.NetworkMaxHealth => maxHealth;
+
+        void LastTruck.Networking.INetworkHealthListener.OnNetworkHealthChanged(float current, float max)
+        {
+            _currentHealth = Mathf.CeilToInt(current);
+        }
+
+        void LastTruck.Networking.INetworkHealthListener.OnNetworkHit(float amount, Vector3 hitPoint)
+        {
+            PlayHitEffect(hitPoint, Mathf.RoundToInt(amount));
+        }
+
+        void LastTruck.Networking.INetworkHealthListener.OnNetworkDeath()
+        {
+            // 호스트가 곧 오브젝트를 없앤다 (NetworkHealth). 여기서는 따로 할 일 없음.
+        }
+
+        #endregion
     }
 }

@@ -36,22 +36,74 @@ namespace CraftingSystem
         {
             ItemCatalog catalog = ItemCatalog.GetOrCreate();
 
-            PlayerInventory player = EnsurePlayer();
+            // 멀티플레이(Menu 씬에서 방을 만들어 들어온 경우)에서는 플레이어가 나중에 네트워크로 스폰된다.
+            // 그래서 여기서는 월드(트럭/자원)만 준비하고, 플레이어 관련 연결은 내 캐릭터가 스폰될 때
+            // SetupLocalPlayer()가 한다. Demo_01에서 바로 Play하면 예전처럼 싱글플레이로 동작한다.
+            bool online = LastTruck.Networking.GameLauncher.IsOnlineSession;
+            if (online)
+                RemoveOfflinePlayers();
+
+            PlayerInventory player = online ? null : EnsurePlayer();
             TruckStation truck = EnsureTruck(catalog);
             Vector3 origin = truck != null ? truck.transform.position : Vector3.zero;
             // 데모 버전: 월드에 시설물을 자동 생성하지 않는다. 가공은 트럭 가공 탭에서 바로 처리된다.
             // EnsureFacilities(catalog, origin);
             EnsureResourceNodes(catalog, origin);
+
+            if (!online)
+            {
+                EnsureClickInteractor(player);
+                EnsureWeaponController(player);
+                EnsureTrainingDummy(player.transform.position);
+                EnsureUI(player);
+                EnsureGatherProgressUI(player);
+                EnsureMinimap(player, truck);
+                EnsurePouch(player);
+            }
+
+            EnsureTruckRepair(truck);
+
+            Debug.Log(online
+                ? "[CraftingSceneBootstrap] 씬 셋업 완료 (멀티플레이: 내 캐릭터가 스폰되면 UI를 연결합니다)."
+                : "[CraftingSceneBootstrap] 씬 셋업 완료.");
+        }
+
+        /// <summary>
+        /// 멀티플레이: 내 캐릭터가 스폰되었을 때 호출 (LastTruck.Networking.LocalPlayerBinder).
+        /// 싱글플레이에서 Awake에 하던 플레이어 관련 연결을 내 캐릭터 기준으로 한다.
+        /// </summary>
+        public static void SetupLocalPlayer(PlayerInventory player)
+        {
+            if (player == null)
+                return;
+
+            TruckStation truck = FindFirstObjectByType<TruckStation>();
             EnsureClickInteractor(player);
             EnsureWeaponController(player);
-            EnsureTrainingDummy(player.transform.position);
             EnsureUI(player);
             EnsureGatherProgressUI(player);
             EnsureMinimap(player, truck);
             EnsurePouch(player);
             EnsureTruckRepair(truck);
+            Debug.Log($"[CraftingSceneBootstrap] 내 캐릭터({player.name})에 UI/상호작용 연결 완료.");
+        }
 
-            Debug.Log("[CraftingSceneBootstrap] 씬 셋업 완료.");
+        /// <summary>
+        /// 멀티플레이: 씬에 미리 놓인 싱글플레이용 캐릭터를 지운다. 그 위치는 플레이어 스폰 위치로 쓴다.
+        /// (네트워크 캐릭터는 NetworkObject가 붙어 있어서 지워지지 않는다.)
+        /// </summary>
+        private static void RemoveOfflinePlayers()
+        {
+            LastTruck.PlayerMove[] players = FindObjectsByType<LastTruck.PlayerMove>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            foreach (LastTruck.PlayerMove move in players)
+            {
+                if (move.GetComponent<Fusion.NetworkObject>() != null)
+                    continue;
+
+                LastTruck.Networking.PlayerSpawnArea.SetOrigin(move.transform.position, move.transform.rotation);
+                move.gameObject.SetActive(false);
+                Destroy(move.gameObject);
+            }
         }
 
         private static PlayerInventory EnsurePlayer()

@@ -47,8 +47,82 @@ namespace LastTruck
             _speedMultiplier = Mathf.Max(0f, multiplier);
         }
 
+        // 멀티플레이 캐릭터(NetworkPlayerMovement가 붙은 프리팹)는 이동/회전/애니메이션을 네트워크 쪽이 처리한다.
+        // 이 스크립트는 다른 스크립트(무기, 트럭 탑승 등)가 쓰는 창구 역할만 한다.
+        private bool _networkControlled;
+        private float _facingTime = float.NegativeInfinity;
+        private Quaternion _pendingFacing;
+
+        // 조준 요청은 한 프레임에 한 번 오지만 네트워크 틱은 한 프레임에 여러 번 돌 수 있으므로,
+        // 마지막 요청 후 이 시간 동안은 계속 같은 방향을 보낸다 (조준 중 떨림 방지).
+        private const float FacingHoldSeconds = 0.12f;
+
+        /// <summary>멀티플레이 캐릭터면 true (이동은 LastTruck.Networking.NetworkPlayerMovement가 담당).</summary>
+        public bool IsNetworkControlled => _networkControlled;
+
+        /// <summary>이동 입력을 막아야 하는가 (UI가 열려 있거나 다른 스크립트가 잠금). 멀티플레이 입력에도 반영된다.</summary>
+        public bool IsMovementBlocked => _movementLocked || IsUIOpen;
+
+        /// <summary>이동 속도 배율 (능력/상태 효과). 멀티플레이 이동에도 반영된다.</summary>
+        public float SpeedMultiplier => _speedMultiplier;
+
+        private LastTruck.Networking.NetworkPlayer _networkPlayer;
+
+        /// <summary>멀티플레이에서 내 캐릭터인가.</summary>
+        private bool IsLocalNetworkPlayer
+        {
+            get
+            {
+                if (_networkPlayer == null) _networkPlayer = GetComponent<LastTruck.Networking.NetworkPlayer>();
+                return _networkPlayer != null && _networkPlayer.IsLocal;
+            }
+        }
+
+        private void Awake()
+        {
+            _networkControlled = GetComponent<LastTruck.Networking.NetworkPlayerMovement>() != null;
+        }
+
+        /// <summary>
+        /// 캐릭터가 바라보는 방향을 즉시 바꾼다 (무기 조준 등).
+        /// 멀티플레이에서는 transform만 바꾸면 다음 네트워크 틱에 원래 방향으로 되돌아가므로,
+        /// 이 함수를 통해 바꿔야 방향이 입력으로 호스트에게 전달되어 모두에게 동기화된다.
+        /// </summary>
+        public static void SetFacing(Transform target, Quaternion rotation)
+        {
+            if (target == null) return;
+            target.rotation = rotation;
+
+            PlayerMove move = target.GetComponent<PlayerMove>();
+            if (move == null) return;
+
+            if (move._networkControlled)
+            {
+                move._pendingFacing = rotation;
+                move._facingTime = Time.unscaledTime;
+            }
+            else if (move.rigidbody != null)
+            {
+                move.rigidbody.MoveRotation(rotation);
+            }
+        }
+
+        /// <summary>네트워크 입력을 만들 때 호출: 최근(조준 중)에 요청된 방향이 있으면 돌려준다.</summary>
+        public bool TryConsumeFacing(out Quaternion rotation)
+        {
+            rotation = _pendingFacing;
+            return Time.unscaledTime - _facingTime <= FacingHoldSeconds;
+        }
+
         private void Start()
         {
+            // 멀티플레이: 이동은 네트워크가 하므로 커서/카메라 입력 설정만 내 캐릭터에 한다.
+            if (_networkControlled)
+            {
+                if (IsLocalNetworkPlayer) SetupCursorAndCamera();
+                return;
+            }
+
             anim = GetComponentInChildren<Animator>();
             character = GetComponent<Character>();
 
@@ -76,6 +150,12 @@ namespace LastTruck
                 };
             }
 
+            SetupCursorAndCamera();
+            SyncSpeedFromCharacter();
+        }
+
+        private void SetupCursorAndCamera()
+        {
             if (cameraTransform == null && Camera.main != null)
             {
                 cameraTransform = Camera.main.transform;
@@ -96,12 +176,13 @@ namespace LastTruck
 
             _isCursorUnlocked = false;
             UpdateCursorState();
-            SyncSpeedFromCharacter();
         }
 
         private void OnEnable()
         {
             SyncSpeedFromCharacter();
+            // 멀티플레이 다른 사람 캐릭터는 내 커서를 건드리지 않는다.
+            if (_networkControlled && !IsLocalNetworkPlayer) return;
             UpdateCursorState();
         }
 
@@ -121,6 +202,9 @@ namespace LastTruck
 
         private void Update()
         {
+            // 멀티플레이: 다른 사람 캐릭터(복제본)는 키보드를 읽지 않는다.
+            if (_networkControlled && !IsLocalNetworkPlayer) return;
+
             // Left Alt 키로 자유 커서 / 시점 고정 토글
             if (Input.GetKeyDown(KeyCode.LeftAlt))
             {
@@ -143,6 +227,9 @@ namespace LastTruck
                 vAxis = Input.GetAxisRaw("Vertical");
                 wDown = Input.GetButton("Walk");
             }
+
+            // 멀티플레이: 이동/애니메이션은 NetworkPlayerMovement가 한다 (이동 잠금 상태는 IsMovementBlocked로 전달).
+            if (_networkControlled) return;
 
             if (anim != null)
             {
@@ -183,6 +270,7 @@ namespace LastTruck
 
         private void FixedUpdate()
         {
+            if (_networkControlled) return;
             if (cameraTransform == null || rigidbody == null) return;
 
             Vector3 camForward = cameraTransform.forward;

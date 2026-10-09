@@ -101,7 +101,67 @@ namespace CraftingSystem
             // 배치해둔 노드는(런타임에 Configure가 다시 불리지 않으므로) Play 진입 시 여기서
             // 최초 1회 굴려줘야 고갈 로직이 정상 동작한다. Configure가 나중에 또 불리면 거기서 다시 굴린다.
             RollRemainingHits();
+            AllNodes.Add(this);
         }
+
+        private void OnDestroy()
+        {
+            AllNodes.Remove(this);
+        }
+
+        #region 멀티플레이 연동 (LastTruck.Networking.NetworkGathering)
+
+        // 멀티플레이에서는 고갈/재생성을 호스트만 계산하고 모두에게 알린다.
+        // 클라이언트는 채집 요청만 보내고, 호스트가 굴린 결과 아이템을 받는다.
+
+        /// <summary>씬에 있는 모든 특산물 노드 (위치로 같은 노드를 찾는다 - 모든 컴퓨터가 같은 시드로 같은 맵을 만든다).</summary>
+        public static readonly System.Collections.Generic.List<SpecialResourceNode> AllNodes =
+            new System.Collections.Generic.List<SpecialResourceNode>();
+
+        /// <summary>호스트: 고갈(true) / 재생성(false) 순간을 알린다.</summary>
+        public static event System.Action<SpecialResourceNode, bool> DepletionChanged;
+
+        public bool IsDepleted => _depleted;
+        public ItemData Item => item;
+        public int Amount => amount;
+        public ItemData CommonBonusItem => commonBonusItem;
+        public ItemData RareBonusItem => rareBonusItem;
+
+        /// <summary>호스트: 한 번 채집한다 (보너스 굴림 + 횟수 차감 + 고갈). 고갈 상태면 false.</summary>
+        public bool TryTakeHit(out ItemData gathered, out int gatheredAmount)
+        {
+            gathered = null;
+            gatheredAmount = 0;
+            if (_depleted || item == null)
+                return false;
+
+            gathered = RollGatherItem();
+            gatheredAmount = amount;
+
+            if (_remainingHits > 0)
+            {
+                _remainingHits--;
+                if (_remainingHits <= 0)
+                    Deplete();
+            }
+            return true;
+        }
+
+        /// <summary>클라이언트: 호스트가 알려준 고갈 상태를 화면에 반영한다.</summary>
+        public void ApplyNetworkDepleted(bool depleted)
+        {
+            _depleted = depleted;
+            SetVisible(!depleted);
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics()
+        {
+            AllNodes.Clear();
+            DepletionChanged = null;
+        }
+
+        #endregion
 
         private void RollRemainingHits()
         {
@@ -112,6 +172,7 @@ namespace CraftingSystem
         {
             _depleted = true;
             SetVisible(false);
+            DepletionChanged?.Invoke(this, true);
             StartCoroutine(RegenRoutine());
         }
 
@@ -129,6 +190,7 @@ namespace CraftingSystem
             RollRemainingHits();
             _depleted = false;
             SetVisible(true);
+            DepletionChanged?.Invoke(this, false);
         }
 
         /// <summary>
@@ -173,6 +235,10 @@ namespace CraftingSystem
                     return;
                 }
             }
+
+            // 멀티플레이: 호스트가 채집 결과(보너스/고갈)를 정한다.
+            if (LastTruck.Networking.NetworkGathering.TryHandleGather(this, inventory))
+                return;
 
             ItemData gatherItem = RollGatherItem();
 

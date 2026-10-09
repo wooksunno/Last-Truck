@@ -26,6 +26,15 @@ namespace Combat
 
         public float Gravity => gravity;
 
+        // 멀티플레이: 다른 사람이 쏜 화살을 보여주기만 하는 복제 화살 (피해를 주지 않는다).
+        private bool _visualOnly;
+
+        public void LaunchVisual(Vector3 velocity, float maxDistance, LayerMask hitMask, Transform shooter)
+        {
+            _visualOnly = true;
+            Launch(velocity, 0, maxDistance, hitMask, shooter);
+        }
+
         public void Launch(Vector3 velocity, int damage, float maxDistance, LayerMask hitMask, Transform shooter)
         {
             _velocity = velocity;
@@ -126,7 +135,7 @@ namespace Combat
             transform.position = hit.point - dir * (arrowLength - 0.15f);
             transform.SetParent(hit.collider.transform, true);
 
-            Damageable target = hit.collider.GetComponentInParent<Damageable>();
+            Damageable target = _visualOnly ? null : hit.collider.GetComponentInParent<Damageable>();
             if (target != null)
                 target.TakeDamage(_damage, hit.point);
 

@@ -206,6 +206,7 @@ namespace Combat
         private bool PlayAttackAnim(string trigger)
         {
             if (!HasAnimParam(trigger)) return false;
+            if (!_remoteView) AttackAnimPlayed?.Invoke(trigger);
             _attackLayerHoldUntil = Time.time + 0.25f;     // 전이가 시작될 때까지 레이어를 켜 둔다
             _animator.SetTrigger(trigger);
             return true;
@@ -336,12 +337,14 @@ namespace Combat
         // 총알이 맞은 곳: 섬광 + 불똥. 대포류는 폭발 + 큰 흔들림
         private void SpawnBulletHit(Vector3 point, Vector3 normal)
         {
+            if (!_remoteView) HitEffectSpawned?.Invoke(HitEffectBullet, _activeWeaponId, point, normal);
+
             bool heavy = _activeWeaponId == ItemIds.IronFieldCannon || _activeWeaponId == ItemIds.ShredderDrillLauncher
                          || _activeWeaponId == ItemIds.PlatinumRailCannon;
             GameObject prefab = heavy && explosionVfxPrefab != null ? explosionVfxPrefab : bulletHitVfxPrefab;
             if (prefab == null)
             {
-                SpawnImpact(point, new Color(1f, 0.9f, 0.5f));
+                SpawnImpactVisual(point, new Color(1f, 0.9f, 0.5f));
                 return;
             }
 
@@ -354,13 +357,15 @@ namespace Combat
                 darkBack.gameObject.SetActive(false);
             fx.AddComponent<DelayedStopEmit>().Init(heavy ? 0.25f : 0.08f);
             Destroy(fx, 2f);
-            if (heavy)
+            if (heavy && !_remoteView)
                 Combat.CameraShake.Shake(0.35f);
         }
 
         /// <summary>총을 쐈을 때: 반동 킥 + 총구 불꽃 + 탄피 + 카메라 흔들림.</summary>
         private void OnGunFired(string itemId, bool useHeldGun, Vector3 muzzleWorld, Vector3 rightDir, int casingKind)
         {
+            if (!_remoteView) GunFired?.Invoke(itemId, useHeldGun, muzzleWorld, rightDir, casingKind);
+
             if (useHeldGun && _heldIsGun && _heldMeleeObj != null)
             {
                 _gunKick = 1f;
@@ -380,7 +385,8 @@ namespace Combat
             if (casingKind > 0)
                 SpawnCasing(casingKind, useHeldGun && _heldMeleeObj != null ? _heldMeleeObj.transform.TransformPoint(_gunEjectLocal) : muzzleWorld - transform.forward * 0.2f, rightDir);
 
-            Combat.CameraShake.Shake(ShakeFor(itemId));
+            if (!_remoteView) // 다른 사람이 쏜 총에는 내 화면을 흔들지 않는다
+                Combat.CameraShake.Shake(ShakeFor(itemId));
         }
 
         private void SpawnCasing(int kind, Vector3 pos, Vector3 rightDir)
@@ -585,6 +591,8 @@ namespace Combat
 
         private void OnDisable()
         {
+            // 꺼질 때(사망/트럭 탑승 등) 진행 중이던 차징/화염도 정리해서 다른 사람 화면에 남지 않게 한다.
+            CancelOngoingActions();
             StopFlameVfx();
             SetShootingPose(false);
             if (_heldMeleeObj != null) { Destroy(_heldMeleeObj); _heldMeleeObj = null; _heldMeleeId = null; }
@@ -597,6 +605,13 @@ namespace Combat
 
         private void Update()
         {
+            // 멀티플레이: 다른 사람 캐릭터(복제본)는 입력을 읽지 않고 네트워크로 받은 상태만 보여준다.
+            if (_remoteView)
+            {
+                UpdateRemoteView();
+                return;
+            }
+
             if (targetCamera == null)
                 targetCamera = Camera.main;
 
@@ -624,6 +639,8 @@ namespace Combat
                 EquipRifle();
             else
                 UnequipRifle();
+
+            ReportHeldWeapon(selected != null && Weapons.ContainsKey(selected.itemID) ? selected.itemID : null);
 
             if (!hasWeapon || selected.itemID != _activeWeaponId)
             {
@@ -697,6 +714,7 @@ namespace Combat
                                 StartFlameVfx(stats);
                             else
                                 _flameEffectRoutine = StartCoroutine(FlameEffectRoutine(stats));
+                            if (!_remoteView) FlameChanged?.Invoke(true);
                         }
 
                         if (Time.time >= _nextFireTime)
@@ -719,9 +737,9 @@ namespace Combat
                         _pressVetoed = RaycastHitsWorldInteractable(stats.range);
                         if (!_pressVetoed)
                         {
-                            _isCharging = true;
                             _chargeStartTime = Time.time;
                             _bowStats = stats;
+                            SetCharging(true);
                         }
                     }
                     else if (_isCharging && Input.GetMouseButton(0))
@@ -731,7 +749,7 @@ namespace Combat
                     }
                     else if (Input.GetMouseButtonUp(0) && _isCharging)
                     {
-                        _isCharging = false;
+                        SetCharging(false);
                         float fraction = GetChargeFraction(stats);
                         if (fraction >= stats.minChargeFraction)
                         {
@@ -764,9 +782,205 @@ namespace Combat
             }
         }
 
+        #region 멀티플레이: 다른 사람 화면에 무기 보여주기 (LastTruck.Networking.NetworkWeaponVisuals)
+
+        // 내 캐릭터: 아래 이벤트로 "무엇을 들었는지 / 쐈는지"를 알린다 → 네트워크로 다른 사람에게 전달.
+        // 다른 사람 캐릭터(복제본): SetRemoteView(true) 상태에서 SetRemote*/PlayRemote*로 받은 대로 보여주기만 한다
+        //   (피해 계산은 쏜 사람 컴퓨터 → 호스트가 한다. 여기서는 연출만, 내 화면 흔들림도 없음).
+
+        public const int HitEffectImpact = 0;   // 기본 타격 구체
+        public const int HitEffectBullet = 1;   // 총알 적중(섬광/폭발)
+        public const int HitEffectMelee = 2;    // 근접 무기 적중
+
+        /// <summary>손에 든 무기 ID가 바뀜 (무기가 아니면 null).</summary>
+        public event System.Action<string> HeldWeaponChanged;
+        /// <summary>활 차징 시작(true)/끝(false).</summary>
+        public event System.Action<bool> ChargingChanged;
+        /// <summary>화염방사기/분무기 분사 시작(true)/끝(false).</summary>
+        public event System.Action<bool> FlameChanged;
+        /// <summary>총알 궤적 (무기 ID, 시작, 끝).</summary>
+        public event System.Action<string, Vector3, Vector3> ShotFired;
+        /// <summary>맞은 곳 이펙트 (종류, 무기 ID, 위치, 표면 방향).</summary>
+        public event System.Action<int, string, Vector3, Vector3> HitEffectSpawned;
+        /// <summary>화살 발사 (위치, 속도).</summary>
+        public event System.Action<Vector3, Vector3> ArrowFired;
+        /// <summary>저격총 총알 발사 (위치, 속도).</summary>
+        public event System.Action<Vector3, Vector3> BulletFired;
+        /// <summary>수류탄 투척 (무기 ID, 위치, 속도).</summary>
+        public event System.Action<string, Vector3, Vector3> GrenadeThrown;
+        /// <summary>공격 애니메이션 트리거 (AtkSlash, AtkShoot2H 등).</summary>
+        public event System.Action<string> AttackAnimPlayed;
+        /// <summary>총 발사 연출 (무기 ID, 손에 든 총 기준 여부, 총구, 오른쪽 방향, 탄피 종류).</summary>
+        public event System.Action<string, bool, Vector3, Vector3, int> GunFired;
+
+        private bool _remoteView;
+        private string _remoteWeaponId;
+        private bool _remoteCharging;
+        private float _remoteChargeStart;
+        private bool _remoteFlame;
+        private string _reportedHeldWeapon;
+        private bool _hasReportedHeld;
+
+        public bool IsRemoteView => _remoteView;
+
+        /// <summary>다음 프레임에 들고 있는 무기를 다시 알린다 (네트워크 연결 직후 한 번).</summary>
+        public void ResendHeldWeapon() => _hasReportedHeld = false;
+
+        public void SetRemoteView(bool remote)
+        {
+            _remoteView = remote;
+            if (!remote)
+                return;
+            CancelOngoingActions();
+            UnequipBow();
+            UnequipRifle();
+        }
+
+        public void SetRemoteHeldWeapon(string weaponId) => _remoteWeaponId = weaponId;
+
+        public void SetRemoteCharging(bool charging)
+        {
+            if (charging && !_remoteCharging)
+                _remoteChargeStart = Time.time;
+            _remoteCharging = charging;
+        }
+
+        public void SetRemoteFlame(bool flaming) => _remoteFlame = flaming;
+
+        public void PlayRemoteShot(string weaponId, Vector3 from, Vector3 to) => SpawnTracer(from, to, GetEffectColor(weaponId));
+
+        public void PlayRemoteHitEffect(int kind, string weaponId, Vector3 position, Vector3 normal)
+        {
+            string previous = _activeWeaponId;
+            _activeWeaponId = weaponId; // 총알 적중 이펙트 종류(대포류 폭발 등)를 무기로 고른다
+            if (kind == HitEffectBullet) SpawnBulletHit(position, normal);
+            else if (kind == HitEffectMelee) SpawnMeleeHit(position, GetEffectColor(weaponId));
+            else SpawnImpactVisual(position, GetEffectColor(weaponId));
+            _activeWeaponId = previous;
+        }
+
+        /// <summary>보여주기용 화살 (피해 없음 - 실제 피해는 쏜 사람 쪽 화살이 준다).</summary>
+        public void PlayRemoteArrow(Vector3 position, Vector3 velocity)
+        {
+            if (arrowPrefab == null || velocity.sqrMagnitude < 0.0001f)
+                return;
+            WeaponStats stats = Weapons[ItemIds.HuntingBow];
+            ArrowProjectile arrow = Instantiate(arrowPrefab, position, Quaternion.LookRotation(velocity));
+            arrow.LaunchVisual(velocity, stats.range * 1.5f, hitMask, transform);
+        }
+
+        /// <summary>보여주기용 저격총 총알 (피해 없음).</summary>
+        public void PlayRemoteBullet(Vector3 position, Vector3 velocity)
+        {
+            if (bulletPrefab == null || velocity.sqrMagnitude < 0.0001f)
+                return;
+            WeaponStats stats = Weapons[ItemIds.PlatinumSniperRifle];
+            ArrowProjectile bullet = Instantiate(bulletPrefab, position, Quaternion.LookRotation(velocity));
+            bullet.LaunchVisual(velocity, stats.range, hitMask, transform);
+            SpawnImpactVisual(position, new Color(1f, 0.85f, 0.4f));
+            _rifleRecoil = 1f;
+        }
+
+        /// <summary>보여주기용 수류탄 (피해 없음, 터지면 가스 구름 모양만).</summary>
+        public void PlayRemoteGrenade(string weaponId, Vector3 position, Vector3 velocity)
+        {
+            if (weaponId == null || !Weapons.TryGetValue(weaponId, out WeaponStats stats))
+                return;
+
+            GameObject go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            go.name = "GrenadeProjectile(Remote)";
+            go.transform.position = position;
+            go.transform.localScale = Vector3.one * 0.18f;
+            Material mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            if (mat.HasProperty("_BaseColor"))
+                mat.SetColor("_BaseColor", stats.effectColor);
+            go.GetComponent<Renderer>().sharedMaterial = mat;
+            Collider col = go.GetComponent<Collider>();
+            if (col != null)
+                col.enabled = false;
+
+            GrenadeProjectile grenade = go.AddComponent<GrenadeProjectile>();
+            grenade.LaunchVisual(velocity, stats.blastRadius, stats.gasDuration, hitMask, transform);
+        }
+
+        public void PlayRemoteAttackAnim(string trigger) => PlayAttackAnim(trigger);
+
+        public void PlayRemoteGunFired(string itemId, bool useHeldGun, Vector3 muzzle, Vector3 right, int casingKind)
+            => OnGunFired(itemId, useHeldGun, muzzle, right, casingKind);
+
+        public static Color GetEffectColor(string weaponId)
+        {
+            return weaponId != null && Weapons.TryGetValue(weaponId, out WeaponStats stats) ? stats.effectColor : Color.white;
+        }
+
+        private void UpdateRemoteView()
+        {
+            WeaponStats stats = default;
+            bool hasWeapon = _remoteWeaponId != null && Weapons.TryGetValue(_remoteWeaponId, out stats);
+            _activeWeaponId = _remoteWeaponId;
+
+            // 손에 드는 모델: 근접 무기/총(오른손), 활(왼손), 저격총(두 손)
+            UpdateHeldMelee(_remoteWeaponId);
+
+            bool holdingBow = hasWeapon && stats.behavior == WeaponBehavior.ChargeAndRelease;
+            if (holdingBow)
+            {
+                EquipBow();
+                _bowStats = stats;
+                _chargeStartTime = _remoteChargeStart;
+            }
+            else
+            {
+                UnequipBow();
+            }
+            _isCharging = holdingBow && _remoteCharging;
+
+            bool holdingRifle = _remoteWeaponId == ItemIds.PlatinumSniperRifle && rifleHeldPrefab != null;
+            if (holdingRifle)
+                EquipRifle();
+            else
+                UnequipRifle();
+
+            bool flaming = hasWeapon && stats.behavior == WeaponBehavior.ContinuousCone && _remoteFlame;
+            if (flaming && !_isFlameActive)
+            {
+                _isFlameActive = true;
+                SetShootingPose(true);
+                if (_remoteWeaponId == ItemIds.Flamethrower && flamethrowerVfxPrefab != null)
+                    StartFlameVfx(stats);
+                else
+                    _flameEffectRoutine = StartCoroutine(FlameEffectRoutine(stats));
+            }
+            else if (!flaming && _isFlameActive)
+            {
+                StopFlameEffect();
+            }
+        }
+
+        private void ReportHeldWeapon(string weaponId)
+        {
+            if (_hasReportedHeld && _reportedHeldWeapon == weaponId)
+                return;
+            _hasReportedHeld = true;
+            _reportedHeldWeapon = weaponId;
+            HeldWeaponChanged?.Invoke(weaponId);
+        }
+
+        private void SetCharging(bool charging)
+        {
+            if (_isCharging == charging)
+                return;
+            _isCharging = charging;
+            if (!_remoteView)
+                ChargingChanged?.Invoke(charging);
+        }
+
+        #endregion
+
         private void LateUpdate()
         {
-            UpdateChargingSlowdown();
+            if (!_remoteView)
+                UpdateChargingSlowdown();
             UpdateRifle();
             UpdateAttackLayerWeight();
             UpdateHeldGunPose();
@@ -930,7 +1144,7 @@ namespace Combat
 
         private void CancelOngoingActions()
         {
-            _isCharging = false;
+            SetCharging(false);
             StopFlameEffect();
             StopAttackRecovery();
         }
@@ -1149,6 +1363,7 @@ namespace Combat
 
             ArrowProjectile bullet = Instantiate(bulletPrefab, muzzle, Quaternion.LookRotation(dir));
             bullet.Launch(dir * bulletSpeed, stats.damage, stats.range, hitMask, transform);
+            if (!_remoteView) BulletFired?.Invoke(muzzle, dir * bulletSpeed);
 
             SpawnImpact(muzzle, new Color(1f, 0.85f, 0.4f));
             _rifleRecoil = 1f;
@@ -1186,6 +1401,7 @@ namespace Combat
             ArrowProjectile arrow = Instantiate(arrowPrefab, spawnPos, Quaternion.LookRotation(toTarget));
             Vector3 velocity = toTarget.normalized * speed + Vector3.up * (0.5f * arrow.Gravity * flightTime);
             arrow.Launch(velocity, damage, stats.range * 1.5f, hitMask, transform);
+            ArrowFired?.Invoke(spawnPos, velocity);
         }
 
         /// <summary>
@@ -1221,6 +1437,7 @@ namespace Combat
             Vector3 velocity = toTarget.normalized * speed + Vector3.up * (0.5f * grenade.Gravity * flightTime);
             grenade.Launch(velocity, stats.damage, stats.blastRadius, stats.gasDuration, stats.gasTickInterval,
                 stats.gasTickDamage, hitMask, transform);
+            if (!_remoteView) GrenadeThrown?.Invoke(_activeWeaponId, spawnPos, velocity);
         }
 
         private Vector3 GetMouseAimPoint(float range, float fallbackHeight)
@@ -1395,7 +1612,10 @@ namespace Combat
 
             // PlayerMove가 Rigidbody(보간 On)로 회전을 관리하므로, transform만 바꾸면 다음 물리
             // 스텝에서 Rigidbody의 이전 회전값으로 되돌아간다. Rigidbody도 같은 값으로 맞춰준다.
-            if (_playerMove != null && _playerMove.rigidbody != null)
+            // 멀티플레이 캐릭터는 Rigidbody가 없고 방향을 네트워크 입력으로 보내야 하므로 SetFacing을 쓴다.
+            if (_playerMove != null && _playerMove.IsNetworkControlled)
+                LastTruck.PlayerMove.SetFacing(transform, faceRotation);
+            else if (_playerMove != null && _playerMove.rigidbody != null)
                 _playerMove.rigidbody.MoveRotation(faceRotation);
         }
 
@@ -1414,6 +1634,8 @@ namespace Combat
 
         private void StopFlameEffect()
         {
+            if (_isFlameActive && !_remoteView)
+                FlameChanged?.Invoke(false);
             _isFlameActive = false;
             if (_flameEffectRoutine != null)
             {
@@ -1480,7 +1702,7 @@ namespace Combat
             Vector3 dir = targetPoint - transform.position;
             dir.y = 0f;
             if (dir.sqrMagnitude > 0.01f)
-                transform.rotation = Quaternion.LookRotation(dir.normalized);
+                LastTruck.PlayerMove.SetFacing(transform, Quaternion.LookRotation(dir.normalized)); // 멀티플레이에서도 방향이 동기화되도록
         }
 
 
@@ -1623,6 +1845,9 @@ namespace Combat
 
         private void SpawnTracer(Vector3 from, Vector3 to, Color color)
         {
+            if (!_remoteView)
+                ShotFired?.Invoke(_activeWeaponId, from, to);
+
             var go = new GameObject("WeaponTracer");
             LineRenderer lr = go.AddComponent<LineRenderer>();
             lr.positionCount = 2;
@@ -1640,9 +1865,11 @@ namespace Combat
         // 근접 무기 적중: 베기/문양 없이 맞은 지점에서 한 번 터지는 단순 타격 이펙트
         private void SpawnMeleeHit(Vector3 pos, Color color)
         {
+            if (!_remoteView) HitEffectSpawned?.Invoke(HitEffectMelee, _activeWeaponId, pos, Vector3.zero);
+
             if (meleeHitVfxPrefab == null)
             {
-                SpawnImpact(pos, color);
+                SpawnImpactVisual(pos, color);
                 return;
             }
 
@@ -1667,6 +1894,13 @@ namespace Combat
         }
 
         private void SpawnImpact(Vector3 pos, Color color)
+        {
+            if (!_remoteView)
+                HitEffectSpawned?.Invoke(HitEffectImpact, _activeWeaponId, pos, Vector3.zero);
+            SpawnImpactVisual(pos, color);
+        }
+
+        private void SpawnImpactVisual(Vector3 pos, Color color)
         {
             GameObject go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             go.name = "WeaponImpact";
