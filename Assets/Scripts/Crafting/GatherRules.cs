@@ -35,6 +35,23 @@ namespace CraftingSystem
             return tierOk && itemOk;
         }
 
+        /// <summary>
+        /// 조건을 만족하는 도구로 캘 때의 시간 배율(낮을수록 빠름).
+        /// 요구 등급과 같은 도구면 0.5배, 등급이 한 단계 높을 때마다 0.75배씩 더 빨라진다(최소 0.2배).
+        /// 요구 등급이 없는 자원(나무/약초 등)은 1배.
+        /// </summary>
+        public static float ToolSpeedFactor(GameObject player, int requiredTier)
+        {
+            if (requiredTier <= 0)
+                return 1f;
+
+            PlayerInventory inventory = player != null ? player.GetComponent<PlayerInventory>() : null;
+            InventorySlot hand = inventory != null ? inventory.SelectedSlot : null;
+            int handTier = hand != null && !hand.IsEmpty && hand.item != null ? hand.item.toolTier : 0;
+            int excess = Mathf.Max(0, handTier - requiredTier);
+            return Mathf.Max(0.2f, 0.5f * Mathf.Pow(0.75f, excess));
+        }
+
         /// <summary>플레이어 본인이 아닌 곳(UI/프로퍼티)에서 쓰는 편의 오버로드: 태그가 Player인 오브젝트 기준.</summary>
         public static bool MeetsRequirement(int requiredTier, string requiredItemId = "") =>
             MeetsRequirement(Player, requiredTier, requiredItemId);

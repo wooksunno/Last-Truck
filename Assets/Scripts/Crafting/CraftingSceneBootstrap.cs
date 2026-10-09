@@ -104,7 +104,8 @@ private static void EnsureWeaponController(PlayerInventory player)
             arms.transform.localScale = new Vector3(1.6f, 0.15f, 0.15f);
             SetColor(arms, new Color(0.5f, 0.35f, 0.2f));
 
-            root.AddComponent<Damageable>();
+            // 무기 테스트용 허수아비: 쉽게 죽지 않도록 체력을 아주 크게 둔다
+            root.AddComponent<Damageable>().SetMaxHealth(1000000);
         }
 
 

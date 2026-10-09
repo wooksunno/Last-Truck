@@ -6,11 +6,16 @@ namespace CraftingSystem
 {
     public class PlayerInventory : MonoBehaviour
     {
-        [SerializeField] private int maxSlots = 3;
+        [SerializeField] private int maxSlots = 4;
         [SerializeField] private bool grantStarterItems = true;
         [SerializeField] private ItemStackInventory inventory = new ItemStackInventory();
 
-        private static readonly KeyCode[] SlotHotkeys = { KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3 };
+        private static readonly KeyCode[] SlotHotkeys =
+        {
+            KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3, KeyCode.Alpha4,
+        };
+
+        public int MaxSlots => maxSlots;
 
         public event Action Changed;
         public event Action SelectedSlotChanged;
@@ -19,7 +24,7 @@ namespace CraftingSystem
         public IReadOnlyList<InventorySlot> Slots => inventory.Slots;
 
         /// <summary>
-        /// 1/2/3 키로 고른, 현재 손에 든 인벤토리 슬롯 인덱스(0~2).
+        /// 1~4 키로 고른, 현재 손에 든 인벤토리 슬롯 인덱스(0~3).
         /// 채집 판정(ResourceNode 등)은 이 슬롯의 도구를 기준으로 한다.
         /// </summary>
         public int SelectedSlotIndex { get; private set; } = 0;

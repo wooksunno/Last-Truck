@@ -118,6 +118,316 @@ namespace Combat
         private Coroutine _flameEffectRoutine;
         private string _activeWeaponId;
 
+        [Header("무기 이펙트")]
+        [Tooltip("화염방사기를 쏘는 동안 총구 앞에 붙는 불꽃 이펙트(vfx_Flamethrower_01). 비워두면 기존 구체 파티클을 쓴다")]
+        [SerializeField] private GameObject flamethrowerVfxPrefab;
+        [Tooltip("불꽃이 닿는 거리 대비 이펙트 배율. 프리팹 원본은 약 4.1m까지 뻗는다")]
+        [SerializeField] private float flamethrowerVfxLength = 4.1f;
+        [Tooltip("근접 무기(마체테/창 등)가 적중했을 때 한 번 터지는 단순 타격 이펙트(vfx_Impact_01). 비워두면 기존 흰 구체를 쓴다")]
+        [SerializeField] private GameObject meleeHitVfxPrefab;
+        [Tooltip("타격 이펙트 크기 배율")]
+        [SerializeField] private float meleeHitVfxScale = 0.35f;
+
+        private GameObject _flameVfx;
+
+        [Header("공격 애니메이션 (상체 레이어 'Attack')")]
+        [Tooltip("근접 공격/사격/던지기 때 캐릭터 애니메이션을 재생한다. 컨트롤러에 Attack 레이어가 없으면 자동으로 무시된다 (Tools/Last Truck/Setup Attack Animation)")]
+        [SerializeField] private bool useAttackAnimations = true;
+        [Tooltip("휘두르기 시작 후 실제 타격이 들어가는 시점(초). 손이 가장 빨리 휘둘러지는 순간에 맞춘다")]
+        [SerializeField] private float slashImpactDelay = 0.15f;
+        [SerializeField] private float stabImpactDelay = 0.24f;
+        [SerializeField] private float punchImpactDelay = 0.25f;
+
+        [System.Serializable]
+        public class HeldModel
+        {
+            public string itemId;
+            public GameObject prefab;
+            public Vector3 localPosition;
+            public Vector3 localEuler;
+            public float scale = 1f;
+            [Tooltip("총: 총구가 항상 캐릭터가 바라보는 방향을 향하도록 월드 회전을 고정하고, 반동/총구/탄피 위치를 쓴다. 모델은 총구가 로컬 -Z인 Kenney 블래스터 기준")]
+            public bool isGun;
+            [Tooltip("탄피 종류: 0 없음, 1 권총탄, 2 소총탄")]
+            public int casing;
+        }
+
+        [Header("손에 드는 무기 모델 (근접/총)")]
+        [Tooltip("해당 아이템을 고르면 오른손(handslot.r)에 붙는 모델")]
+        [SerializeField] private HeldModel[] heldMelee;
+
+        [Header("총 이펙트")]
+        [Tooltip("발사할 때 총구에서 터지는 불꽃(vfx_MuzzleFlash_01)")]
+        [SerializeField] private GameObject muzzleFlashVfxPrefab;
+        [SerializeField] private float muzzleFlashScale = 0.3f;
+        [Tooltip("탄피 프리팹(권총탄/소총탄). 바닥에서 몇 초 뒤 사라진다")]
+        [SerializeField] private GameObject casingPistolPrefab;
+        [SerializeField] private GameObject casingRiflePrefab;
+        [Tooltip("총을 쏠 때 총이 뒤로 밀렸다 돌아오는 거리(m)")]
+        [SerializeField] private float gunKickBack = 0.14f;
+        [Tooltip("총을 쏠 때 총구가 위로 들리는 각도(도)")]
+        [SerializeField] private float gunKickPitch = 16f;
+        [Tooltip("총알이 맞은 곳에 터지는 이펙트(vfx_Impact_01)")]
+        [SerializeField] private GameObject bulletHitVfxPrefab;
+        [SerializeField] private float bulletHitVfxScale = 0.45f;
+        [Tooltip("대포/드릴 런처/레일 캐논 적중 이펙트(vfx_Explosion_01)")]
+        [SerializeField] private GameObject explosionVfxPrefab;
+        [SerializeField] private float explosionVfxScale = 0.5f;
+
+        private GameObject _heldMeleeObj;
+        private string _heldMeleeId;
+        private bool _heldIsGun;
+        private int _heldCasing;
+        private Transform _heldGunModel;
+        private Vector3 _heldGunBasePos;
+        private Vector3 _heldGunEuler;
+        private Vector3 _gunMuzzleLocal;
+        private Vector3 _gunEjectLocal;
+        private float _gunKick;
+        private bool _heldTwoHand;
+        private Vector3 _gunLeftGripLocal;
+        private float _twoHandWeight;
+        private int _attackLayer = -2;
+        private float _attackLayerHoldUntil;
+        private float _attackLayerWeight;
+        private readonly Dictionary<string, bool> _animParamCache = new Dictionary<string, bool>();
+
+        private bool HasAnimParam(string name)
+        {
+            if (_animator == null || !useAttackAnimations) return false;
+            if (_animParamCache.TryGetValue(name, out bool has)) return has;
+            has = false;
+            foreach (AnimatorControllerParameter p in _animator.parameters)
+                if (p.name == name) { has = true; break; }
+            _animParamCache[name] = has;
+            return has;
+        }
+
+        private bool PlayAttackAnim(string trigger)
+        {
+            if (!HasAnimParam(trigger)) return false;
+            _attackLayerHoldUntil = Time.time + 0.25f;     // 전이가 시작될 때까지 레이어를 켜 둔다
+            _animator.SetTrigger(trigger);
+            return true;
+        }
+
+        private void SetShootingPose(bool on)
+        {
+            if (HasAnimParam("AtkShooting"))
+            {
+                if (on) _attackLayerHoldUntil = Time.time + 0.25f;
+                _animator.SetBool("AtkShooting", on);
+            }
+        }
+
+        private Transform FindRightHandSlot()
+        {
+            if (_animator == null || !_animator.isHuman) return null;
+            Transform hand = _animator.GetBoneTransform(HumanBodyBones.RightHand);
+            if (hand == null) return null;
+            Transform slot = hand.Find("handslot.r");
+            return slot != null ? slot : hand;
+        }
+
+        private void UpdateHeldMelee(string itemId)
+        {
+            HeldModel model = null;
+            if (heldMelee != null && !string.IsNullOrEmpty(itemId))
+                foreach (HeldModel m in heldMelee)
+                    if (m != null && m.prefab != null && m.itemId == itemId) { model = m; break; }
+
+            if (model == null)
+            {
+                if (_heldMeleeObj != null) { Destroy(_heldMeleeObj); _heldMeleeObj = null; _heldMeleeId = null; }
+                return;
+            }
+
+            if (_heldMeleeObj != null && _heldMeleeId == itemId)
+                return;
+            if (_heldMeleeObj != null)
+                Destroy(_heldMeleeObj);
+
+            Transform slot = FindRightHandSlot();
+            if (slot == null)
+                return;
+
+            _heldIsGun = model.isGun;
+            _heldCasing = model.casing;
+            _heldGunModel = null;
+
+            if (model.isGun)
+            {
+                // 총: 손 위치에 붙은 빈 부모 + 그 아래 모델(총구 -Z → +Z로 뒤집음). 부모의 회전은 매 프레임 캐릭터 방향으로 고정한다.
+                _heldMeleeObj = new GameObject("HeldGun_" + itemId);
+                _heldMeleeObj.transform.SetParent(slot, false);
+                _heldMeleeObj.transform.localPosition = model.localPosition;
+                GameObject visual = Instantiate(model.prefab, _heldMeleeObj.transform);
+                visual.name = "Model";
+                _heldGunModel = visual.transform;
+                _heldGunModel.localRotation = Quaternion.Euler(0f, 180f, 0f);
+                _heldGunModel.localScale = Vector3.one * Mathf.Max(0.01f, model.scale);
+                _heldGunBasePos = Vector3.zero;
+                _heldGunModel.localPosition = _heldGunBasePos;
+                _heldGunEuler = model.localEuler;
+                foreach (Collider c in visual.GetComponentsInChildren<Collider>())
+                    Destroy(c);
+
+                // 총구/탄피 위치는 모델 크기에서 자동 계산(부모 로컬 기준, +Z가 총구 방향)
+                Bounds b = new Bounds(Vector3.zero, Vector3.zero);
+                bool any = false;
+                foreach (Renderer r in visual.GetComponentsInChildren<Renderer>())
+                {
+                    Vector3 c = _heldMeleeObj.transform.InverseTransformPoint(r.bounds.center);
+                    Vector3 e = r.bounds.extents;
+                    Bounds rb = new Bounds(c, e * 2f);
+                    if (!any) { b = rb; any = true; } else b.Encapsulate(rb);
+                }
+                if (!any) b = new Bounds(Vector3.zero, new Vector3(0.1f, 0.1f, 0.4f));
+                _gunMuzzleLocal = new Vector3(0f, b.center.y + b.extents.y * 0.3f, b.max.z);
+                _gunEjectLocal = new Vector3(b.extents.x * 0.6f, b.center.y + b.extents.y * 0.6f, b.center.z);
+                // 권총 외의 총은 양손으로: 왼손이 총열 아래쪽(앞부분)을 잡는다
+                _heldTwoHand = itemId != ItemIds.Pistol;
+                _gunLeftGripLocal = new Vector3(0f, b.center.y - b.extents.y * 0.3f, b.center.z + b.extents.z * 0.5f);
+                _gunKick = 0f;
+            }
+            else
+            {
+                _heldMeleeObj = Instantiate(model.prefab, slot);
+                _heldMeleeObj.name = "HeldMelee_" + itemId;
+                _heldMeleeObj.transform.localPosition = model.localPosition;
+                _heldMeleeObj.transform.localRotation = Quaternion.Euler(model.localEuler);
+                _heldMeleeObj.transform.localScale = Vector3.one * Mathf.Max(0.01f, model.scale);
+                foreach (Collider c in _heldMeleeObj.GetComponentsInChildren<Collider>())
+                    Destroy(c);
+            }
+            _heldMeleeId = itemId;
+        }
+
+        // ---------- 총 반동 / 총구 불꽃 / 탄피 / 카메라 흔들림 ----------
+        private void UpdateHeldGunPose()
+        {
+            float twoHandTarget = _heldIsGun && _heldTwoHand && _heldMeleeObj != null ? 1f : 0f;
+            _twoHandWeight = Mathf.MoveTowards(_twoHandWeight, twoHandTarget, Time.deltaTime * 8f);
+
+            if (!_heldIsGun || _heldMeleeObj == null)
+                return;
+
+            _gunKick = Mathf.MoveTowards(_gunKick, 0f, Time.deltaTime * 7f);
+            // 총구는 항상 캐릭터가 바라보는 방향 + 발사 반동만큼 위로 들림
+            _heldMeleeObj.transform.rotation = transform.rotation * Quaternion.Euler(-_gunKick * gunKickPitch, 0f, 0f) * Quaternion.Euler(_heldGunEuler);
+            if (_heldGunModel != null)
+                _heldGunModel.localPosition = _heldGunBasePos + new Vector3(0f, 0f, -_gunKick * gunKickBack);
+        }
+
+        private static float ShakeFor(string itemId)
+        {
+            switch (itemId)
+            {
+                case ItemIds.Pistol: return 0.4f;
+                case ItemIds.Ak47: return 0.3f;
+                case ItemIds.PlatinumSniperRifle: return 0.8f;
+                case ItemIds.ShredderDrillLauncher: return 0.6f;
+                case ItemIds.IronFieldCannon: return 0.9f;
+                case ItemIds.PlatinumRailCannon: return 1f;
+                default: return 0.3f;
+            }
+        }
+
+        // 총알이 맞은 곳: 섬광 + 불똥. 대포류는 폭발 + 큰 흔들림
+        private void SpawnBulletHit(Vector3 point, Vector3 normal)
+        {
+            bool heavy = _activeWeaponId == ItemIds.IronFieldCannon || _activeWeaponId == ItemIds.ShredderDrillLauncher
+                         || _activeWeaponId == ItemIds.PlatinumRailCannon;
+            GameObject prefab = heavy && explosionVfxPrefab != null ? explosionVfxPrefab : bulletHitVfxPrefab;
+            if (prefab == null)
+            {
+                SpawnImpact(point, new Color(1f, 0.9f, 0.5f));
+                return;
+            }
+
+            Quaternion rot = normal.sqrMagnitude > 0.001f ? Quaternion.LookRotation(normal) : Quaternion.identity;
+            GameObject fx = Instantiate(prefab, point + normal * 0.05f, rot);
+            fx.name = heavy ? "ExplosionVFX" : "BulletHitVFX";
+            fx.transform.localScale = Vector3.one * (heavy ? explosionVfxScale : bulletHitVfxScale);
+            Transform darkBack = fx.transform.Find("Darkback");
+            if (darkBack != null)
+                darkBack.gameObject.SetActive(false);
+            fx.AddComponent<DelayedStopEmit>().Init(heavy ? 0.25f : 0.08f);
+            Destroy(fx, 2f);
+            if (heavy)
+                Combat.CameraShake.Shake(0.35f);
+        }
+
+        /// <summary>총을 쐈을 때: 반동 킥 + 총구 불꽃 + 탄피 + 카메라 흔들림.</summary>
+        private void OnGunFired(string itemId, bool useHeldGun, Vector3 muzzleWorld, Vector3 rightDir, int casingKind)
+        {
+            if (useHeldGun && _heldIsGun && _heldMeleeObj != null)
+            {
+                _gunKick = 1f;
+                muzzleWorld = _heldMeleeObj.transform.TransformPoint(_gunMuzzleLocal);
+                rightDir = _heldMeleeObj.transform.right;
+                casingKind = _heldCasing;
+            }
+
+            if (muzzleFlashVfxPrefab != null)
+            {
+                GameObject flash = Instantiate(muzzleFlashVfxPrefab, muzzleWorld, Quaternion.LookRotation(transform.forward));
+                flash.name = "MuzzleFlashVFX";
+                flash.transform.localScale = Vector3.one * muzzleFlashScale;
+                StartCoroutine(StopEmitAndCleanup(flash, 0.06f, 0.8f));
+            }
+
+            if (casingKind > 0)
+                SpawnCasing(casingKind, useHeldGun && _heldMeleeObj != null ? _heldMeleeObj.transform.TransformPoint(_gunEjectLocal) : muzzleWorld - transform.forward * 0.2f, rightDir);
+
+            Combat.CameraShake.Shake(ShakeFor(itemId));
+        }
+
+        private void SpawnCasing(int kind, Vector3 pos, Vector3 rightDir)
+        {
+            GameObject prefab = kind == 1 ? casingPistolPrefab : casingRiflePrefab;
+            if (prefab == null)
+                return;
+
+            GameObject go = Instantiate(prefab, pos, Random.rotation);
+            Rigidbody rb = go.GetComponent<Rigidbody>();
+            if (rb != null)
+            {
+                rb.linearVelocity = rightDir * Random.Range(1.6f, 2.6f) + Vector3.up * Random.Range(1.8f, 3.0f) - transform.forward * Random.Range(0f, 0.6f);
+                rb.angularVelocity = Random.insideUnitSphere * 20f;
+            }
+            Collider cc = go.GetComponent<Collider>();
+            Collider pc = GetComponent<Collider>();
+            if (cc != null && pc != null)
+                Physics.IgnoreCollision(cc, pc);
+        }
+
+        // 공격 레이어는 공격 중에만 켠다(걷기/달리기 등 평소 모션은 기존 애니메이션 그대로 보이게)
+        private void UpdateAttackLayerWeight()
+        {
+            if (_animator == null)
+                return;
+            if (_attackLayer == -2)
+                _attackLayer = _animator.GetLayerIndex(AttackLayerName);
+            if (_attackLayer < 0)
+                return;
+
+            bool busy = Time.time < _attackLayerHoldUntil
+                        || _animator.IsInTransition(_attackLayer)
+                        || !_animator.GetCurrentAnimatorStateInfo(_attackLayer).IsName("Empty");
+            float target = busy ? 1f : 0f;
+            _attackLayerWeight = Mathf.MoveTowards(_attackLayerWeight, target, Time.deltaTime * 10f);
+            _animator.SetLayerWeight(_attackLayer, _attackLayerWeight);
+        }
+
+        private const string AttackLayerName = "Attack";
+
+        private IEnumerator DelayedMeleeArc(WeaponStats stats, float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            FireMeleeArc(stats);
+        }
+
         [Header("차징/연속 사용 중 이동")]
         [Tooltip("활을 당기는 중, 화염방사기·분무기를 뿜는 중의 이동 속도 배율. 1이면 느려지지 않는다")]
         [Range(0.1f, 1f)]
@@ -275,6 +585,9 @@ namespace Combat
 
         private void OnDisable()
         {
+            StopFlameVfx();
+            SetShootingPose(false);
+            if (_heldMeleeObj != null) { Destroy(_heldMeleeObj); _heldMeleeObj = null; _heldMeleeId = null; }
             UnequipBow();
             UnequipRifle();
             LockMovement(false);
@@ -294,6 +607,7 @@ namespace Combat
                 targetCamera == null;
 
             ItemData selected = _inventory.SelectedItem;
+            UpdateHeldMelee(selected != null ? selected.itemID : null);
             WeaponStats stats = default;
             bool hasWeapon = !blocked && selected != null && Weapons.TryGetValue(selected.itemID, out stats);
 
@@ -336,7 +650,13 @@ namespace Combat
                             if (holdingRifle && bulletPrefab != null)
                                 FireBullet(stats);
                             else
+                            {
                                 FireHitscan(stats, stats.damage);
+                                // 사격 반동: 권총은 한 손, 그 외 총기는 두 손 자세(저격총은 IK로 따로 잡으므로 제외)
+                                if (!holdingRifle)
+                                    PlayAttackAnim(selected.itemID == ItemIds.Pistol ? "AtkShoot1H" : "AtkShoot2H");
+                                OnGunFired(selected.itemID, true, transform.position + Vector3.up * 1.2f, transform.right, 0);
+                            }
                             StartAttackRecovery(stats.cooldown);
                         }
                     }
@@ -350,7 +670,11 @@ namespace Combat
                         {
                             _nextFireTime = Time.time + stats.cooldown;
                             AutoFaceNearestTarget(meleeAutoFaceRange);
-                            FireMeleeArc(stats);
+                            bool stab = selected.itemID == ItemIds.WoodSpear;
+                            if (PlayAttackAnim(stab ? "AtkStab" : "AtkSlash"))
+                                StartCoroutine(DelayedMeleeArc(stats, stab ? stabImpactDelay : slashImpactDelay));
+                            else
+                                FireMeleeArc(stats);
                             StartAttackRecovery(stats.cooldown);
                         }
                     }
@@ -368,13 +692,18 @@ namespace Combat
                         if (!_isFlameActive)
                         {
                             _isFlameActive = true;
-                            _flameEffectRoutine = StartCoroutine(FlameEffectRoutine(stats));
+                            SetShootingPose(true);
+                            if (selected.itemID == ItemIds.Flamethrower && flamethrowerVfxPrefab != null)
+                                StartFlameVfx(stats);
+                            else
+                                _flameEffectRoutine = StartCoroutine(FlameEffectRoutine(stats));
                         }
 
                         if (Time.time >= _nextFireTime)
                         {
                             _nextFireTime = Time.time + stats.cooldown;
                             FireCone(stats);
+                            Combat.CameraShake.Shake(0.05f);     // 화염 뿜는 동안 은은한 진동
                         }
                     }
                     else if (_isFlameActive && (Input.GetMouseButtonUp(0) || !Input.GetMouseButton(0)))
@@ -425,6 +754,7 @@ namespace Combat
                         {
                             _nextFireTime = Time.time + stats.cooldown;
                             FireGrenade(stats);
+                            PlayAttackAnim("AtkThrow");
                             StartAttackRecovery(stats.cooldown);
                             // 1회용 소모품: 던지는 즉시 인벤토리에서 1개 소모되어 사라진다.
                             _inventory.RemoveItem(selected, 1);
@@ -438,6 +768,8 @@ namespace Combat
         {
             UpdateChargingSlowdown();
             UpdateRifle();
+            UpdateAttackLayerWeight();
+            UpdateHeldGunPose();
 
             // 애니메이션이 손 뼈대를 움직인 뒤에 활/화살 자세를 덮어쓴다.
             if (_heldBow == null)
@@ -563,6 +895,14 @@ namespace Combat
                 Vector3 leftGripLocal = transform.InverseTransformPoint(_rifleLeftGrip.position);
                 _animator.SetIKPosition(AvatarIKGoal.LeftHand,
                     ToPreTwistWorld(leftGripLocal + _rifleLeftIkCorrection, twistDegrees));
+                return;
+            }
+
+            // 권총 외의 총: 왼손도 총열 아래를 잡는다(양손)
+            if (_heldIsGun && _heldTwoHand && _heldMeleeObj != null && _heldBow == null)
+            {
+                _animator.SetIKPositionWeight(AvatarIKGoal.LeftHand, _twoHandWeight);
+                _animator.SetIKPosition(AvatarIKGoal.LeftHand, _heldMeleeObj.transform.TransformPoint(_gunLeftGripLocal));
                 return;
             }
 
@@ -812,6 +1152,8 @@ namespace Combat
 
             SpawnImpact(muzzle, new Color(1f, 0.85f, 0.4f));
             _rifleRecoil = 1f;
+            // 저격총은 자체 IK 시스템을 쓰므로 총구/탄피는 그 총구 기준으로, 소총탄 배출 + 큰 카메라 흔들림
+            OnGunFired(ItemIds.PlatinumSniperRifle, false, muzzle, transform.right, 2);
         }
 
         private static void DisableColliders(GameObject go)
@@ -933,10 +1275,12 @@ namespace Combat
 
             AutoFaceNearestTarget(fistDetectRange);
 
-            yield return new WaitForSeconds(fistImpactDelay);
+            // 주먹 애니메이션이 있으면 팔이 뻗는 순간에 맞춰 타격한다
+            float impact = PlayAttackAnim("AtkPunch") ? Mathf.Max(fistImpactDelay, punchImpactDelay) : fistImpactDelay;
+            yield return new WaitForSeconds(impact);
             FireFistStrike();
 
-            float remaining = fistWindup - fistImpactDelay;
+            float remaining = fistWindup - impact;
             if (remaining > 0f)
                 yield return new WaitForSeconds(remaining);
 
@@ -1076,6 +1420,35 @@ namespace Combat
                 StopCoroutine(_flameEffectRoutine);
                 _flameEffectRoutine = null;
             }
+            SetShootingPose(false);
+            StopFlameVfx();
+        }
+
+        // 화염방사기: 플레이어 앞쪽에 불꽃 프리팹을 붙여 두고, 쏘는 동안 플레이어 방향을 따라간다.
+        private void StartFlameVfx(WeaponStats stats)
+        {
+            if (_flameVfx != null)
+                return;
+
+            _flameVfx = Instantiate(flamethrowerVfxPrefab, transform);
+            _flameVfx.name = "FlamethrowerVFX";
+            _flameVfx.transform.localPosition = new Vector3(0f, 1.2f, 0.5f);
+            _flameVfx.transform.localRotation = Quaternion.identity;
+            float scale = flamethrowerVfxLength > 0.1f ? Mathf.Max(0.3f, stats.range / flamethrowerVfxLength) : 1f;
+            _flameVfx.transform.localScale = Vector3.one * scale;
+        }
+
+        private void StopFlameVfx()
+        {
+            if (_flameVfx == null)
+                return;
+
+            // 방출만 멈추고 남은 불꽃은 자연스럽게 사라지게 한 뒤 정리한다.
+            foreach (ParticleSystem ps in _flameVfx.GetComponentsInChildren<ParticleSystem>())
+                ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+            _flameVfx.transform.SetParent(null, true);
+            Destroy(_flameVfx, 1.5f);
+            _flameVfx = null;
         }
 
         private bool RaycastHitsWorldInteractable(float range)
@@ -1130,7 +1503,7 @@ namespace Combat
                 if (target != null)
                     target.TakeDamage(damage, hit.point);
 
-                SpawnImpact(hit.point, stats.effectColor);
+                SpawnBulletHit(hit.point, hit.normal);
             }
             else
             {
@@ -1176,7 +1549,8 @@ namespace Combat
             if (nearest != null)
             {
                 nearest.TakeDamage(stats.damage, nearestPoint);
-                SpawnImpact(nearestPoint, stats.effectColor);
+                SpawnMeleeHit(nearestPoint, stats.effectColor);
+                Combat.CameraShake.Shake(0.1f);
             }
         }
 
@@ -1261,6 +1635,35 @@ namespace Combat
             lr.startColor = color;
             lr.endColor = new Color(color.r, color.g, color.b, 0.2f);
             Destroy(go, 0.08f);
+        }
+
+        // 근접 무기 적중: 베기/문양 없이 맞은 지점에서 한 번 터지는 단순 타격 이펙트
+        private void SpawnMeleeHit(Vector3 pos, Color color)
+        {
+            if (meleeHitVfxPrefab == null)
+            {
+                SpawnImpact(pos, color);
+                return;
+            }
+
+            GameObject go = Instantiate(meleeHitVfxPrefab, pos, Quaternion.identity);
+            go.name = "MeleeHitVFX";
+            go.transform.localScale = Vector3.one * meleeHitVfxScale;
+            // 뒤에 깔리는 검은 얼룩(Darkback)은 빼고 밝은 섬광 + 튀는 불똥만 남겨 '단순 타격'으로 쓴다
+            Transform darkBack = go.transform.Find("Darkback");
+            if (darkBack != null)
+                darkBack.gameObject.SetActive(false);
+            StartCoroutine(StopEmitAndCleanup(go, 0.1f, 1.2f));
+        }
+
+        private static IEnumerator StopEmitAndCleanup(GameObject go, float emitSeconds, float destroyAfter)
+        {
+            yield return new WaitForSeconds(emitSeconds);
+            if (go == null)
+                yield break;
+            foreach (ParticleSystem ps in go.GetComponentsInChildren<ParticleSystem>())
+                ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+            Destroy(go, destroyAfter);
         }
 
         private void SpawnImpact(Vector3 pos, Color color)

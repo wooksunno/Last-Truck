@@ -17,6 +17,27 @@ namespace CraftingSystem
         [SerializeField] private PlayerInventory playerInventory;
         [SerializeField] private Font uiFont;
 
+        [Header("에디터에서 미리 그려둔 UI (비워두면 예전처럼 코드로 생성)")]
+        [SerializeField] private PlayerInventoryHUD inventoryHud;
+        [SerializeField] private Canvas authoredPopupCanvas;
+        [SerializeField] private RectTransform authoredPopupRoot;
+        [SerializeField] private Text authoredPopupTitle;
+        [SerializeField] private RectTransform authoredPopupBody;
+        [SerializeField] private ScrollRect authoredPopupScroll;
+        [SerializeField] private Button authoredCloseButton;
+        [SerializeField] private Button authoredJournalButton;
+        [Tooltip("코드로 만드는 패널/버튼/슬롯에 씌울 둥근 9-slice 스프라이트")]
+        [SerializeField] private Sprite roundedSprite;
+        [SerializeField] private Sprite roundedRingSprite;
+        [SerializeField] private Sprite triangleSprite;
+        [SerializeField] private Sprite tabSprite;
+        [Tooltip("개발용 치트 버튼(원재료 +10) 표시. 끄면 화면에서 사라진다. 완전히 빼려면 CraftingCheats.cs 삭제 + [CHEAT] 블록 삭제.")]
+        [SerializeField] private bool showCheatButtons = true;
+
+        private int _craftCat = -1;
+        private bool _codexFromCraft;
+        private TruckProcessView.Refs _truckRefs, _facilityRefs;
+        private TruckCodexView _codexView;
         private Canvas _canvas;
         private RectTransform _playerSlotRoot;
         private GameObject _popupRoot;
@@ -84,6 +105,7 @@ private int _withdrawMax;
         {
             public RecipeData recipe;
             public float remaining;
+            public float total;
             public int pending;
             public int ready;
             public bool running;
@@ -99,10 +121,70 @@ private int _withdrawMax;
 
         public bool IsPopupOpen => _popupRoot != null && _popupRoot.activeSelf;
 
+        private GameObject _truckHint;
+
+        /// <summary>트럭 근처에서 "[Tab] 트럭 거점" 안내를 트럭 위쪽(월드 좌표)에 띄운다.</summary>
+        public void SetTruckHint(bool show, Vector3 worldAnchor)
+        {
+            Camera cam = Camera.main;
+            Vector3 screen = Vector3.zero;
+            if (show)
+            {
+                if (cam == null) show = false;
+                else
+                {
+                    screen = cam.WorldToScreenPoint(worldAnchor);
+                    if (screen.z <= 0.1f) show = false;
+                }
+            }
+
+            if (_truckHint == null)
+            {
+                if (!show || _canvas == null)
+                    return;
+
+                RectTransform pill = CraftUI.Panel(_canvas.GetComponent<RectTransform>(), "TruckHint", new Color(0.12f, 0.095f, 0.08f, 0.9f));
+                pill.anchorMin = pill.anchorMax = new Vector2(0f, 0f);
+                pill.pivot = new Vector2(0.5f, 0f);
+                pill.sizeDelta = new Vector2(330f, 56f);
+                if (roundedRingSprite != null)
+                {
+                    RectTransform ring = CraftUI.Mk("Border", pill);
+                    CraftUI.Stretch(ring);
+                    CraftUI.Img(ring, roundedRingSprite, new Color(0.96f, 0.75f, 0.35f, 0.85f));
+                }
+                RectTransform key = CraftUI.Mk("Key", pill);
+                key.anchorMin = key.anchorMax = new Vector2(0f, 0.5f);
+                key.pivot = new Vector2(0f, 0.5f);
+                key.anchoredPosition = new Vector2(12f, 0f);
+                key.sizeDelta = new Vector2(64f, 34f);
+                CraftUI.Img(key, CraftUI.Round, new Color(0.96f, 0.75f, 0.35f, 1f));
+                RectTransform keyText = CraftUI.Mk("Text", key);
+                CraftUI.Stretch(keyText);
+                CraftUI.Txt(keyText, "Tab", 20, FontStyle.Bold, new Color(0.18f, 0.12f, 0.06f), TextAnchor.MiddleCenter);
+                RectTransform label = CraftUI.Mk("Label", pill);
+                CraftUI.Stretch(label, 88f, 0f, 10f, 0f);
+                CraftUI.Txt(label, "트럭 거점 열기", 22, FontStyle.Bold, CraftUI.Cream, TextAnchor.MiddleLeft);
+                _truckHint = pill.gameObject;
+            }
+
+            if (_truckHint.activeSelf != show)
+                _truckHint.SetActive(show);
+
+            if (show)
+            {
+                // 화면 밖으로 나가지 않게 가둔다 (오버레이 캔버스에서는 position이 화면 픽셀)
+                float x = Mathf.Clamp(screen.x, 180f, Screen.width - 180f);
+                float y = Mathf.Clamp(screen.y, 20f, Screen.height - 90f);
+                _truckHint.transform.position = new Vector3(x, y, 0f);
+            }
+        }
+
         public void Initialize(PlayerInventory inventory)
         {
             playerInventory = inventory;
             EnsureFont();
+            CraftUI.Init(uiFont, roundedSprite, roundedRingSprite, tabSprite, triangleSprite);
             EnsureEventSystem();
 
             if (_canvas == null)
@@ -250,6 +332,7 @@ public void OpenPouchPanel(PouchInventory pouch, PlayerInventory player)
             _truckProcessingPanelOpen = false;
             _truckCodexOpen = true;
             _codexSelectedItem = null;
+            _codexFromCraft = false;
             _selectedRecipe = null;
             ShowPopup("트럭 거점", BuildTruckContent);
         }
@@ -268,6 +351,7 @@ public void OpenPouchPanel(PouchInventory pouch, PlayerInventory player)
             _truckProcessingPanelOpen = false;
             _withdrawItem = null;
             _activePouch = null;
+            _codexFromCraft = false;
         }
 
 private void ShowPopup(string title, System.Action builder)
@@ -276,10 +360,140 @@ private void ShowPopup(string title, System.Action builder)
             _popupTitle.text = title;
 
             RectTransform popupRect = _popupRoot.GetComponent<RectTransform>();
-            popupRect.sizeDelta = _truckCodexOpen ? new Vector2(1400f, 860f) : new Vector2(560f, 640f);
+            popupRect.sizeDelta = PopupSizeForState();
 
             ClearChildren(_popupBody);
             builder?.Invoke();
+            UpdateTruckTabs();
+        }
+
+        // ---------- 팝업 오른쪽 책갈피 탭 (트럭 거점 / 제작 / 가공 / 도감) ----------
+        private static readonly string[] TruckTabLabels = { "보관함", "제작", "가공", "도감" };
+        private static readonly Color[] TruckTabColors =
+        {
+            new Color(0.50f, 0.74f, 0.96f), new Color(0.96f, 0.78f, 0.40f),
+            new Color(0.96f, 0.55f, 0.50f), new Color(0.70f, 0.62f, 0.96f),
+        };
+        private GameObject _truckTabs;
+        private readonly RectTransform[] _truckTabRoots = new RectTransform[4];
+        private readonly Image[] _truckTabBgs = new Image[4];
+
+        private int CurrentTruckTab()
+        {
+            if (_truckCodexOpen) return 3;
+            if (_truckProcessingPanelOpen) return 2;
+            if (_craftingPanelOpen) return 1;
+            return 0;
+        }
+
+        private void OnTruckTab(int index)
+        {
+            switch (index)
+            {
+                case 0:
+                    _craftingPanelOpen = false;
+                    _truckProcessingPanelOpen = false;
+                    _truckCodexOpen = false;
+                    _selectedRecipe = null;
+                    _codexSelectedItem = null;
+                    _codexFromCraft = false;
+                    _truckProcessMessage = null;
+                    ShowPopup("트럭 거점", BuildTruckContent);
+                    break;
+                case 1: OpenCraftingPanel(); break;
+                case 2: OpenTruckProcessingPanel(); break;
+                case 3: OpenJournal(); break;
+            }
+        }
+
+        private void UpdateTruckTabs()
+        {
+            bool show = _activeTruck != null && _activeFacility == null && _popupRoot != null;
+
+            // 헤더의 "도감" 버튼은 책갈피가 대신하므로 숨긴다
+            if (_popupRoot != null)
+            {
+                Transform journal = _popupRoot.transform.Find("JournalButton");
+                if (journal != null)
+                    journal.gameObject.SetActive(!show);
+            }
+
+            if (_truckTabs == null)
+            {
+                if (!show)
+                    return;
+
+                RectTransform holder = CraftUI.Mk("TruckTabs", _popupRoot.transform);
+                holder.anchorMin = holder.anchorMax = new Vector2(1f, 1f);
+                holder.pivot = new Vector2(0f, 1f);
+                holder.anchoredPosition = Vector2.zero;
+                holder.sizeDelta = new Vector2(1f, 1f);
+                _truckTabs = holder.gameObject;
+
+                for (int i = 0; i < 4; i++)
+                {
+                    int idx = i;
+                    RectTransform root = CraftUI.Mk("Tab_" + TruckTabLabels[i], holder);
+                    root.anchorMin = root.anchorMax = new Vector2(0f, 1f);
+                    root.pivot = new Vector2(0f, 1f);
+                    root.anchoredPosition = new Vector2(-6f, -(96f + i * 78f));
+                    root.sizeDelta = new Vector2(104f, 66f);
+
+                    // 위쪽 모서리가 둥근 탭 스프라이트를 시계 방향으로 90도 돌려 '오른쪽이 둥근' 책갈피로 쓴다
+                    RectTransform bg = CraftUI.Mk("Bg", root);
+                    bg.anchorMin = bg.anchorMax = new Vector2(0.5f, 0.5f);
+                    bg.pivot = new Vector2(0.5f, 0.5f);
+                    bg.anchoredPosition = Vector2.zero;
+                    bg.localRotation = Quaternion.Euler(0f, 0f, -90f);
+                    _truckTabBgs[i] = CraftUI.Img(bg, tabSprite != null ? tabSprite : roundedSprite, Color.white, true, true);
+                    Button btn = root.gameObject.AddComponent<Button>();
+                    btn.targetGraphic = _truckTabBgs[i];
+                    ColorBlock cb = btn.colors;
+                    cb.highlightedColor = CraftUI.CardHover; cb.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
+                    btn.colors = cb;
+                    btn.onClick.AddListener(() => OnTruckTab(idx));
+
+                    RectTransform label = CraftUI.Mk("Label", root);
+                    CraftUI.Stretch(label, 4f, 0f, 14f, 0f);
+                    Text t = CraftUI.Txt(label, TruckTabLabels[i], 22, FontStyle.Bold, Color.white, TextAnchor.MiddleCenter);
+                    t.name = "Label";
+                    _truckTabRoots[i] = root;
+                }
+            }
+
+            _truckTabs.SetActive(show);
+            if (!show)
+                return;
+
+            int current = CurrentTruckTab();
+            for (int i = 0; i < 4; i++)
+            {
+                bool sel = i == current;
+                float w = sel ? 116f : 92f;
+                _truckTabRoots[i].sizeDelta = new Vector2(w, 66f);
+                ((RectTransform)_truckTabBgs[i].transform).sizeDelta = new Vector2(66f, w);   // 회전 전 기준(가로/세로 뒤바뀜)
+                Color c = TruckTabColors[i];
+                _truckTabBgs[i].color = sel ? c : new Color(c.r * 0.5f, c.g * 0.5f, c.b * 0.5f, 0.95f);
+                Text label = _truckTabRoots[i].Find("Label").GetComponent<Text>();
+                label.color = sel ? new Color(0.18f, 0.12f, 0.06f) : CraftUI.Cream;
+            }
+        }
+
+        // 화면별 팝업 크기: 도감/제작/가공은 넓게, 트럭 홈은 중간, 나머지는 기본
+        private Vector2 PopupSizeForState()
+        {
+            if (_truckCodexOpen) return new Vector2(1400f, 860f);
+            if (_craftingPanelOpen || _truckProcessingPanelOpen) return new Vector2(1200f, 780f);
+            if (_activeFacility != null) return new Vector2(1060f, 700f);
+            if (_activeTruck != null) return new Vector2(1100f, 780f);
+            return new Vector2(560f, 640f);
+        }
+
+        // 본문(Body) 안쪽에 꽉 차게 넣을 수 있는 크기 (좌우 16 + 패딩, 위 62 + 아래 16 + 패딩)
+        private Vector2 PopupInnerSize()
+        {
+            Vector2 s = PopupSizeForState();
+            return new Vector2(s.x - 40f, s.y - 86f);
         }
 
         private void BindPlayerInventory()
@@ -291,10 +505,45 @@ private void ShowPopup(string title, System.Action builder)
             playerInventory.Changed += RefreshPlayerInventoryUI;
             playerInventory.SelectedSlotChanged -= RefreshPlayerInventoryUI;
             playerInventory.SelectedSlotChanged += RefreshPlayerInventoryUI;
+
+            if (inventoryHud != null)
+                inventoryHud.Bind(playerInventory, OnInventoryHudSlotClicked);
+        }
+
+        // 에디터에서 그려둔 HUD 슬롯을 눌렀을 때: 팝업이 열려 있으면 해당 칸을 트럭/파우치로 옮기고, 아니면 그 칸을 손에 든다.
+        private void OnInventoryHudSlotClicked(int index)
+        {
+            if (playerInventory == null)
+                return;
+
+            IReadOnlyList<InventorySlot> slots = playerInventory.Slots;
+            InventorySlot slot = index < slots.Count ? slots[index] : null;
+            bool empty = slot == null || slot.IsEmpty;
+
+            if (_activeTruck != null && !empty)
+            {
+                TransferItem(playerInventory.Inventory, _activeTruck.TruckInventory.Inventory, slot.item, slot.count);
+                ShowPopup("트럭 거점", BuildTruckContent);
+            }
+            else if (_activePouch != null && !empty)
+            {
+                TransferItem(playerInventory.Inventory, _activePouch.Inventory, slot.item, slot.count);
+                ShowPopup("가죽 파우치", BuildPouchContent);
+            }
+            else
+            {
+                playerInventory.SelectSlot(index);
+            }
         }
 
         private void RefreshPlayerInventoryUI()
         {
+            if (inventoryHud != null)
+            {
+                inventoryHud.Refresh();
+                return;
+            }
+
             if (_playerSlotRoot == null || playerInventory == null)
                 return;
 
@@ -341,6 +590,102 @@ private void ShowPopup(string title, System.Action builder)
         }
 
         private void BuildFacilityContent()
+        {
+            if (_activeFacility == null)
+                return;
+
+            if (_popupScrollRect != null)
+                _popupScrollRect.vertical = false;
+
+            if (_activeFacility.Recipes.Count == 0)
+                _activeFacility.LoadRecipesFromCatalog();
+
+            _facilityJobs.TryGetValue(_activeFacility, out FacilityJob job);
+            bool processing = job != null;
+            if (!processing && _selectedRecipe != null &&
+                !new List<RecipeData>(_activeFacility.Recipes).Contains(_selectedRecipe))
+                _selectedRecipe = null;
+
+            Vector2 inner = PopupInnerSize();
+            var m = new TruckProcessView.ProcessModel();
+            m.title = _activeFacility.InteractLabel;
+            m.titleIcon = TruckCodexView.FacilityIcon(_activeFacility.FacilityType);
+            m.accent = TruckCodexView.CategoryColors[(int)_activeFacility.FacilityType % TruckCodexView.CategoryColors.Length];
+            m.listTitle = "가공할 재료를 선택하세요";
+            m.listHint = "재료를 고른 뒤 오른쪽의 '가공하기'를 누르세요";
+
+            foreach (RecipeData recipe in _activeFacility.Recipes)
+            {
+                if (recipe == null || recipe.inputs == null || recipe.inputs.Count == 0 ||
+                    recipe.inputs[0] == null || recipe.inputs[0].item == null || recipe.output == null)
+                    continue;
+
+                RecipeData captured = recipe;
+                m.cards.Add(new TruckProcessView.CardInfo
+                {
+                    input = recipe.inputs[0].item,
+                    output = recipe.output.item,
+                    inCount = recipe.inputs[0].count,
+                    outCount = recipe.output.count,
+                    can = _activePlayer != null && _activePlayer.HasIngredients(recipe),
+                    selected = !processing && _selectedRecipe == recipe,
+                    onClick = () =>
+                    {
+                        if (processing)
+                            return;
+                        _selectedRecipe = captured;
+                        ShowPopup($"{_activeFacility.InteractLabel} 가공", BuildFacilityContent);
+                    },
+                });
+            }
+
+            RecipeData shown = processing ? job.recipe : _selectedRecipe;
+            if (shown != null && shown.inputs != null && shown.inputs.Count > 0 && shown.inputs[0] != null)
+            {
+                ItemData inItem = shown.inputs[0].item;
+                int need = shown.inputs[0].count;
+                int have = _activePlayer != null && inItem != null ? _activePlayer.GetItemCount(inItem) : 0;
+                m.inItem = inItem;
+                m.inText = have + "/" + need;
+            }
+            else
+            {
+                m.inText = "재료 선택";
+            }
+
+            if (shown != null && shown.output != null && shown.output.item != null)
+            {
+                m.outItem = shown.output.item;
+                m.outText = "x" + shown.output.count;
+            }
+            else
+            {
+                m.outText = "-";
+            }
+
+            bool canProcess = shown != null && !processing && _activePlayer != null && _activePlayer.HasIngredients(shown);
+            if (processing)
+            {
+                m.timerText = Mathf.Max(0f, job.remaining).ToString("0.0") + "초";
+                m.progress = job.total > 0.01f ? 1f - Mathf.Clamp01(job.remaining / job.total) : 0f;
+                m.statusText = "가공 중...";
+            }
+            else
+            {
+                m.timerText = shown != null ? shown.processingSeconds.ToString("0.#") + "초" : "-";
+                m.statusText = shown != null ? "" : "재료를 선택하세요";
+            }
+            m.buttonLabel = processing ? "가공 중" : "가공하기";
+            m.buttonEnabled = canProcess;
+            RecipeData startRecipe = shown;
+            m.onButton = () => StartFacilityProcessing(startRecipe);
+
+            _facilityRefs = TruckProcessView.Build(_popupBody, inner.y, m, null);
+            _facilityCountdownText = processing ? _facilityRefs.timer : null;
+        }
+
+        // (이전 코드 방식의 현장 가공 화면 - 새 TruckProcessView로 대체되어 더 이상 호출되지 않는다)
+        private void BuildFacilityContentLegacy()
         {
             if (_activeFacility == null)
                 return;
@@ -401,6 +746,13 @@ private void BuildPouchContent()
                 InventorySlot captured = slot;
                 CreateInventorySlotView(pouchGrid, slot.item, slot.count, 64f, () =>
                 {
+                    if (captured.item != null && captured.item.maxStack <= 1 && _activePlayer != null)
+                    {
+                        TransferItem(_activePouch.Inventory, _activePlayer.Inventory, captured.item, captured.count);
+                        ShowPopup("가죽 파우치", BuildPouchContent);
+                        return;
+                    }
+
                     _withdrawItem = captured.item;
                     _withdrawMax = captured.count;
                     ShowPopup("가죽 파우치", BuildPouchContent);
@@ -706,7 +1058,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 return;
             }
 
-            var job = new FacilityJob { recipe = recipe, remaining = recipe.processingSeconds };
+            var job = new FacilityJob { recipe = recipe, remaining = recipe.processingSeconds, total = recipe.processingSeconds };
             _facilityJobs[facility] = job;
             ShowPopup($"{facility.InteractLabel} 가공", BuildFacilityContent);
             StartCoroutine(FacilityProcessRoutine(facility, player, recipe, job));
@@ -719,7 +1071,11 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 yield return null;
                 job.remaining -= Time.deltaTime;
                 if (_activeFacility == facility && IsPopupOpen && _facilityCountdownText != null)
-                    _facilityCountdownText.text = $"{Mathf.Max(0f, job.remaining):0.0}초 남음";
+                {
+                    _facilityCountdownText.text = $"{Mathf.Max(0f, job.remaining):0.0}초";
+                    if (_facilityRefs != null && job.total > 0.01f)
+                        _facilityRefs.SetProgress(1f - Mathf.Clamp01(job.remaining / job.total));
+                }
             }
 
             bool ok = facility.TryProcess(recipe, player);
@@ -771,17 +1127,8 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             if (_withdrawItem != null)
                 CreateWithdrawPrompt(_popupBody, truckInv);
 
-            RectTransform actionRow = CreateRow(_popupBody);
-            CreateSmallActionButton(actionRow, "원재료 +10", new Color(0.3f, 0.5f, 0.35f), () =>
-            {
-                GrantRawMaterialsToTruck(truckInv, 10);
-                ShowPopup("트럭 거점", BuildTruckContent);
-            });
-            CreateFlexibleSpacer(actionRow);
-            CreateSmallActionButton(actionRow, "제작", new Color(0.3f, 0.42f, 0.55f), OpenCraftingPanel);
-            CreateSmallActionButton(actionRow, "가공", new Color(0.55f, 0.4f, 0.25f), OpenTruckProcessingPanel);
-
-            RectTransform truckGrid = CreateScrollableGrid(_popupBody, "트럭 보관함", 6, 380f);
+            // 제작/가공/도감 이동은 팝업 오른쪽의 책갈피 탭(UpdateTruckTabs)이 맡는다.
+            RectTransform truckGrid = CreateScrollableGrid(_popupBody, "트럭 보관함", 12, 600f);
             if (truckInv != null)
             {
                 foreach (InventorySlot slot in truckInv.Slots)
@@ -790,14 +1137,29 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                         continue;
 
                     InventorySlot captured = slot;
-                    CreateInventorySlotView(truckGrid, slot.item, slot.count, 64f, () =>
+                    CreateInventorySlotView(truckGrid, slot.item, slot.count, 72f, () =>
                     {
+                        // 도구/무기처럼 겹쳐지지 않는(최대 1개) 아이템은 수량을 묻지 않고 바로 인벤토리로 꺼낸다
+                        if (captured.item != null && captured.item.maxStack <= 1)
+                        {
+                            PlayerInventory receiver = _activePlayer != null ? _activePlayer : playerInventory;
+                            if (receiver != null)
+                                TransferItem(truckInv.Inventory, receiver.Inventory, captured.item, captured.count);
+                            ShowPopup("트럭 거점", BuildTruckContent);
+                            return;
+                        }
+
                         _withdrawItem = captured.item;
                         _withdrawMax = captured.count;
                         ShowPopup("트럭 거점", BuildTruckContent);
                     });
                 }
             }
+
+            // [CHEAT] 개발용 원재료 +10 — 빼려면 이 블록과 CraftingCheats.cs를 지우면 된다
+            if (showCheatButtons)
+                CraftingCheats.BuildFooter(_popupBody, truckInv, () => ShowPopup("트럭 거점", BuildTruckContent));
+            // [/CHEAT]
         }
 
         private void CreateWithdrawPrompt(RectTransform parent, TruckInventory truckInv)
@@ -903,6 +1265,50 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
         private void BuildCraftingPanel()
         {
             if (_popupScrollRect != null)
+                _popupScrollRect.vertical = false;
+
+            TruckInventory truckInv = _activeTruck != null ? _activeTruck.TruckInventory : null;
+            TruckCraftingManager craft = _activeTruck != null ? _activeTruck.CraftingManager : null;
+            if (craft != null && craft.Recipes.Count == 0)
+                craft.LoadAssemblyRecipesFromCatalog();
+
+            CharacterAbilityController abilityController = FindObjectOfType<CharacterAbilityController>();
+            Vector2 inner = PopupInnerSize();
+
+            var view = new TruckCraftView(inner.x, inner.y, truckInv, craft, abilityController, _craftCat, _selectedRecipe,
+                onBack: null,   // 책갈피 탭으로 이동하므로 뒤로 버튼이 필요 없다
+                onCategory: cat =>
+                {
+                    _craftCat = cat;
+                    _selectedRecipe = null;
+                    ShowPopup("제작", BuildTruckContent);
+                },
+                onSelect: recipe =>
+                {
+                    _selectedRecipe = recipe;
+                    ShowPopup("제작", BuildTruckContent);
+                },
+                onCraft: recipe =>
+                {
+                    if (craft != null)
+                        craft.TryCraft(recipe);
+                    ShowPopup("제작", BuildTruckContent);
+                },
+                onCodex: item =>
+                {
+                    _craftingPanelOpen = false;
+                    _truckCodexOpen = true;
+                    _codexFromCraft = true;
+                    _codexSelectedItem = item;
+                    ShowPopup("트럭 거점", BuildTruckContent);
+                });
+            view.Build(_popupBody);
+        }
+
+        // (이전 코드 방식의 제작 화면 - 새 TruckCraftView로 대체되어 더 이상 호출되지 않는다)
+        private void BuildCraftingPanelLegacy()
+        {
+            if (_popupScrollRect != null)
                 _popupScrollRect.vertical = true;
 
             TruckInventory truckInv = _activeTruck != null ? _activeTruck.TruckInventory : null;
@@ -977,6 +1383,109 @@ private void CreateFacilityTab(RectTransform parent, FacilityType facility)
         }
 
 private void BuildTruckProcessingPanel()
+        {
+            if (_popupScrollRect != null)
+                _popupScrollRect.vertical = false;
+
+            TruckInventory truckInv = _activeTruck != null ? _activeTruck.TruckInventory : null;
+            ItemCatalog catalog = ItemCatalog.GetOrCreate();
+            Vector2 inner = PopupInnerSize();
+
+            var m = new TruckProcessView.ProcessModel();
+            m.title = FacilityDisplayName(_truckProcessingFacility);
+            m.titleIcon = TruckCodexView.FacilityIcon(_truckProcessingFacility);
+            m.accent = TruckCodexView.CategoryColors[(int)_truckProcessingFacility % TruckCodexView.CategoryColors.Length];
+            m.listTitle = "가공할 재료";
+            m.listHint = "재료를 누를 때마다 1개씩 가공 목록에 추가됩니다 (1개당 1분)";
+            m.tabs = new List<TruckProcessView.TabInfo>();
+            for (int i = 0; i < TruckProcessingFacilities.Length; i++)
+            {
+                FacilityType f = TruckProcessingFacilities[i];
+                m.tabs.Add(new TruckProcessView.TabInfo
+                {
+                    label = FacilityDisplayName(f),
+                    color = TruckCodexView.CategoryColors[(int)f % TruckCodexView.CategoryColors.Length],
+                    selected = f == _truckProcessingFacility,
+                    onClick = () =>
+                    {
+                        if (_truckProcessingFacility == f)
+                            return;
+                        _truckProcessingFacility = f;
+                        _selectedRecipe = null;
+                        ShowPopup("트럭 거점", BuildTruckContent);
+                    },
+                });
+            }
+
+            foreach (RecipeData recipe in catalog.GetRecipesForFacility(_truckProcessingFacility))
+            {
+                if (recipe == null || recipe.inputs == null || recipe.inputs.Count == 0 ||
+                    recipe.inputs[0] == null || recipe.inputs[0].item == null || recipe.output == null)
+                    continue;
+
+                RecipeData captured = recipe;
+                m.cards.Add(new TruckProcessView.CardInfo
+                {
+                    input = recipe.inputs[0].item,
+                    output = recipe.output.item,
+                    inCount = recipe.inputs[0].count,
+                    outCount = recipe.output.count,
+                    can = truckInv != null && truckInv.HasIngredients(recipe),
+                    onClick = () => StartTruckProcessing(captured),
+                });
+            }
+
+            FacilityJob job = _truckJob;
+            bool hasJob = job != null;
+            int pending = hasJob ? job.pending : 0;
+            int ready = hasJob ? job.ready : 0;
+            RecipeData jr = hasJob ? job.recipe : null;
+            if (jr != null && jr.inputs != null && jr.inputs.Count > 0 && jr.inputs[0] != null)
+            {
+                m.inItem = jr.inputs[0].item;
+                m.inText = pending > 0 ? "대기 x" + (pending * jr.inputs[0].count) : "-";
+            }
+            else
+            {
+                m.inText = "재료 선택";
+            }
+
+            if (jr != null && jr.output != null)
+            {
+                m.outItem = jr.output.item;
+                m.outText = ready > 0 ? "받기!\nx" + (ready * jr.output.count) : "가공 중";
+            }
+            else
+            {
+                m.outText = "-";
+            }
+            m.outClaim = ready > 0;
+            m.onClaim = ClaimTruckOutput;
+
+            if (pending > 0)
+            {
+                m.timerText = FormatClock(job.remaining);
+                m.progress = job.total > 0.01f ? 1f - Mathf.Clamp01(job.remaining / job.total) : 0f;
+                m.statusText = "남은 " + pending + "개 가공 중";
+            }
+            else if (ready > 0)
+            {
+                m.timerText = "완료";
+                m.statusText = "오른쪽 결과를 눌러 받기";
+            }
+            else
+            {
+                m.timerText = FormatClock(TruckProcessSeconds);
+                m.statusText = "재료를 고르면 시작";
+            }
+            m.message = _truckProcessMessage;
+
+            _truckRefs = TruckProcessView.Build(_popupBody, inner.y, m, null);   // 책갈피 탭으로 이동하므로 뒤로 버튼 없음
+            _truckCountdownText = pending > 0 ? _truckRefs.timer : null;
+        }
+
+        // (이전 코드 방식의 트럭 가공 화면 - 새 TruckProcessView로 대체되어 더 이상 호출되지 않는다)
+        private void BuildTruckProcessingPanelLegacy()
         {
             if (_popupScrollRect != null)
                 _popupScrollRect.vertical = true;
@@ -1215,6 +1724,7 @@ private void CreateTruckFurnaceMiddle(RectTransform parent, FacilityJob activeJo
             {
                 float finalProcessingTime = GetFinalProcessingSeconds(recipe);
                 _truckJob.remaining = Mathf.Max(0f, finalProcessingTime);
+                _truckJob.total = _truckJob.remaining;
 
                 StartCoroutine(TruckProcessRoutine(truck, _truckJob));
             }
@@ -1234,7 +1744,11 @@ private void CreateTruckFurnaceMiddle(RectTransform parent, FacilityJob activeJo
                     yield return null;
                     job.remaining -= Time.deltaTime;
                     if (_truckJob == job && _truckCountdownText != null && IsPopupOpen)
+                    {
                         _truckCountdownText.text = FormatClock(job.remaining);
+                        if (_truckRefs != null && job.total > 0.01f)
+                            _truckRefs.SetProgress(1f - Mathf.Clamp01(job.remaining / job.total));
+                    }
                 }
 
                 job.pending--;
@@ -1243,6 +1757,7 @@ private void CreateTruckFurnaceMiddle(RectTransform parent, FacilityJob activeJo
 
                 float finalProcessingTime = GetFinalProcessingSeconds(job.recipe);
                 job.remaining = job.pending > 0 ? Mathf.Max(0f, finalProcessingTime) : 0f;
+                job.total = job.remaining;
 
                 if (_activeTruck == truck && IsPopupOpen)
                     ShowPopup("트럭 거점", BuildTruckContent);
@@ -1463,13 +1978,29 @@ private void ClaimTruckOutput()
 
         private void BuildTruckCodex()
         {
+            // 도감은 안쪽에 자체 스크롤(분류 목록 / 제작 링크 그래프)을 가지므로 바깥 스크롤은 끈다.
             if (_popupScrollRect != null)
-                _popupScrollRect.vertical = true;
+                _popupScrollRect.vertical = false;
 
-            if (_codexSelectedItem != null)
-                BuildCodexItemDetail(_codexSelectedItem);
-            else
-                BuildCodexItemList();
+            Vector2 inner = PopupInnerSize();
+            _codexView = new TruckCodexView(inner.x, inner.y,
+                onBack: () =>
+                {
+                    _truckCodexOpen = false;
+                    _codexSelectedItem = null;
+                    if (_codexFromCraft)
+                    {
+                        _codexFromCraft = false;
+                        _craftingPanelOpen = true;
+                        ShowPopup("제작", BuildTruckContent);
+                    }
+                    else
+                    {
+                        ShowPopup("트럭 거점", BuildTruckContent);
+                    }
+                },
+                onSelected: item => _codexSelectedItem = item);
+            _codexView.Build(_popupBody, _codexSelectedItem);
         }
 
         private void BuildCodexItemList()
@@ -1938,27 +2469,6 @@ private void ClaimTruckOutput()
             text.raycastTarget = false;
         }
 
-        private static void GrantRawMaterialsToTruck(TruckInventory truckInv, int amount)
-        {
-            if (truckInv == null)
-                return;
-
-            ItemCatalog catalog = ItemCatalog.GetOrCreate();
-            truckInv.AddItem(catalog.GetItem(ItemIds.Wood), amount);
-            truckInv.AddItem(catalog.GetItem(ItemIds.Stone), amount);
-            truckInv.AddItem(catalog.GetItem(ItemIds.IronOre), amount);
-            truckInv.AddItem(catalog.GetItem(ItemIds.CopperOre), amount);
-
-            // 테스트 편의: 아직 하나도 없는 아이템(무기/도구/식료품 등 전부)은 최소 1개씩 채워 넣는다.
-            foreach (ItemData item in catalog.Items)
-            {
-                if (item == null)
-                    continue;
-                if (truckInv.GetItemCount(item) <= 0)
-                    truckInv.AddItem(item, 1);
-            }
-        }
-
         private RectTransform CreateScrollableGrid(RectTransform parent, string title, int columns, float height = 380f)
         {
             var containerGo = new GameObject(title + "Container", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(LayoutElement));
@@ -1988,7 +2498,7 @@ private void ClaimTruckOutput()
             viewportRt.anchorMax = Vector2.one;
             viewportRt.offsetMin = Vector2.zero;
             viewportRt.offsetMax = Vector2.zero;
-            viewportGo.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.03f);
+            { Image vpImg = viewportGo.GetComponent<Image>(); vpImg.color = new Color(0f, 0f, 0f, 0.28f); ApplyRounded(vpImg); }
 
             var contentGo = new GameObject("Content", typeof(RectTransform), typeof(GridLayoutGroup), typeof(ContentSizeFitter));
             contentGo.transform.SetParent(viewportGo.transform, false);
@@ -2000,7 +2510,7 @@ private void ClaimTruckOutput()
             contentRt.sizeDelta = Vector2.zero;
 
             GridLayoutGroup grid = contentGo.GetComponent<GridLayoutGroup>();
-            grid.cellSize = new Vector2(64f, 86f);
+            grid.cellSize = new Vector2(76f, 100f);
             grid.spacing = new Vector2(6f, 6f);
             grid.padding = new RectOffset(4, 4, 4, 4);
             grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
@@ -2109,6 +2619,29 @@ private void ClaimTruckOutput()
             if (_canvas != null)
                 return;
 
+            // 에디터에서 미리 그려둔 팝업 틀이 있으면 그대로 연결만 한다.
+            if (authoredPopupCanvas != null && authoredPopupRoot != null && authoredPopupTitle != null
+                && authoredPopupBody != null && authoredPopupScroll != null)
+            {
+                _canvas = authoredPopupCanvas;
+                _popupRoot = authoredPopupRoot.gameObject;
+                _popupTitle = authoredPopupTitle;
+                _popupBody = authoredPopupBody;
+                _popupScrollRect = authoredPopupScroll;
+                _closeButton = authoredCloseButton;
+                if (authoredCloseButton != null)
+                {
+                    authoredCloseButton.onClick.RemoveAllListeners();
+                    authoredCloseButton.onClick.AddListener(ClosePopup);
+                }
+                if (authoredJournalButton != null)
+                {
+                    authoredJournalButton.onClick.RemoveAllListeners();
+                    authoredJournalButton.onClick.AddListener(OpenJournal);
+                }
+                return;
+            }
+
             var canvasGo = new GameObject("CraftingCanvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             canvasGo.transform.SetParent(transform, false);
             _canvas = canvasGo.GetComponent<Canvas>();
@@ -2120,7 +2653,9 @@ private void ClaimTruckOutput()
             scaler.referenceResolution = new Vector2(1920, 1080);
             scaler.matchWidthOrHeight = 0.5f;
 
-            // 우하단 플레이어 인벤토리 (3칸만 보이고 나머지는 드래그/휠 스크롤)
+            // 우하단 플레이어 인벤토리 (3칸만 보이고 나머지는 드래그/휠 스크롤) - 에디터 HUD가 없을 때만 코드로 만든다
+            if (inventoryHud == null)
+            {
             GameObject playerPanel = CreatePanel(canvasGo.transform, "PlayerInventoryPanel",
                 new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f),
                 new Vector2(-20f, 20f), new Vector2(280f, 150f), new Color(0f, 0f, 0f, 0.65f));
@@ -2175,6 +2710,7 @@ private void ClaimTruckOutput()
 
             WheelToHorizontalScroll wheelAdapter = playerScrollGo.AddComponent<WheelToHorizontalScroll>();
             wheelAdapter.scrollRect = playerScroll;
+            }
 
             // 중앙 팝업
             _popupRoot = CreatePanel(canvasGo.transform, "InteractionPopup",
@@ -2259,8 +2795,19 @@ private void ClaimTruckOutput()
             rt.pivot = pivot;
             rt.anchoredPosition = anchoredPos;
             rt.sizeDelta = size;
-            go.GetComponent<Image>().color = color;
+            Image panelImage = go.GetComponent<Image>();
+            panelImage.color = color;
+            ApplyRounded(panelImage);
             return go;
+        }
+
+        // 둥근 9-slice 스프라이트가 지정돼 있으면 코드로 만든 Image에 씌운다.
+        private void ApplyRounded(Image image)
+        {
+            if (roundedSprite == null || image == null)
+                return;
+            image.sprite = roundedSprite;
+            image.type = Image.Type.Sliced;
         }
 
         private Text CreateText(
@@ -2342,6 +2889,7 @@ private void ClaimTruckOutput()
             rt.sizeDelta = new Vector2(size, size + 28);
             Image slotBg = go.GetComponent<Image>();
             slotBg.color = isSelected ? SlotSelectedColor : SlotNormalColor;
+            ApplyRounded(slotBg);
             LayoutElement le = go.GetComponent<LayoutElement>();
             le.preferredWidth = size;
             le.preferredHeight = size + 28;
@@ -2442,6 +2990,7 @@ private void ClaimTruckOutput()
 
             Image image = go.GetComponent<Image>();
             image.color = color;
+            ApplyRounded(image);
             Button button = go.GetComponent<Button>();
             button.targetGraphic = image;
             button.onClick.AddListener(onClick);

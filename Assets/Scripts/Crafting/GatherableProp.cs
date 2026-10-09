@@ -33,7 +33,8 @@ namespace CraftingSystem
                 // 조건(곡괭이 등급)을 못 맞추면 시간이 훨씬 오래 걸리고, 끝나도 아이템을 얻지 못한다(Interact에서 막는다).
                 if (tier > 0 && !GatherRules.MeetsRequirement(tier))
                     return Mathf.Max(gatherHoldSeconds, 1f) * GatherRules.UnmetTimeMultiplier;
-                return gatherHoldSeconds;
+                // 캘 수 있는 도구면 빠르게(요구 등급보다 좋은 도구일수록 더 빠르게)
+                return gatherHoldSeconds * GatherRules.ToolSpeedFactor(GatherRules.Player, tier);
             }
         }
 

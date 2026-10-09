@@ -170,6 +170,8 @@ MonoBehaviour:
   maxLifetime: 2
   stickOnHit: 0
   stuckLifetime: 2
+  hitVfxPrefab: {fileID: 3077343761403282166, guid: f78aaaec3b393e24ca74cd6de8194347, type: 3}
+  hitVfxScale: 0.35
 --- !u!1 &2717038857298970146
 GameObject:
   m_ObjectHideFlags: 0

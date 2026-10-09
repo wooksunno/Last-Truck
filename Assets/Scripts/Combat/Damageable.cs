@@ -42,6 +42,13 @@ namespace Combat
             _rigidbody = GetComponent<Rigidbody>();
         }
 
+        /// <summary>최대 체력을 바꾸고 체력을 가득 채운다(허수아비처럼 쉽게 죽지 않는 대상을 만들 때).</summary>
+        public void SetMaxHealth(int value)
+        {
+            maxHealth = Mathf.Max(1, value);
+            _currentHealth = maxHealth;
+        }
+
         /// <summary>지정한 시간(초) 동안 이동을 묶는다. 겹쳐 걸리면 더 긴 쪽으로 갱신된다.</summary>
         public void Root(float duration)
         {

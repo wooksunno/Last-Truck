@@ -171,7 +171,10 @@ MonoBehaviour:
   arrowLength: 0.76370716
   gravity: 4
   maxLifetime: 4
+  stickOnHit: 1
   stuckLifetime: 2
+  hitVfxPrefab: {fileID: 0}
+  hitVfxScale: 0.35
 --- !u!1 &5207284597474971907
 GameObject:
   m_ObjectHideFlags: 0

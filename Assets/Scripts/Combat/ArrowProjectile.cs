@@ -86,9 +86,31 @@ namespace Combat
             return bestDist < float.MaxValue;
         }
 
+        [Header("적중 이펙트")]
+        [Tooltip("맞았을 때 맞은 지점에 한 번 터지는 이펙트(총알용). 비워두면 없음")]
+        [SerializeField] private GameObject hitVfxPrefab;
+        [SerializeField] private float hitVfxScale = 0.35f;
+
+        private void SpawnHitVfx(RaycastHit hit)
+        {
+            if (hitVfxPrefab == null)
+                return;
+
+            GameObject fx = Instantiate(hitVfxPrefab, hit.point + hit.normal * 0.05f, Quaternion.LookRotation(hit.normal));
+            fx.transform.localScale = Vector3.one * hitVfxScale;
+            Transform darkBack = fx.transform.Find("Darkback");
+            if (darkBack != null)
+                darkBack.gameObject.SetActive(false);
+            // 시작 버스트가 터진 뒤(0.08초) 방출을 멈춰 반복되지 않게 한다
+            fx.AddComponent<DelayedStopEmit>().Init(0.08f);
+            Destroy(fx, 1.2f);
+        }
+
         private void OnHit(RaycastHit hit, Vector3 dir)
         {
             _stuck = true;
+            SpawnHitVfx(hit);
+            CameraShake.Shake(0.05f);
 
             if (!stickOnHit)
             {
@@ -109,6 +131,30 @@ namespace Combat
                 target.TakeDamage(_damage, hit.point);
 
             Destroy(gameObject, stuckLifetime);
+        }
+    }
+}
+
+namespace Combat
+{
+    /// <summary>생성 후 지정한 시간이 지나면 하위 파티클의 방출만 멈춘다(남은 입자는 자연스럽게 사라짐).</summary>
+    public class DelayedStopEmit : MonoBehaviour
+    {
+        private float _stopAt;
+
+        public void Init(float seconds)
+        {
+            _stopAt = Time.time + seconds;
+        }
+
+        private void Update()
+        {
+            if (Time.time < _stopAt)
+                return;
+
+            foreach (ParticleSystem ps in GetComponentsInChildren<ParticleSystem>())
+                ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+            Destroy(this);
         }
     }
 }

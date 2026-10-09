@@ -276,8 +276,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 856eb99757da0c449bd690c02fdb4dac, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.PlayerInventory
-  maxSlots: 3
-  grantStarterItems: 1
+  maxSlots: 4
+  grantStarterItems: 0
   inventory:
     maxSlots: 32
     slots: []
@@ -297,20 +297,116 @@ MonoBehaviour:
   hitMask:
     serializedVersion: 2
     m_Bits: 4294967295
-  bowPrefab: {fileID: 0}
-  arrowPrefab: {fileID: 0}
+  bowPrefab: {fileID: 8054710306670101129, guid: 909b850cf7df8544398403031c27bca8, type: 3}
+  arrowPrefab: {fileID: 1229728463944274662, guid: 36a61e1a922736e4c98bc61b3262c9b5, type: 3}
   minArrowSpeed: 15
   maxArrowSpeed: 35
   maxDrawDistance: 0.25
-  carryTiltAngle: 50
+  carryTiltAngle: 10
   aimArmExtension: 0.8
   aimTorsoTwist: 60
   aimBlendTime: 0.15
-  rifleHeldPrefab: {fileID: 0}
-  bulletPrefab: {fileID: 0}
+  rifleHeldPrefab: {fileID: 7303979588510500063, guid: f067f3f223312f94b811e3f543d78187, type: 3}
+  bulletPrefab: {fileID: 8284179023095087468, guid: f64da22345d982648955f8310811656f, type: 3}
   bulletSpeed: 90
   rifleTorsoTwist: 50
   rifleGripOffset: {x: -0.08, y: 0, z: 0.14}
+  flamethrowerVfxPrefab: {fileID: 8400424712307853490, guid: 366377810aaf4fc4ab2be725a54c5712, type: 3}
+  flamethrowerVfxLength: 4.1
+  meleeHitVfxPrefab: {fileID: 3077343761403282166, guid: f78aaaec3b393e24ca74cd6de8194347, type: 3}
+  meleeHitVfxScale: 0.35
+  useAttackAnimations: 1
+  slashImpactDelay: 0.15
+  stabImpactDelay: 0.24
+  punchImpactDelay: 0.25
+  heldMelee:
+  - itemId: machete
+    prefab: {fileID: 919132149155446097, guid: c85b70d5b9e5dda4d91f7d8ad5b574db, type: 3}
+    localPosition: {x: 0, y: 0, z: 0}
+    localEuler: {x: 0, y: 0, z: 0}
+    scale: 1
+    isGun: 0
+    casing: 0
+  - itemId: flame_machete
+    prefab: {fileID: 919132149155446097, guid: c85b70d5b9e5dda4d91f7d8ad5b574db, type: 3}
+    localPosition: {x: 0, y: 0, z: 0}
+    localEuler: {x: 0, y: 0, z: 0}
+    scale: 1
+    isGun: 0
+    casing: 0
+  - itemId: vibration_blade
+    prefab: {fileID: 919132149155446097, guid: c85b70d5b9e5dda4d91f7d8ad5b574db, type: 3}
+    localPosition: {x: 0, y: 0, z: 0}
+    localEuler: {x: 0, y: 0, z: 0}
+    scale: 1.15
+    isGun: 0
+    casing: 0
+  - itemId: wood_spear
+    prefab: {fileID: 919132149155446097, guid: 513bc70d3ef780943a201812e5d0aa8a, type: 3}
+    localPosition: {x: 0, y: 0, z: 0}
+    localEuler: {x: 0, y: 0, z: 0}
+    scale: 1
+    isGun: 0
+    casing: 0
+  - itemId: pistol
+    prefab: {fileID: 919132149155446097, guid: b590ce5c19dad7d45b164a9b956e0d02, type: 3}
+    localPosition: {x: 0, y: 0.03, z: 0.1}
+    localEuler: {x: 0, y: 0, z: 0}
+    scale: 1
+    isGun: 1
+    casing: 1
+  - itemId: ak47
+    prefab: {fileID: 919132149155446097, guid: f9db856176e3d3749a175be33539dc4b, type: 3}
+    localPosition: {x: 0, y: 0.03, z: 0.1}
+    localEuler: {x: 0, y: 0, z: 0}
+    scale: 1
+    isGun: 1
+    casing: 2
+  - itemId: shredder_drill_launcher
+    prefab: {fileID: 919132149155446097, guid: 109dc06e76a9f9e4ea506f0800eb92f8, type: 3}
+    localPosition: {x: 0, y: 0.03, z: 0.1}
+    localEuler: {x: 0, y: 0, z: 0}
+    scale: 1
+    isGun: 1
+    casing: 0
+  - itemId: iron_field_cannon
+    prefab: {fileID: 919132149155446097, guid: c51bf746c84622c46b1a136133213522, type: 3}
+    localPosition: {x: 0, y: 0.03, z: 0.1}
+    localEuler: {x: 0, y: 0, z: 0}
+    scale: 1.15
+    isGun: 1
+    casing: 0
+  - itemId: platinum_rail_cannon
+    prefab: {fileID: 919132149155446097, guid: 830a0cc9612e0e94a831d70320fc6d4b, type: 3}
+    localPosition: {x: 0, y: 0.03, z: 0.1}
+    localEuler: {x: 0, y: 0, z: 0}
+    scale: 1.15
+    isGun: 1
+    casing: 0
+  - itemId: flamethrower
+    prefab: {fileID: 919132149155446097, guid: c7ceb19274324fd429a4c46bc696ab51, type: 3}
+    localPosition: {x: 0, y: 0.03, z: 0.1}
+    localEuler: {x: 0, y: 0, z: 0}
+    scale: 1.05
+    isGun: 1
+    casing: 0
+  - itemId: chemical_sprayer
+    prefab: {fileID: 919132149155446097, guid: 5a1804900b45f144084ff43982b04c73, type: 3}
+    localPosition: {x: 0, y: 0.03, z: 0.1}
+    localEuler: {x: 0, y: 0, z: 0}
+    scale: 1.05
+    isGun: 1
+    casing: 0
+  muzzleFlashVfxPrefab: {fileID: 6980259576133684760, guid: 1f58a1dea6bbd9347843e4935585e6a2, type: 3}
+  muzzleFlashScale: 0.3
+  casingPistolPrefab: {fileID: 723937835086123482, guid: 262ae9658db111440bff8b4fcf8ffe87, type: 3}
+  casingRiflePrefab: {fileID: 1146512111665268432, guid: 4e34be2590efd8c4b94f4f84bf3bdf4a, type: 3}
+  gunKickBack: 0.14
+  gunKickPitch: 16
+  bulletHitVfxPrefab: {fileID: 3077343761403282166, guid: f78aaaec3b393e24ca74cd6de8194347, type: 3}
+  bulletHitVfxScale: 1
+  explosionVfxPrefab: {fileID: 5162910912013668194, guid: cf82839c411151342a7b2337bda9fb34, type: 3}
+  explosionVfxScale: 0.9
   chargingMoveSpeedMultiplier: 0.5
   meleeAutoFaceRange: 6
   attackRecoveryBase: 0.15

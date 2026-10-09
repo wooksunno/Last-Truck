@@ -20,13 +20,36 @@ namespace CraftingSystem
 
         private static Sprite _cachedCircleSprite;
 
+        [Header("에디터에서 미리 그려둔 UI (비워두면 코드로 생성)")]
+        [SerializeField] private GameObject authoredGaugeRoot;
+        [SerializeField] private Image authoredFill;
+        [SerializeField] private GameObject authoredLabelRoot;
+        [SerializeField] private Text authoredNameText;
+        [SerializeField] private Text authoredSubText;
+
 public void Initialize(LastTruck.PlayerInteract playerInteract, EatController eat = null, TrapController trap = null)
         {
             _playerInteract = playerInteract;
             _eat = eat;
             _trap = trap;
             if (_root == null)
-                BuildUI();
+            {
+                if (authoredGaugeRoot != null && authoredFill != null && authoredLabelRoot != null && authoredNameText != null && authoredSubText != null)
+                {
+                    _root = authoredGaugeRoot;
+                    _fillImage = authoredFill;
+                    _labelRoot = authoredLabelRoot;
+                    _nameText = authoredNameText;
+                    _subText = authoredSubText;
+                    _fillImage.fillAmount = 0f;
+                    _root.SetActive(false);
+                    _labelRoot.SetActive(false);
+                }
+                else
+                {
+                    BuildUI();
+                }
+            }
         }
 
         private void BuildUI()

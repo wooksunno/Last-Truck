@@ -14,6 +14,13 @@ namespace CraftingSystem
         [SerializeField] private float refreshInterval = 0.4f;
         [SerializeField] private float minimapPixelRadius = 100f;
 
+        [Header("에디터에서 미리 그려둔 UI (비워두면 코드로 생성)")]
+        [SerializeField] private RectTransform authoredDotLayer;
+        [SerializeField] private RectTransform authoredPlayerMarker;
+        [SerializeField] private RectTransform authoredTruckArrow;
+        [SerializeField] private RectTransform authoredTruckMarker;
+        [SerializeField] private Sprite dotSprite;
+
         private Transform _player;
         private Transform _truck;
 
@@ -38,7 +45,20 @@ namespace CraftingSystem
             _truck = truck;
 
             if (_dotLayer == null)
-                BuildUI();
+            {
+                if (authoredDotLayer != null && authoredPlayerMarker != null && authoredTruckArrow != null && authoredTruckMarker != null)
+                {
+                    _dotLayer = authoredDotLayer;
+                    _playerMarker = authoredPlayerMarker;
+                    _truckArrow = authoredTruckArrow;
+                    _truckMarker = authoredTruckMarker;
+                    _truckMarker.gameObject.SetActive(false);
+                }
+                else
+                {
+                    BuildUI();
+                }
+            }
 
             // CraftingSceneBootstrap은 실행 순서 -100으로 Awake()에서 미니맵을 초기화하므로,
             // MapGenerator.Start()가 자원 노드를 다 생성하기 전이다. 약간 지연 후 생성 완료 시점에 수집한다.
@@ -171,7 +191,8 @@ private void UpdateTruckArrow()
             rt.sizeDelta = new Vector2(9f, 9f);
 
             Image img = go.GetComponent<Image>();
-            img.sprite = GetCircleSprite();
+            img.sprite = dotSprite != null ? dotSprite : GetCircleSprite();
+            img.raycastTarget = false;
 
             _dotPool.Add(img);
             return img;
