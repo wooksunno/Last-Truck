@@ -38,5 +38,6 @@ namespace LastTruck.Networking
         Attack,
         Interact,
         TruckBrake,
+        Jump,
     }
 }

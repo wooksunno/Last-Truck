@@ -12,7 +12,8 @@ namespace LastTruck.Networking
     /// 내 캐릭터 (Input Authority = 나)
     ///  - 카메라가 따라가게 하고, HP바 / 인벤토리 UI / 미니맵 / 채집 진행 UI / 클릭 상호작용을 이 캐릭터에 연결한다.
     ///  - 호스트에게 "씬 로딩 끝, 준비됨"을 알린다 (모두 준비되면 낮 타이머가 시작된다).
-    ///  - 사망하면 조작 스크립트(무기/상호작용 등)를 끈다. 오브젝트는 몇 초 뒤 호스트가 없앤다.
+    ///  - 체력이 0이 되면 기절한다: 조작 스크립트(무기/상호작용 등)를 끄고, 동료가 옆에서 E를 reviveSeconds초 누르면
+    ///    체력 reviveHealthFraction으로 다시 일어난다 (끈 스크립트도 다시 켠다). 전원 기절이면 게임 오버.
     ///
     /// 다른 사람 캐릭터 (내 화면에 보이는 복제본)
     ///  - 키보드/마우스를 직접 읽는 컴포넌트(상호작용, 인벤토리 단축키, 무기, 근접 공격)를 끈다.
@@ -37,6 +38,7 @@ namespace LastTruck.Networking
         public static event Action<NetworkPlayer> LocalPlayerSpawned;
         public static event Action<NetworkPlayer> LocalPlayerDespawned;
         public static event Action<NetworkPlayer> LocalPlayerDied;
+        public static event Action<NetworkPlayer> LocalPlayerRevived;
 
         /// <summary>호스트 전용: 게임 씬 로딩을 마쳤다고 알려온 플레이어들.</summary>
         public static bool HasLoaded(PlayerRef player) => LoadedPlayers.Contains(player);
@@ -66,7 +68,42 @@ namespace LastTruck.Networking
             "PouchController",
         };
 
+        [Header("기절 / 부활")]
+        [Tooltip("동료가 옆에서 E를 이 시간(초) 동안 누르면 부활한다.")]
+        [SerializeField] private float reviveSeconds = 5f;
+        [Tooltip("부활할 때 체력 (최대 체력 대비 비율).")]
+        [Range(0.05f, 1f)]
+        [SerializeField] private float reviveHealthFraction = 0.3f;
+        [Tooltip("부활시키는 사람이 이 거리(m)보다 멀어지면 처음부터 다시.")]
+        [SerializeField] private float reviveRange = 2.5f;
+        [Tooltip("내가 기절해 있는 동안 화면을 흑백으로 바꾼다.")]
+        [SerializeField] private bool grayscaleWhenDowned = true;
+
+        /// <summary>지금 이 캐릭터를 살리고 있는 사람 (없으면 None).</summary>
+        [Networked] public PlayerRef Reviver { get; private set; }
+        [Networked] private TickTimer ReviveTimer { get; set; }
+
         private NetworkHealth _health;
+        private readonly List<UnityEngine.Behaviour> _downDisabledBehaviours = new List<UnityEngine.Behaviour>();
+
+        public float ReviveSeconds => reviveSeconds;
+        public float ReviveRange => reviveRange;
+        public bool GrayscaleWhenDowned => grayscaleWhenDowned;
+
+        /// <summary>기절해 있는가.</summary>
+        public bool IsDowned => Object != null && Object.IsValid && _health != null && _health.IsDead;
+
+        /// <summary>누군가 살리는 중이면 0~1 진행도, 아니면 0.</summary>
+        public float ReviveProgress01
+        {
+            get
+            {
+                if (!IsDowned || Reviver == PlayerRef.None || Runner == null) return 0f;
+                float? left = ReviveTimer.RemainingTime(Runner);
+                if (!left.HasValue) return 1f;
+                return 1f - Mathf.Clamp01(left.Value / Mathf.Max(0.01f, reviveSeconds));
+            }
+        }
 
         public PlayerRef Owner => Object != null ? Object.InputAuthority : PlayerRef.None;
         public bool IsLocal => Object != null && Object.HasInputAuthority;
@@ -96,7 +133,13 @@ namespace LastTruck.Networking
             if (!AllPlayers.Contains(this)) AllPlayers.Add(this);
             gameObject.name = $"Player_{Nickname}{(Object.HasInputAuthority ? " (나)" : string.Empty)}";
 
-            if (_health != null) _health.Died += OnDied;
+            if (_health != null)
+            {
+                _health.Died += OnDied;
+                _health.Revived += OnRevived;
+            }
+
+            if (GetComponent<PlayerReviver>() == null) gameObject.AddComponent<PlayerReviver>();
 
             if (Object.HasInputAuthority)
             {
@@ -132,7 +175,11 @@ namespace LastTruck.Networking
 
         private void Unregister()
         {
-            if (_health != null) _health.Died -= OnDied;
+            if (_health != null)
+            {
+                _health.Died -= OnDied;
+                _health.Revived -= OnRevived;
+            }
             AllPlayers.Remove(this);
             if (Local == this)
             {
@@ -153,15 +200,130 @@ namespace LastTruck.Networking
 
         #endregion
 
-        #region 사망
+        #region 기절 / 부활
 
         private void OnDied(NetworkHealth health)
         {
             if (!IsLocal) return;
 
             // 조작 불가: 무기/상호작용 등 입력을 읽는 스크립트를 끈다 (이동은 NetworkPlayerMovement가 막는다).
-            DisableLocalOnlyBehaviours();
+            // (트럭에서 내려지며 이미 목록에 들어간 것은 그대로 둔다)
+            foreach (UnityEngine.Behaviour behaviour in GetLocalOnlyBehaviours())
+            {
+                if (behaviour == null || !behaviour.enabled) continue;
+                behaviour.enabled = false;
+                if (!_downDisabledBehaviours.Contains(behaviour)) _downDisabledBehaviours.Add(behaviour);
+            }
             LocalPlayerDied?.Invoke(this);
+        }
+
+        private void OnRevived(NetworkHealth health)
+        {
+            if (!IsLocal) return;
+
+            // 기절할 때 끈 것만 다시 켠다. 트럭에 타 있으면 내릴 때 켜지도록 넘긴다.
+            foreach (UnityEngine.Behaviour behaviour in _downDisabledBehaviours)
+            {
+                if (behaviour == null) continue;
+                if (IsSeated)
+                {
+                    if (!_seatDisabledBehaviours.Contains(behaviour)) _seatDisabledBehaviours.Add(behaviour);
+                }
+                else
+                {
+                    behaviour.enabled = true;
+                }
+            }
+            _downDisabledBehaviours.Clear();
+            LocalPlayerRevived?.Invoke(this);
+        }
+
+        /// <summary>
+        /// 다른 스크립트가 잠깐 끈 컴포넌트를 다시 켜려 할 때: 지금 기절/탑승 중이면 바로 켜지 않고
+        /// 부활/하차할 때 같이 켜지도록 맡긴다 (예: 동료를 살리다가 내가 기절한 경우의 PlayerInteract).
+        /// </summary>
+        public void ReenableWhenAble(UnityEngine.Behaviour behaviour)
+        {
+            if (behaviour == null) return;
+            if (!IsAlive)
+            {
+                if (!_downDisabledBehaviours.Contains(behaviour)) _downDisabledBehaviours.Add(behaviour);
+            }
+            else if (_seatedApplied)
+            {
+                if (!_seatDisabledBehaviours.Contains(behaviour)) _seatDisabledBehaviours.Add(behaviour);
+            }
+            else
+            {
+                behaviour.enabled = true;
+            }
+        }
+
+        /// <summary>내 캐릭터가 이 (기절한) 동료를 살리기 시작/중단할 때 부른다 (PlayerReviver).</summary>
+        public void RequestRevive(bool start)
+        {
+            if (Object == null || !Object.IsValid) return;
+            if (start) RPC_BeginRevive();
+            else RPC_CancelRevive();
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_BeginRevive(RpcInfo info = default)
+        {
+            PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
+            if (!IsDowned || source == Owner) return;
+            if (Reviver != PlayerRef.None && Reviver != source) return; // 이미 다른 사람이 살리는 중
+
+            NetworkPlayer reviver = Find(source);
+            if (reviver == null || !reviver.IsAlive || reviver.IsSeated) return;
+            if (HorizontalDistance(reviver.transform.position, transform.position) > reviveRange + 1f) return;
+
+            if (Reviver != source)
+            {
+                Reviver = source;
+                ReviveTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0.1f, reviveSeconds));
+            }
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_CancelRevive(RpcInfo info = default)
+        {
+            PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
+            if (Reviver == source) ClearReviver();
+        }
+
+        public override void FixedUpdateNetwork()
+        {
+            if (!HasStateAuthority || Reviver == PlayerRef.None) return;
+
+            NetworkPlayer reviver = Find(Reviver);
+            bool valid = IsDowned && reviver != null && reviver.IsAlive && !reviver.IsSeated &&
+                         HorizontalDistance(reviver.transform.position, transform.position) <= reviveRange + 1f &&
+                         !NetworkGameState.IsGameOver;
+            if (!valid)
+            {
+                ClearReviver();
+                return;
+            }
+
+            if (ReviveTimer.Expired(Runner))
+            {
+                ClearReviver();
+                _health.Revive(reviveHealthFraction);
+            }
+        }
+
+        private void ClearReviver()
+        {
+            Reviver = PlayerRef.None;
+            ReviveTimer = TickTimer.None;
+        }
+
+        private static float HorizontalDistance(Vector3 a, Vector3 b)
+        {
+            a.y = 0f;
+            b.y = 0f;
+            return Vector3.Distance(a, b);
         }
 
         #endregion
@@ -230,11 +392,19 @@ namespace LastTruck.Networking
             {
                 if (collider != null) collider.enabled = true;
             }
-            if (IsAlive) // 탄 채로 죽었으면 조작 스크립트는 다시 켜지 않는다
+            if (IsAlive)
             {
                 foreach (UnityEngine.Behaviour behaviour in _seatDisabledBehaviours)
                 {
                     if (behaviour != null) behaviour.enabled = true;
+                }
+            }
+            else
+            {
+                // 탄 채로 기절했으면 지금은 켜지 않고, 부활할 때 다시 켠다.
+                foreach (UnityEngine.Behaviour behaviour in _seatDisabledBehaviours)
+                {
+                    if (behaviour != null && !_downDisabledBehaviours.Contains(behaviour)) _downDisabledBehaviours.Add(behaviour);
                 }
             }
             _seatHiddenRenderers.Clear();
@@ -300,6 +470,7 @@ namespace LastTruck.Networking
             LocalPlayerSpawned = null;
             LocalPlayerDespawned = null;
             LocalPlayerDied = null;
+            LocalPlayerRevived = null;
         }
 
         #endregion

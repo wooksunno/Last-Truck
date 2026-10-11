@@ -57,6 +57,58 @@ namespace LastTruck.Networking
             return spawned.gameObject;
         }
 
+        /// <summary>
+        /// 몬스터 한 마리의 스폰 기준점을 비중에 따라 고른다.
+        /// 후보: 걸어 다니는 플레이어 각각(standing), 기절한 플레이어 각각(downed), 트럭(truck, 탄 사람은 트럭으로 합침).
+        /// </summary>
+        public static Transform PickSpawnCenter(float standingWeight, float downedWeight, float truckWeight)
+        {
+            var candidates = new System.Collections.Generic.List<Transform>();
+            var weights = new System.Collections.Generic.List<float>();
+
+            foreach (NetworkPlayer player in NetworkPlayer.All)
+            {
+                if (player == null || player.Object == null || !player.Object.IsValid || player.IsSeated) continue;
+                float weight = player.IsDowned ? downedWeight : standingWeight;
+                if (weight <= 0f) continue;
+                candidates.Add(player.transform);
+                weights.Add(weight);
+            }
+
+            LastTruck.TruckInformation truck = Object.FindFirstObjectByType<LastTruck.TruckInformation>();
+            if (truck != null && truckWeight > 0f)
+            {
+                candidates.Add(truck.transform);
+                weights.Add(truckWeight);
+            }
+
+            if (candidates.Count == 0) return GetSpawnCenter();
+
+            float total = 0f;
+            foreach (float w in weights) total += w;
+            float roll = Random.value * total;
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                roll -= weights[i];
+                if (roll <= 0f) return candidates[i];
+            }
+            return candidates[candidates.Count - 1];
+        }
+
+        /// <summary>이 위치가 어떤 플레이어(기절 포함)와 distance보다 가까운가 (눈앞에 갑자기 생기지 않게).</summary>
+        public static bool IsNearAnyPlayer(Vector3 position, float distance)
+        {
+            float sqr = distance * distance;
+            foreach (NetworkPlayer player in NetworkPlayer.All)
+            {
+                if (player == null || player.IsSeated) continue;
+                Vector3 d = player.transform.position - position;
+                d.y = 0f;
+                if (d.sqrMagnitude < sqr) return true;
+            }
+            return false;
+        }
+
         /// <summary>멀티플레이에서 몬스터 스폰 기준점: 트럭 (없으면 내 캐릭터).</summary>
         public static Transform GetSpawnCenter()
         {

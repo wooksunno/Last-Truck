@@ -9,6 +9,7 @@ namespace LastTruck.Networking
     ///  - InGameMenu: ESC → 게임 나가기 확인
     ///  - TeammateNameplates: 동료 머리 위 이름표 + HP바
     ///  - MinimapTeammateMarkers: 미니맵에 동료 위치 점
+    ///  - PlayerStatusHud: 피격 효과 / 기절 안내 / 동료 살리기 진행도
     /// </summary>
     public static class InGameHud
     {
@@ -23,6 +24,7 @@ namespace LastTruck.Networking
             root.AddComponent<InGameMenu>();
             root.AddComponent<TeammateNameplates>();
             root.AddComponent<MinimapTeammateMarkers>();
+            PlayerStatusHud.Ensure(); // 피격/기절/동료 살리기 화면
         }
 
         #region 공용 도우미

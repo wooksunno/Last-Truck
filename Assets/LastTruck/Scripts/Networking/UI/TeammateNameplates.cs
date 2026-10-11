@@ -8,7 +8,7 @@ namespace LastTruck.Networking
     /// <summary>
     /// 동료 머리 위 이름표 + HP바 (내 캐릭터는 표시하지 않는다).
     ///  - 화면 위 캔버스에 그리고 매 프레임 캐릭터 머리 위치로 옮긴다 → 거리와 상관없이 글자가 또렷하다.
-    ///  - 트럭에 탄 동료, 죽은 동료, 카메라 뒤에 있는 동료는 숨긴다.
+    ///  - 트럭에 탄 동료, 카메라 뒤에 있는 동료는 숨긴다. 기절한 동료는 빨간 "(기절)" 표시 + 부활 진행도.
     ///  - HP는 NetworkHealth(호스트가 계산한 체력)를 그대로 쓴다.
     /// </summary>
     public class TeammateNameplates : MonoBehaviour
@@ -22,6 +22,8 @@ namespace LastTruck.Networking
         private static readonly Color BarBackground = new Color(0f, 0f, 0f, 0.6f);
         private static readonly Color BarHigh = new Color(0.35f, 0.85f, 0.4f);
         private static readonly Color BarLow = new Color(0.9f, 0.3f, 0.25f);
+        private static readonly Color DownedColor = new Color(1f, 0.35f, 0.3f);
+        private static readonly Color ReviveColor = new Color(0.4f, 0.75f, 1f);
 
         #endregion
 
@@ -79,7 +81,7 @@ namespace LastTruck.Networking
 
         private void UpdatePlate(NetworkPlayer player, Plate plate, Camera cam, float scale)
         {
-            bool visible = cam != null && player.IsAlive && !player.IsSeated;
+            bool visible = cam != null && !player.IsSeated;
             Vector3 screen = Vector3.zero;
             if (visible)
             {
@@ -94,11 +96,22 @@ namespace LastTruck.Networking
             plate.Root.position = new Vector3(screen.x, screen.y, 0f);
             plate.Root.localScale = Vector3.one * scale;
 
+            bool downed = player.IsDowned;
             string nickname = player.Nickname.ToString();
-            if (plate.ShownName != nickname)
+            string shown = downed ? nickname + " (기절)" : nickname;
+            if (plate.ShownName != shown)
             {
-                plate.ShownName = nickname;
-                plate.Name.text = nickname;
+                plate.ShownName = shown;
+                plate.Name.text = shown;
+                plate.Name.color = downed ? DownedColor : Color.white;
+            }
+
+            if (downed)
+            {
+                // 기절: HP바 자리에 부활 진행도 (아무도 안 살리면 0)
+                plate.Fill.fillAmount = player.ReviveProgress01;
+                plate.Fill.color = ReviveColor;
+                return;
             }
 
             NetworkHealth health = player.Health;

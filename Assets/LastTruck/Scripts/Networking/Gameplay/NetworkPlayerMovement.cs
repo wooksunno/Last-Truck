@@ -12,7 +12,8 @@ namespace LastTruck.Networking
     ///   호스트가 그 입력으로 모든 캐릭터를 움직인다. 내 캐릭터는 내 컴퓨터에서도 미리 움직여서(예측) 지연이 느껴지지 않는다.
     /// - 위치/회전은 NetworkCharacterController가, "걷기 키" 상태는 이 스크립트의 IsWalking이 모두에게 동기화된다.
     /// - 애니메이터의 isRun / isWalk는 동기화된 속도와 IsWalking으로 모든 컴퓨터에서 각자 계산한다.
-    /// - 사망했거나 게임이 아직 시작 전/끝난 뒤에는 움직이지 않는다 (중력만 적용).
+    /// - 기절했거나 게임이 아직 시작 전/끝난 뒤에는 움직이지 않는다 (중력만 적용).
+    /// - Space: 점프 (땅에 있을 때만). 점프 횟수(JumpCount)가 동기화되어 모든 화면에서 점프 애니메이션이 나온다.
     /// - 트럭에 타 있으면 좌석 위치에 붙어 있고 충돌을 끈다 (NetworkTruck).
     ///
     /// 기존 싱글플레이 PlayerMove와 같은 속도 규칙: 이동 속도 = Character.CurrentMoveSpeed (스탯 moveSpeed × 0.3), 걷기 = × 0.3.
@@ -32,7 +33,17 @@ namespace LastTruck.Networking
         [Tooltip("이 속도(m/s)보다 빠르게 움직이고 있으면 달리기 애니메이션.")]
         [SerializeField] private float runAnimationThreshold = 0.15f;
 
+        [Header("점프")]
+        [Tooltip("점프할 때 위로 주는 속도 (m/s). NetworkCharacterController의 중력과 함께 점프 높이를 정한다.")]
+        [SerializeField] private float jumpImpulse = 9f;
+        [Tooltip("점프할 때 재생할 애니메이터 상태 이름 (없으면 애니메이션 없이 점프만).")]
+        [SerializeField] private string jumpStateName = "Jumping Up";
+
         [Networked] public NetworkBool IsWalking { get; set; }
+        [Networked] private NetworkButtons PreviousButtons { get; set; }
+        [Networked] private int JumpCount { get; set; }
+
+        private int _shownJumpCount = -1;
 
         private NetworkCharacterController _controller;
         private CharacterController _characterController;
@@ -91,6 +102,8 @@ namespace LastTruck.Networking
         public override void Spawned()
         {
             if (_animator != null) _animator.applyRootMotion = false;
+            if (_controller != null) _controller.jumpImpulse = jumpImpulse;
+            _shownJumpCount = JumpCount; // 늦게 보이기 시작한 사람이 지난 점프를 다시 재생하지 않게
         }
 
         #endregion
@@ -137,6 +150,15 @@ namespace LastTruck.Networking
             velocity.x = direction.x * speed;
             velocity.z = direction.z * speed;
             _controller.Velocity = velocity;
+
+            // 점프: 이번 틱에 새로 눌렸고 땅에 있으면
+            bool jumpPressed = input.Buttons.WasPressed(PreviousButtons, NetworkInputButton.Jump);
+            PreviousButtons = input.Buttons;
+            if (jumpPressed && _controller.Grounded)
+            {
+                _controller.Jump();
+                JumpCount++;
+            }
 
             _controller.Move(direction);
 
@@ -186,9 +208,24 @@ namespace LastTruck.Networking
         public override void Render()
         {
             if (_animator == null) return;
+
+            if (_shownJumpCount != JumpCount)
+            {
+                bool first = _shownJumpCount < 0;
+                _shownJumpCount = JumpCount;
+                if (!first) PlayJumpAnimation();
+            }
+
             bool alive = (_health == null || !_health.IsDead) && !NetworkTruck.IsSeated(Object.InputAuthority);
             _animator.SetBool(IsRunHash, alive && HorizontalSpeed > runAnimationThreshold);
             _animator.SetBool(IsWalkHash, alive && IsWalking);
+        }
+
+        private void PlayJumpAnimation()
+        {
+            if (string.IsNullOrEmpty(jumpStateName)) return;
+            int hash = Animator.StringToHash(jumpStateName);
+            if (_animator.HasState(0, hash)) _animator.CrossFadeInFixedTime(hash, 0.05f, 0);
         }
 
         #endregion

@@ -23,9 +23,16 @@ namespace LastTruck.Networking
     ///  - 플레이어: NetworkHealth 피해 (피격 연출은 모두에게), 트럭: TruckInformation.Take_Damage.
     ///  - 공격 사거리에서 멈추므로 플레이어 몸을 파고들거나 밀지 않는다 (플레이어는 CharacterController라 밀리지도 않음).
     ///
-    /// 애니메이션 (Monster Animator: Speed float / Attack trigger)
+    /// 애니메이션 (Monster Animator2: Speed float / Attack trigger / Hit trigger / Dead bool)
     ///  - 이동 속도는 호스트가 [Networked] MoveSpeed로 보내고, 모든 화면이 Speed 파라미터에 넣는다 (Idle ↔ Walk).
-    ///  - 공격은 RPC로 모두에게 Attack 트리거.
+    ///  - 공격/피격은 RPC로 모두에게 트리거, 사망은 NetworkHealth.IsDead로 모두에게.
+    ///  - 클립/타이밍은 같은 오브젝트의 MonsterAnimationSet에서 읽는다 (없으면 아래 기본값).
+    ///
+    /// 경직 (호스트)
+    ///  - 맞으면 피격 클립 길이만큼 멈춘다. 타격 순간 전이었으면 그 공격은 취소된다.
+    ///  - 경직이 끝난 뒤 MonsterAnimationSet.stunImmunitySeconds 동안은 다시 경직되지 않는다.
+    ///
+    /// 사망: 사망 클립을 끝까지 재생한 뒤 사라진다 (그동안 충돌 끔).
     ///
     /// 싱글플레이(오프라인)에서는 이 스크립트가 아무것도 하지 않고 기존 MonsterAI가 동작한다.
     /// </summary>
@@ -77,7 +84,17 @@ namespace LastTruck.Networking
         // 애니메이션
         private static readonly int SpeedHash = Animator.StringToHash("Speed");
         private static readonly int AttackHash = Animator.StringToHash("Attack");
+        private static readonly int HitHash = Animator.StringToHash("Hit");
+        private static readonly int DeadHash = Animator.StringToHash("Dead");
         private Animator _animator;
+        private MonsterAnimationSet _animSet;
+        private bool _deathApplied;
+
+        // 경직 (호스트)
+        private float _stunDuration = 0.4f;
+        private float _stunImmunity = 1f;
+        private float _stunUntil;
+        private float _stunImmuneUntil;
         private float _hitDelay;
         private float _attackDuration;
         private float _shownSpeed;
@@ -102,6 +119,7 @@ namespace LastTruck.Networking
             _health = GetComponent<NetworkHealth>();
             _damageable = GetComponent<Combat.Damageable>();
             _animator = GetComponentInChildren<Animator>();
+            _animSet = GetComponent<MonsterAnimationSet>();
             ReadAttackTiming();
         }
 
@@ -110,6 +128,17 @@ namespace LastTruck.Networking
         {
             _hitDelay = defaultHitDelay;
             _attackDuration = defaultAttackDuration;
+
+            if (_animSet != null)
+            {
+                _attackDuration = _animSet.AttackDuration;
+                _hitDelay = Mathf.Min(_animSet.AttackHitDelay, _attackDuration);
+                _stunDuration = _animSet.StunDuration;
+                _stunImmunity = _animSet.stunImmunitySeconds;
+                attackCooldown = Mathf.Max(attackCooldown, _attackDuration);
+                return;
+            }
+
             if (_animator == null || _animator.runtimeAnimatorController == null) return;
 
             foreach (AnimationClip clip in _animator.runtimeAnimatorController.animationClips)
@@ -132,11 +161,21 @@ namespace LastTruck.Networking
             MonsterAI legacy = GetComponent<MonsterAI>();
             if (legacy != null) legacy.enabled = false;
 
+            // 트럭과 물리 충돌하지 않게 (트럭이 몬스터에 올라타 튀지 않게)
+            TruckStabilizer.IgnoreMonster(gameObject);
+
             if (!HasStateAuthority)
             {
                 // 클라이언트: 위치는 호스트에서 받아오므로 길찾기를 끈다.
                 if (_agent != null) _agent.enabled = false;
                 return;
+            }
+
+            if (_health != null)
+            {
+                _health.DamagedOnHost += OnDamagedOnHost;
+                // 사망 애니메이션을 끝까지 보여준 뒤 사라지게
+                if (_animSet != null) _health.DespawnDelay = _animSet.DeathDuration + _animSet.corpseLingerSeconds;
             }
 
             // 길찾기 에이전트는 경로 계산만 하고, 실제 위치는 네트워크 틱(FixedUpdateNetwork)에서 옮긴다.
@@ -160,6 +199,33 @@ namespace LastTruck.Networking
             }
         }
 
+        public override void Despawned(NetworkRunner runner, bool hasState)
+        {
+            if (_health != null) _health.DamagedOnHost -= OnDamagedOnHost;
+        }
+
+        #endregion
+
+        #region 호스트: 경직
+
+        /// <summary>호스트: 피해를 받은 순간. 면역 시간이 아니면 경직 (진행 중인 공격은 타격 전이면 취소).</summary>
+        private void OnDamagedOnHost(float amount)
+        {
+            if (_health == null || _health.IsDead || _health.Current <= 0f) return;
+            if (Time.time < _stunImmuneUntil) return;
+
+            if (_pendingTarget != AttackTarget.None)
+            {
+                _pendingTarget = AttackTarget.None; // 타격 전에 맞았다 → 공격 취소
+                _pendingPlayer = null;
+            }
+            _attackLockUntil = 0f;
+            _stunUntil = Time.time + _stunDuration;
+            _stunImmuneUntil = _stunUntil + _stunImmunity;
+            _nextAttackTime = Mathf.Max(_nextAttackTime, _stunUntil);
+            RPC_PlayHit();
+        }
+
         #endregion
 
         #region 호스트: 추적 / 공격
@@ -180,6 +246,16 @@ namespace LastTruck.Networking
                 if (!_agent.isStopped) _agent.isStopped = true;
                 _pendingTarget = AttackTarget.None;
                 MoveSpeed = 0f;
+                return;
+            }
+
+            // 경직 중: 제자리 (공격/이동 없음)
+            if (Time.time < _stunUntil)
+            {
+                if (!_agent.isStopped) _agent.isStopped = true;
+                _agent.velocity = Vector3.zero;
+                MoveSpeed = 0f;
+                ApplyAgentMovement();
                 return;
             }
 
@@ -355,13 +431,34 @@ namespace LastTruck.Networking
             if (_animator != null && _animator.isActiveAndEnabled) _animator.SetTrigger(AttackHash);
         }
 
-        public override void Render()
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_PlayHit()
         {
             if (_animator == null || !_animator.isActiveAndEnabled) return;
+            _animator.ResetTrigger(AttackHash); // 공격이 취소되었으면 아직 안 나간 공격 모션도 취소
+            _animator.SetTrigger(HitHash);
+        }
+
+        public override void Render()
+        {
             bool dead = _health != null && _health.IsDead;
+            if (dead && !_deathApplied) ApplyDeath();
+
+            if (_animator == null || !_animator.isActiveAndEnabled) return;
             float target = dead ? 0f : MoveSpeed;
             _shownSpeed = Mathf.MoveTowards(_shownSpeed, target, 20f * Time.deltaTime);
             _animator.SetFloat(SpeedHash, _shownSpeed);
+            _animator.SetBool(DeadHash, dead);
+        }
+
+        /// <summary>모든 화면: 사망 애니메이션 동안 총알/근접이 시체에 맞지 않게 충돌을 끈다.</summary>
+        private void ApplyDeath()
+        {
+            _deathApplied = true;
+            foreach (Collider collider in GetComponentsInChildren<Collider>())
+            {
+                if (collider != null) collider.enabled = false;
+            }
         }
 
         // 공격 클립(Monster Attack)의 애니메이션 이벤트. 피해 판정은 호스트에서만.

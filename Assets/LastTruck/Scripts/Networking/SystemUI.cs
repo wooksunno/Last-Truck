@@ -49,6 +49,7 @@ namespace LastTruck.Networking
             public string CancelLabel; // null이면 알림(버튼 1개)
             public Action OnConfirm;
             public Action OnCancel;
+            public string Tag; // Dismiss(tag)로 한꺼번에 닫을 때 쓰는 이름 (없으면 null)
         }
 
         private readonly Queue<PopupRequest> _popupQueue = new Queue<PopupRequest>();
@@ -138,10 +139,11 @@ namespace LastTruck.Networking
         }
 
         public void EnqueueConfirm(string title, string message, Action onYes, Action onNo = null,
-            string yesLabel = "예", string noLabel = "아니오")
+            string yesLabel = "예", string noLabel = "아니오", string tag = null)
         {
             Enqueue(new PopupRequest
             {
+                Tag = tag,
                 Title = title,
                 Message = message,
                 ConfirmLabel = yesLabel,
@@ -186,6 +188,29 @@ namespace LastTruck.Networking
         {
             var rt = (RectTransform)button.transform;
             rt.anchoredPosition = new Vector2(x, rt.anchoredPosition.y);
+        }
+
+        /// <summary>이 tag가 붙은 팝업(떠 있는 것 + 대기 중인 것)을 버튼 콜백 없이 닫는다.</summary>
+        public void DismissTagged(string tag)
+        {
+            if (string.IsNullOrEmpty(tag)) return;
+
+            if (_popupQueue.Count > 0)
+            {
+                var keep = new Queue<PopupRequest>();
+                foreach (PopupRequest request in _popupQueue)
+                {
+                    if (request.Tag != tag) keep.Enqueue(request);
+                }
+                _popupQueue.Clear();
+                foreach (PopupRequest request in keep) _popupQueue.Enqueue(request);
+            }
+
+            if (_currentPopup != null && _currentPopup.Tag == tag)
+            {
+                _currentPopup = null;
+                ShowNextPopup();
+            }
         }
 
         private void OnPopupConfirmClicked() => ClosePopup(true);
@@ -234,10 +259,16 @@ namespace LastTruck.Networking
             }
         }
 
-        public static void Confirm(string title, string message, Action onYes, Action onNo = null,
-            string yesLabel = "예", string noLabel = "아니오")
+        /// <summary>이 tag가 붙은 팝업을 닫는다 (예: 호스트가 나가면 "게임 나가기" 확인 창을 닫음).</summary>
+        public static void Dismiss(string tag)
         {
-            if (Instance != null) Instance.EnqueueConfirm(title, message, onYes, onNo, yesLabel, noLabel);
+            if (Instance != null) Instance.DismissTagged(tag);
+        }
+
+        public static void Confirm(string title, string message, Action onYes, Action onNo = null,
+            string yesLabel = "예", string noLabel = "아니오", string tag = null)
+        {
+            if (Instance != null) Instance.EnqueueConfirm(title, message, onYes, onNo, yesLabel, noLabel, tag);
             else
             {
                 Debug.LogWarning($"[SystemUI] (확인 팝업 - UI 없음, 자동으로 '예' 처리) {title}: {message}");

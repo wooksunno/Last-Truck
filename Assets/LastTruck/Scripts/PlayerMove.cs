@@ -18,6 +18,17 @@ namespace LastTruck
         [SerializeField] private float groundCheckDistance = 0.3f;
         [SerializeField] private LayerMask groundMask = ~0;
 
+        [Header("점프 (싱글플레이. 멀티플레이는 NetworkPlayerMovement)")]
+        [SerializeField] private KeyCode jumpKey = KeyCode.Space;
+        [Tooltip("점프할 때 위로 주는 속도 (m/s).")]
+        [SerializeField] private float jumpVelocity = 6.5f;
+        [Tooltip("점프할 때 재생할 애니메이터 상태 이름.")]
+        [SerializeField] private string jumpStateName = "Jumping Up";
+
+        private bool _jumpRequested;
+        private bool _jumping;
+        private float _jumpStartTime;
+
         private CapsuleCollider _capsule;
         private bool _grounded;
         private Vector3 _groundNormal = Vector3.up;
@@ -231,6 +242,8 @@ namespace LastTruck
             // 멀티플레이: 이동/애니메이션은 NetworkPlayerMovement가 한다 (이동 잠금 상태는 IsMovementBlocked로 전달).
             if (_networkControlled) return;
 
+            if (!shouldLockMovement && Input.GetKeyDown(jumpKey)) _jumpRequested = true;
+
             if (anim != null)
             {
                 bool isMoving = (hAxis != 0 || vAxis != 0);
@@ -295,7 +308,28 @@ namespace LastTruck
 
             CheckGround();
 
-            if (_grounded)
+            // 점프 직후 잠깐은 땅에 붙이지 않는다 (붙이면 바로 다시 땅으로 끌려 내려옴)
+            if (_jumping && _grounded && Time.time - _jumpStartTime > 0.15f) _jumping = false;
+            if (_jumpRequested)
+            {
+                _jumpRequested = false;
+                if (_grounded && !_jumping)
+                {
+                    _jumping = true;
+                    _jumpStartTime = Time.time;
+                    targetVelocity.y = jumpVelocity;
+                    rigidbody.useGravity = true;
+                    PlayJumpAnimation();
+#if UNITY_6000_0_OR_NEWER
+                    rigidbody.linearVelocity = targetVelocity;
+#else
+                    rigidbody.velocity = targetVelocity;
+#endif
+                    return;
+                }
+            }
+
+            if (_grounded && !_jumping)
             {
                 // 땅 위: 경사면을 따라 이동하고, 마찰 0이어도 미끄러지지 않도록 중력 대신 땅에 붙여준다
                 rigidbody.useGravity = false;
@@ -310,13 +344,14 @@ namespace LastTruck
             else
             {
                 rigidbody.useGravity = true;
-                // 점프가 없으므로 공중에서는 위로 올라가지 않는다.
+                // 점프 중이 아니면 공중에서 위로 올라가지 않는다.
                 // (경사로/레일 끝에서 오르던 속도나 충돌 밀어내기 때문에 몸이 붕 뜨는 현상 방지)
 #if UNITY_6000_0_OR_NEWER
-                targetVelocity.y = Mathf.Min(rigidbody.linearVelocity.y, 0f);
+                float currentY = rigidbody.linearVelocity.y;
 #else
-                targetVelocity.y = Mathf.Min(rigidbody.velocity.y, 0f);
+                float currentY = rigidbody.velocity.y;
 #endif
+                targetVelocity.y = _jumping ? currentY : Mathf.Min(currentY, 0f);
             }
 
             // Unity 버전 호환성 지원 (linearVelocity / velocity)
@@ -331,6 +366,13 @@ namespace LastTruck
                 Quaternion targetRotation = Quaternion.LookRotation(moveVec);
                 rigidbody.MoveRotation(Quaternion.Slerp(rigidbody.rotation, targetRotation, Time.fixedDeltaTime * 15f));
             }
+        }
+
+        private void PlayJumpAnimation()
+        {
+            if (anim == null || string.IsNullOrEmpty(jumpStateName)) return;
+            int hash = Animator.StringToHash(jumpStateName);
+            if (anim.HasState(0, hash)) anim.CrossFadeInFixedTime(hash, 0.05f, 0);
         }
 
         // 캡슐 아래쪽 구의 중심 (월드 좌표)

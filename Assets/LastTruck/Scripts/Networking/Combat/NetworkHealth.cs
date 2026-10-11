@@ -13,6 +13,7 @@ namespace LastTruck.Networking
     ///  - 피해가 적용되면 호스트가 모두에게 "맞았다" 효과를 보낸다 → 각자 화면에서 빨간색 깜빡임/데미지 숫자/피격 애니메이션.
     ///  - 플레이어끼리는 피해를 줄 수 없다 (팀킬 금지).
     ///  - 체력이 0이 되면 IsDead가 켜지고(모두에게 사망 연출), despawnDelay초 뒤 호스트가 오브젝트를 없앤다.
+    ///  - 플레이어는 죽지 않고 "기절"한다: IsDead = 기절 상태, 오브젝트는 남고 동료가 살리면(Revive) 다시 일어난다.
     ///
     /// 화면 반영은 같은 오브젝트의 INetworkHealthListener(PlayerStats, Damageable)가 한다.
     /// </summary>
@@ -60,6 +61,22 @@ namespace LastTruck.Networking
 
         /// <summary>사망 (호스트에서만, 체력이 0이 되는 순간 정확히 한 번). 킬 집계 등 게임 규칙용.</summary>
         public event Action<NetworkHealth> DiedOnHost;
+
+        /// <summary>기절에서 부활 (모든 컴퓨터). 플레이어 전용.</summary>
+        public event Action<NetworkHealth> Revived;
+
+        /// <summary>피해가 적용된 순간 (호스트에서만, 피해량). 몬스터 경직 등 게임 규칙용.</summary>
+        public event Action<float> DamagedOnHost;
+
+        /// <summary>플레이어는 체력 0 = 기절 (사라지지 않고 부활할 수 있음).</summary>
+        public bool IsDowned => isPlayer && IsDead;
+
+        /// <summary>사망 후 사라지기까지 시간 (몬스터 사망 애니메이션 길이에 맞춰 바꿀 수 있다).</summary>
+        public float DespawnDelay
+        {
+            get => despawnDelay;
+            set => despawnDelay = Mathf.Max(0.05f, value);
+        }
 
         public bool IsPlayer => isPlayer;
         public bool IsAlive => Object != null && Object.IsValid && !IsDead;
@@ -156,14 +173,26 @@ namespace LastTruck.Networking
 
             Current = Mathf.Max(0f, Current - amount);
             RPC_PlayHit(amount, hitPoint);
+            try { DamagedOnHost?.Invoke(amount); }
+            catch (Exception e) { Debug.LogException(e); }
 
             if (Current <= 0f)
             {
                 IsDead = true;
-                DespawnTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0.05f, despawnDelay));
+                // 플레이어는 사라지지 않고 기절한 채로 남는다 (동료가 살릴 수 있음).
+                DespawnTimer = isPlayer ? TickTimer.None : TickTimer.CreateFromSeconds(Runner, Mathf.Max(0.05f, despawnDelay));
                 try { DiedOnHost?.Invoke(this); }
                 catch (Exception e) { Debug.LogException(e); }
             }
+        }
+
+        /// <summary>호스트 전용: 기절한 플레이어를 최대 체력의 fraction만큼으로 일으킨다.</summary>
+        public void Revive(float fraction)
+        {
+            if (!HasStateAuthority || !IsDead || !isPlayer) return;
+            Current = Mathf.Max(1f, Max * Mathf.Clamp01(fraction));
+            IsDead = false;
+            DespawnTimer = TickTimer.None;
         }
 
         private void ApplyHeal(float amount)
@@ -200,7 +229,23 @@ namespace LastTruck.Networking
 
         private void OnDeadRender()
         {
-            if (!IsDead || _deathHandled) return;
+            if (!IsDead)
+            {
+                // 기절 → 부활
+                if (!_deathHandled) return;
+                _deathHandled = false;
+                foreach (INetworkHealthListener listener in _listeners)
+                {
+                    if (!(listener is INetworkReviveListener reviveListener)) continue;
+                    try { reviveListener.OnNetworkRevived(); }
+                    catch (Exception e) { Debug.LogException(e); }
+                }
+                try { Revived?.Invoke(this); }
+                catch (Exception e) { Debug.LogException(e); }
+                return;
+            }
+
+            if (_deathHandled) return;
             _deathHandled = true;
 
             foreach (INetworkHealthListener listener in _listeners)

@@ -109,7 +109,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Fusion.Unity::Fusion.NetworkCharacterController
   _stateAuthorityChangeErrorCorrectionDelta: 0
   gravity: -20
-  jumpImpulse: 0
+  jumpImpulse: 9
   acceleration: 100
   braking: 100
   maxSpeed: 6
@@ -132,6 +132,10 @@ MonoBehaviour:
       Data: 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
   _CharacterIndex: 0
   localOnlyBehaviours: []
+  reviveSeconds: 5
+  reviveHealthFraction: 0.3
+  reviveRange: 2.5
+  grayscaleWhenDowned: 1
 --- !u!114 &1032103219370665499
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -147,6 +151,8 @@ MonoBehaviour:
   walkSpeedMultiplier: 0.3
   fallbackMoveSpeed: 5
   runAnimationThreshold: 0.15
+  jumpImpulse: 9
+  jumpStateName: Jumping Up
   _IsWalking:
     RawValue: 0
 --- !u!114 &1526707239328083096
@@ -216,6 +222,9 @@ MonoBehaviour:
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
+  jumpKey: 32
+  jumpVelocity: 6
+  jumpStateName: Jumping Up
 --- !u!114 &5320129222086671205
 MonoBehaviour:
   m_ObjectHideFlags: 0

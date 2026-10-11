@@ -394,3 +394,20 @@ InRoom/InGame ─(RequestLeaveSession 또는 연결 끊김)─> Leaving ─> (Me
   공격 애니메이션 동안은 제자리, 쿨다운은 클립 길이 이상. 싱글플레이 MonsterAI도 Speed를 넣는다.
 - 지운 에디터 도구: 초상화 촬영, 캐릭터 선택 UI 설치, 0번 전체 설치, 게임 씬 설정/NavMesh 굽기(NavMesh는 Map의 NavMeshSurface 인스펙터 Bake로).
   남은 메뉴: `LastTruck > Multiplayer > 1. 네트워크 프리팹 생성`.
+
+### 12-7. 기절/부활, 피격 연출, 점프, 스폰 포인트, 몬스터 경직
+- **기절** (`NetworkHealth.IsDead` = 플레이어는 기절): 플레이어는 Despawn 안 함. `Revive(fraction)`(호스트), 이벤트 `Revived` / `DamagedOnHost(float)`,
+  `INetworkReviveListener.OnNetworkRevived`. `NetworkPlayer`: `[Networked] Reviver/ReviveTimer`, 인스펙터 reviveSeconds 5 / reviveHealthFraction 0.3 / reviveRange 2.5 / grayscaleWhenDowned.
+  기절 시 로컬 조작 스크립트를 끄고 부활 때 되돌림(`ReenableWhenAble`). 탑승 중 기절 → 트럭 옆으로.
+- `Gameplay/PlayerReviver.cs` (런타임 추가, 로컬만): 가까운 기절 동료 찾기 → E 누르는 동안 `RequestRevive(true)`(0.25초마다 재전송), 그동안 PlayerInteract 끔. 호스트가 거리/상태를 확인하고 타이머 만료 시 부활.
+- `UI/PlayerStatusHud.cs`: 피격 비네트 + 저체력 글로우, 기절 패널(부활 진행도, 싱글은 R 재시작), 부활 안내, 흑백 Volume(URP ColorAdjustments -100).
+  `PlayerStatusHud.PlayLocalHit()` = 비네트 + `CameraShake.Shake(0.08)`, `ShowDamageNumber()` = 머리 위 DamagePopup. PlayerStats가 호출 (숫자는 모두, 비네트/흔들림은 본인만).
+- 동료 표시: 이름표 "(기절)" 빨강 + 부활 진행도, 미니맵 빨간 점. 게임 오버 문구 "모든 플레이어가 기절했습니다."
+- **점프**: `NetworkInputButton.Jump`(Space), `NetworkPlayerMovement`가 `PreviousButtons`로 WasPressed + Grounded일 때 `Jump()` (jumpImpulse 6), `JumpCount`로 "Jumping Up" 애니. 싱글 PlayerMove도 Space.
+- **ESC 확인창**: `SystemUI` 팝업에 Tag, `SystemUI.Dismiss("LeaveGame")`를 게임 오버/호스트 끊김 때 호출.
+- **스폰 포인트** (`Multiplayer/Prefabs/SpawnPoints/`): `PlayerSpawnPoint`(size/minSpacing 상자 안 랜덤 + 바닥 스냅, 게임 시작 후 삭제), `TruckSpawnPoint`(Awake에 트럭 이동 후 삭제). 기즈모로 범위 표시. `PlayerSpawnArea`가 우선 사용.
+- **몬스터 스폰 기준점**: `MonsterSpawner` standingPlayerWeight / downedPlayerWeight / truckWeight, 몬스터마다 기준점 선택, 플레이어 minDistance 안 제외 (`NetworkMonsterSpawning.PickSpawnCenter/IsNearAnyPlayer`).
+- **새 몬스터** `LastTruck/Monster/Prefab/Base mesh MonsterMutant7 skin2` + `Monster Animator2` (Speed/Attack/Hit/Dead, idle3·walk4·attack3·gethit1·death1).
+  FBX 클립 이름이 전부 "Take 001"이라 `MonsterAnimationSet` 컴포넌트에 클립을 직접 연결 (attackHitTiming 0.45, stunImmunitySeconds 1, corpseLingerSeconds 0.5).
+  경직: 호스트 `DamagedOnHost` → 공격 취소 + `RPC_PlayHit`, 사망: `Dead` + 콜라이더 끔, DespawnDelay = 사망 클립 + 0.5초. 싱글 MonsterAI도 Damageable `Damaged/Died` 이벤트로 동일.
+  메뉴 1이 원본에 콜라이더가 없으면 CapsuleCollider를 맞춰 추가하고, 원본이 바뀌면 Monster_Network를 다시 만든다.

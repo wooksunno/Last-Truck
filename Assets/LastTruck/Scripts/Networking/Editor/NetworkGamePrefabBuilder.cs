@@ -29,7 +29,7 @@ namespace LastTruck.Networking.EditorTools
         public const string GameStatePrefabPath = LobbyEditorUI.Root + "/Prefabs/NetworkGameState.prefab";
         public const string MonsterPrefabDir = LobbyEditorUI.Root + "/Prefabs/Monsters";
         public const string MonsterPrefabPath = MonsterPrefabDir + "/Monster_Network.prefab";
-        private const string DefaultMonsterSourcePath = "Assets/Mr.No/Monster/Monster.prefab";
+        private const string DefaultMonsterSourcePath = "Assets/LastTruck/Monster/Prefab/Base mesh MonsterMutant7 skin2.prefab";
 
         #endregion
 
@@ -149,10 +149,25 @@ namespace LastTruck.Networking.EditorTools
 
         private static NetworkObject EnsureMonsterPrefab(StringBuilder log)
         {
+            GameObject source = FindMonsterSource();
+            if (source != null) EnsureMonsterCollider(AssetDatabase.GetAssetPath(source), log);
+
             GameObject existing = AssetDatabase.LoadAssetAtPath<GameObject>(MonsterPrefabPath);
+
+            // 원본 몬스터 프리팹이 바뀌었으면 (예: 새 모델) 네트워크 몬스터를 새 원본으로 다시 만든다.
+            if (existing != null && source != null)
+            {
+                GameObject currentBase = PrefabUtility.GetCorrespondingObjectFromSource(existing);
+                if (currentBase != source) // 원본이 다르거나, 예전 원본이 지워졌거나(null)
+                {
+                    AssetDatabase.DeleteAsset(MonsterPrefabPath);
+                    existing = null;
+                    log.AppendLine($"- 몬스터 원본이 바뀌어 네트워크 몬스터를 다시 만듭니다 ({(currentBase != null ? currentBase.name : "없음")} → {source.name})");
+                }
+            }
+
             if (existing == null)
             {
-                GameObject source = FindMonsterSource();
                 if (source == null)
                 {
                     log.AppendLine("- 몬스터 원본 프리팹(MonsterAI가 붙은 프리팹)을 찾지 못해 네트워크 몬스터를 만들지 못했습니다.");
@@ -201,6 +216,44 @@ namespace LastTruck.Networking.EditorTools
 
             existing = AssetDatabase.LoadAssetAtPath<GameObject>(MonsterPrefabPath);
             return existing != null ? existing.GetComponent<NetworkObject>() : null;
+        }
+
+        /// <summary>
+        /// 몬스터에 충돌체가 없으면(새 모델 등) 무기에 맞을 수 있게 렌더러 크기에 맞춘 CapsuleCollider를 붙인다 (원본 프리팹에).
+        /// </summary>
+        private static void EnsureMonsterCollider(string sourcePath, StringBuilder log)
+        {
+            if (string.IsNullOrEmpty(sourcePath)) return;
+            GameObject contents = PrefabUtility.LoadPrefabContents(sourcePath);
+            try
+            {
+                foreach (Collider existing in contents.GetComponentsInChildren<Collider>(true))
+                {
+                    if (existing != null && !existing.isTrigger) return; // 이미 있음
+                }
+
+                Renderer[] renderers = contents.GetComponentsInChildren<Renderer>(true);
+                if (renderers.Length == 0) return;
+                Bounds bounds = renderers[0].bounds;
+                for (int i = 1; i < renderers.Length; i++) bounds.Encapsulate(renderers[i].bounds);
+
+                Transform root = contents.transform;
+                Vector3 localCenter = root.InverseTransformPoint(bounds.center);
+                float height = bounds.size.y / Mathf.Max(0.0001f, root.lossyScale.y);
+                float radius = Mathf.Min(bounds.size.x, bounds.size.z) * 0.35f / Mathf.Max(0.0001f, root.lossyScale.x);
+
+                CapsuleCollider capsule = contents.AddComponent<CapsuleCollider>();
+                capsule.direction = 1;
+                capsule.center = localCenter;
+                capsule.height = Mathf.Max(height, radius * 2f);
+                capsule.radius = Mathf.Max(0.2f, radius);
+                PrefabUtility.SaveAsPrefabAsset(contents, sourcePath);
+                log.AppendLine($"- 몬스터 원본({System.IO.Path.GetFileNameWithoutExtension(sourcePath)})에 충돌체가 없어 CapsuleCollider 추가 (높이 {capsule.height:0.0}m, 반지름 {capsule.radius:0.0}m)");
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(contents);
+            }
         }
 
         private static GameObject FindMonsterSource()
