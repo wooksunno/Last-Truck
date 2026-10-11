@@ -58,6 +58,11 @@ private System.Collections.IEnumerator ApplyStartingDamage()
             if (_stats == null || startingDamage <= 0f)
                 yield break;
 
+            // 멀티플레이: 체력은 호스트(NetworkHealth)가 관리한다. 여기서 내 화면 값만 깎으면 호스트는 체력이 가득 찬 상태라
+            // 먹어도 회복이 안 되고 음식만 사라진다. 테스트용 시작 피해는 싱글플레이에서만 준다.
+            if (LastTruck.Networking.GameLauncher.IsOnlineSession)
+                yield break;
+
             _stats.currentHealth = Mathf.Max(1f, _stats.MaxHealth - startingDamage);
             _stats.Heal(0f);
         }

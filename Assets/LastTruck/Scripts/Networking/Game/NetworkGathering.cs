@@ -13,6 +13,9 @@ namespace LastTruck.Networking
     ///  - 고갈/재생성은 모두에게 알려서 모든 화면에서 같이 사라지고 같이 생긴다.
     ///  - 노드는 모든 컴퓨터가 같은 시드로 같은 자리에 만들므로 "위치"로 같은 노드를 찾는다.
     ///
+    ///  - 일반 채집 프롭(GatherableProp: 캐면 사라지는 돌/나무/풀)은 먼저 캔 한 명만 받고 모든 화면에서 사라진다.
+    ///  - 덫(TrapController)은 호스트가 모두에게 같은 자리에 만들고, 밟았는지는 호스트가 판정한다.
+    ///
     /// 일반 자원(ResourceNode: 무한 채집)과 개인 가방/파우치/시설 가공은 각자 자기 컴퓨터에서 처리한다
     /// (다른 사람에게 영향이 없는 개인 상태라 동기화할 필요가 없다).
     /// </summary>
@@ -41,18 +44,24 @@ namespace LastTruck.Networking
         public override void Spawned()
         {
             Instance = this;
-            if (HasStateAuthority) SpecialResourceNode.DepletionChanged += OnHostDepletionChanged;
+            if (HasStateAuthority)
+            {
+                SpecialResourceNode.DepletionChanged += OnHostDepletionChanged;
+                TrapPlaced.Triggered += OnHostTrapTriggered;
+            }
         }
 
         public override void Despawned(NetworkRunner runner, bool hasState)
         {
             SpecialResourceNode.DepletionChanged -= OnHostDepletionChanged;
+            TrapPlaced.Triggered -= OnHostTrapTriggered;
             if (Instance == this) Instance = null;
         }
 
         private void OnDestroy()
         {
             SpecialResourceNode.DepletionChanged -= OnHostDepletionChanged;
+            TrapPlaced.Triggered -= OnHostTrapTriggered;
             if (Instance == this) Instance = null;
         }
 
@@ -102,8 +111,99 @@ namespace LastTruck.Networking
         private void HostGather(SpecialResourceNode node, PlayerInventory inventory)
         {
             if (!node.TryTakeHit(out ItemData gathered, out int amount)) return;
-            GiveToInventory(inventory, gathered, amount);
+            GiveToInventory(inventory, gathered, amount, true);
         }
+
+        #endregion
+
+        #region 일반 채집 프롭 (GatherableProp: 캐면 사라지는 돌/나무/풀)
+
+        /// <summary>
+        /// 멀티플레이면 프롭 채집을 네트워크로 처리하고 true. 싱글플레이면 false (기존 방식).
+        /// 먼저 요청이 도착한 사람만 아이템을 받고, 프롭은 모든 화면에서 사라진다.
+        /// </summary>
+        public static bool TryHandleProp(GatherableProp prop, PlayerInventory inventory, ItemData item)
+        {
+            if (!GameLauncher.IsOnlineSession || prop == null || inventory == null || item == null) return false;
+
+            if (!IsReady)
+            {
+                Debug.LogWarning("[NetworkGathering] 채집 동기화 오브젝트가 없습니다. 메뉴 1번을 다시 실행하세요. (지금은 내 화면에서만 처리)");
+                return false;
+            }
+
+            if (!NetworkGameState.AllowPlayerControl) return true;
+
+            if (!HasRoomFor(inventory.Inventory, item, prop.Amount))
+            {
+                Debug.LogWarning($"[GatherableProp] 인벤토리 공간이 부족하여 {item.itemName}을(를) 채집하지 못했습니다.");
+                return true;
+            }
+
+            if (Instance.HasStateAuthority)
+            {
+                if (prop.IsDone) return true;
+                Instance.RPC_PropRemoved(prop.transform.position);
+                prop.RemoveGathered();
+                GiveToInventory(inventory, item, prop.Amount, false);
+            }
+            else
+            {
+                TruckInventorySync.RememberLocalInventory(inventory);
+                Instance.RPC_RequestProp(prop.transform.position);
+            }
+            return true;
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_RequestProp(Vector3 propPosition, RpcInfo info = default)
+        {
+            PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
+            GatherableProp prop = FindProp(propPosition);
+            if (prop == null || prop.IsDone) return; // 다른 사람이 먼저 캤다
+
+            NetworkPlayer character = NetworkPlayer.Find(source);
+            if (character == null || !character.IsAlive) return;
+            if (Vector3.Distance(character.transform.position, prop.transform.position) > maxGatherDistance) return;
+
+            ItemData item = ItemCatalog.GetOrCreate().GetItem(prop.ItemId);
+            int itemIndex = ItemIndexLookup.IndexOf(item);
+            int amount = prop.Amount;
+
+            RPC_PropRemoved(prop.transform.position);
+            prop.RemoveGathered();
+
+            if (itemIndex >= 0) RPC_GiveGathered(source, itemIndex, amount, false);
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_PropRemoved(Vector3 propPosition)
+        {
+            if (HasStateAuthority) return; // 호스트는 직접 지운다
+            GatherableProp prop = FindProp(propPosition);
+            if (prop != null) prop.RemoveGathered();
+        }
+
+        private GatherableProp FindProp(Vector3 position)
+        {
+            GatherableProp best = null;
+            float bestDistance = nodeMatchTolerance * nodeMatchTolerance;
+            foreach (GatherableProp prop in GatherableProp.AllProps)
+            {
+                if (prop == null) continue;
+                float distance = (prop.transform.position - position).sqrMagnitude;
+                if (distance <= bestDistance)
+                {
+                    bestDistance = distance;
+                    best = prop;
+                }
+            }
+            return best;
+        }
+
+        #endregion
+
+        #region 받은 아이템 넣기
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RequestGather(Vector3 nodePosition, RpcInfo info = default)
@@ -121,26 +221,100 @@ namespace LastTruck.Networking
 
             int itemIndex = ItemIndexLookup.IndexOf(gathered);
             if (itemIndex < 0) return;
-            RPC_GiveGathered(source, itemIndex, amount);
+            RPC_GiveGathered(source, itemIndex, amount, true);
         }
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-        private void RPC_GiveGathered([RpcTarget] PlayerRef target, int itemIndex, int amount)
+        private void RPC_GiveGathered([RpcTarget] PlayerRef target, int itemIndex, int amount, NetworkBool applyMiningBonus)
         {
             ItemData item = ItemIndexLookup.ItemAt(itemIndex);
             PlayerInventory inventory = TruckInventorySync.LocalPlayerInventory;
-            GiveToInventory(inventory, item, amount);
+            GiveToInventory(inventory, item, amount, applyMiningBonus);
         }
 
-        private static void GiveToInventory(PlayerInventory inventory, ItemData item, int amount)
+        /// <summary>
+        /// 받은 아이템을 가방에 넣는다. 캐릭터 고유 능력(탐험가 채집량, 광부 광물 보너스)은 캔 사람 기준으로 여기서 적용한다
+        /// (호스트는 다른 사람의 능력을 계산하지 않는다). applyMiningBonus: 특산물(광맥)만 광부 보너스 적용 - 기존과 같음.
+        /// </summary>
+        private static void GiveToInventory(PlayerInventory inventory, ItemData item, int amount, bool applyMiningBonus)
         {
             if (inventory == null || item == null || amount <= 0) return;
+
+            LastTruck.CharacterAbilityController ability = inventory.GetComponent<LastTruck.CharacterAbilityController>();
+            if (ability != null)
+            {
+                amount = ability.GetCalculatedResourceAmount(amount);
+                if (applyMiningBonus) amount = ability.GetCalculatedMiningAmount(item, amount);
+            }
 
             int added = TruckInventorySync.AddAndCount(inventory.Inventory, item, amount);
             if (added < amount)
                 Debug.LogWarning($"[SpecialResourceNode] 인벤토리 공간이 부족하여 {item.itemName} x{amount - added}을(를) 받지 못했습니다.");
             else
                 Debug.Log($"[SpecialResourceNode] {item.itemName} x{amount} 획득.");
+        }
+
+        #endregion
+
+        #region 덫 (TrapController / TrapPlaced)
+
+        // 덫은 호스트가 만들고(모두에게 같은 자리) 밟았는지도 호스트만 판정한다. 몬스터 이동이 호스트에서 돌기 때문.
+        private readonly System.Collections.Generic.Dictionary<int, TrapPlaced> _traps = new System.Collections.Generic.Dictionary<int, TrapPlaced>();
+        private int _nextTrapId = 1;
+
+        /// <summary>멀티플레이면 덫 설치를 네트워크로 처리하고 true. 싱글플레이면 false (기존 방식).</summary>
+        public static bool TryPlaceTrap(Vector3 position, int damage, float rootSeconds, float triggerRadius)
+        {
+            if (!GameLauncher.IsOnlineSession || !IsReady) return false;
+            Instance.RPC_RequestTrap(position, damage, rootSeconds, triggerRadius);
+            return true;
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_RequestTrap(Vector3 position, int damage, float rootSeconds, float triggerRadius, RpcInfo info = default)
+        {
+            PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
+            NetworkPlayer owner = NetworkPlayer.Find(source);
+            // 너무 먼 위치면 요청을 버리지 않고 설치자 발밑에 놓는다 (덫 아이템은 이미 소모됐으므로).
+            if (owner != null && Vector3.Distance(owner.transform.position, position) > maxGatherDistance)
+                position = owner.transform.position + Vector3.up * 0.02f;
+
+            int id = _nextTrapId++;
+            RPC_SpawnTrap(id, position, damage, Mathf.Clamp(rootSeconds, 0f, 10f), Mathf.Clamp(triggerRadius, 0.1f, 3f),
+                owner != null ? owner.Object.InputAuthority : PlayerRef.None);
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_SpawnTrap(int id, Vector3 position, int damage, float rootSeconds, float triggerRadius, PlayerRef owner)
+        {
+            if (_traps.ContainsKey(id)) return;
+
+            GameObject trapObject = TrapController.BuildTrapVisual();
+            trapObject.transform.position = position;
+            TrapPlaced trap = trapObject.AddComponent<TrapPlaced>();
+            NetworkPlayer ownerCharacter = NetworkPlayer.Find(owner);
+            trap.Setup(damage, rootSeconds, triggerRadius, ownerCharacter != null ? ownerCharacter.transform : null);
+            trap.NetworkId = id;
+            trap.VisualOnly = !HasStateAuthority; // 판정은 호스트만
+            _traps[id] = trap;
+        }
+
+        private void OnHostTrapTriggered(TrapPlaced trap)
+        {
+            if (trap == null || trap.NetworkId == 0 || Object == null || !Object.IsValid) return;
+            _traps.Remove(trap.NetworkId);
+            RPC_TrapTriggered(trap.NetworkId);
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_TrapTriggered(int id)
+        {
+            if (HasStateAuthority) return; // 호스트는 이미 터짐
+            if (_traps.TryGetValue(id, out TrapPlaced trap))
+            {
+                _traps.Remove(id);
+                if (trap != null) trap.PlayTriggered();
+            }
         }
 
         #endregion

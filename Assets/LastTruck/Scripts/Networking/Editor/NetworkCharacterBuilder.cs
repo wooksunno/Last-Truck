@@ -108,7 +108,8 @@ namespace LastTruck.Networking.EditorTools
                 else
                 {
                     log.AppendLine("- 기본 프리팹: 이미 있어서 그대로 사용");
-                    if (EnsureBaseComponents(BasePrefabPath)) log.AppendLine("  (빠진 동기화 컴포넌트 추가: 체력 / 무기 연출)");
+                    string added = EnsureBaseComponents(BasePrefabPath, sources);
+                    if (!string.IsNullOrEmpty(added)) log.AppendLine($"  (빠진 컴포넌트 추가: {added})");
                 }
 
                 for (int i = 0; i < characters.Count; i++)
@@ -196,9 +197,19 @@ namespace LastTruck.Networking.EditorTools
                 if (prefab == null || prefab.GetComponent<NetworkObject>() != null) continue;
 
                 Character character = prefab.GetComponent<Character>();
-                if (character != null && character.stats == data) return prefab;
+                if (character != null && character.StatsData == data) return prefab;
             }
             return null;
+        }
+
+        /// <summary>Character의 statsData(private 직렬화 필드)를 에디터에서 바꾼다.</summary>
+        private static void SetCharacterStats(Character character, CharacterStatsData data)
+        {
+            var so = new SerializedObject(character);
+            SerializedProperty property = so.FindProperty("statsData");
+            if (property == null) return;
+            property.objectReferenceValue = data;
+            so.ApplyModifiedPropertiesWithoutUndo();
         }
 
         private static string VariantPath(CharacterStatsData data)
@@ -223,6 +234,28 @@ namespace LastTruck.Networking.EditorTools
             typeof(WeaponController),
             typeof(PlayerAttack),
         };
+
+        /// <summary>
+        /// 원본 캐릭터 프리팹(팀원이 만든 것)에 붙은 게임플레이 스크립트 전체 목록.
+        /// 기본 목록 + 원본에 새로 생긴 스크립트(능력/덫/먹기 등)를 자동으로 포함해서, 팀원이 캐릭터에 기능을 추가해도 따라간다.
+        /// </summary>
+        private static List<System.Type> CollectGameplayComponentTypes(List<GameObject> sources)
+        {
+            var result = new List<System.Type>(GameplayComponents);
+            foreach (GameObject source in sources)
+            {
+                if (source == null) continue;
+                foreach (MonoBehaviour behaviour in source.GetComponents<MonoBehaviour>())
+                {
+                    if (behaviour == null) continue; // 스크립트가 없어진 컴포넌트
+                    System.Type type = behaviour.GetType();
+                    if (type.Namespace != null && type.Namespace.StartsWith("Fusion")) continue;
+                    if (typeof(NetworkBehaviour).IsAssignableFrom(type)) continue;
+                    if (!result.Contains(type)) result.Add(type);
+                }
+            }
+            return result;
+        }
 
         private static GameObject CreateBasePrefab(GameObject source, List<GameObject> allSources)
         {
@@ -250,7 +283,7 @@ namespace LastTruck.Networking.EditorTools
 
             // 2) 기존 게임플레이 컴포넌트: 그 컴포넌트를 가진 첫 번째 원본 캐릭터에서 값을 복사
             //    (예: 활/화살 프리팹이 연결된 WeaponController는 Army에만 있다)
-            foreach (System.Type type in GameplayComponents)
+            foreach (System.Type type in CollectGameplayComponentTypes(allSources))
             {
                 Component added = root.GetComponent(type);
                 if (added == null) added = root.AddComponent(type); // (Unity null 때문에 ?? 대신 if)
@@ -262,9 +295,9 @@ namespace LastTruck.Networking.EditorTools
                 ClearReferencesInto(added, AssetDatabase.GetAssetPath(owner));
             }
 
-            // Character.stats는 캐릭터별 Variant에서 넣는다.
+            // Character의 스탯 데이터는 캐릭터별 Variant에서 넣는다.
             Character character = root.GetComponent<Character>();
-            if (character != null) character.stats = null;
+            if (character != null) SetCharacterStats(character, null);
 
             GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, BasePrefabPath);
             Object.DestroyImmediate(root);
@@ -286,16 +319,33 @@ namespace LastTruck.Networking.EditorTools
         /// 예전에 만든 기본 프리팹에 새로 필요해진 컴포넌트를 채운다 (다시 만들지 않고 추가만).
         /// 추가한 것이 있으면 true.
         /// </summary>
-        private static bool EnsureBaseComponents(string path)
+        private static string EnsureBaseComponents(string path, List<GameObject> sources)
         {
             GameObject contents = PrefabUtility.LoadPrefabContents(path);
             try
             {
-                bool changed = false;
-                if (contents.GetComponent<NetworkHealth>() == null) { AddPlayerHealth(contents); changed = true; }
-                if (contents.GetComponent<NetworkWeaponVisuals>() == null) { contents.AddComponent<NetworkWeaponVisuals>(); changed = true; }
-                if (changed) PrefabUtility.SaveAsPrefabAsset(contents, path);
-                return changed;
+                var added = new List<string>();
+                if (contents.GetComponent<NetworkHealth>() == null) { AddPlayerHealth(contents); added.Add("NetworkHealth"); }
+                if (contents.GetComponent<NetworkWeaponVisuals>() == null) { contents.AddComponent<NetworkWeaponVisuals>(); added.Add("NetworkWeaponVisuals"); }
+
+                // 팀원이 원본 캐릭터에 새로 붙인 스크립트(능력/덫/먹기 등)도 채운다 (값은 원본에서 복사).
+                foreach (System.Type type in CollectGameplayComponentTypes(sources))
+                {
+                    if (contents.GetComponent(type) != null) continue;
+                    Component component = contents.AddComponent(type);
+                    GameObject owner = sources.FirstOrDefault(s => s != null && s.GetComponent(type) != null);
+                    Component original = owner != null ? owner.GetComponent(type) : null;
+                    if (component != null && original != null)
+                    {
+                        EditorUtility.CopySerialized(original, component);
+                        ClearReferencesInto(component, AssetDatabase.GetAssetPath(owner));
+                    }
+                    if (type == typeof(Character) && component != null) SetCharacterStats((Character)component, null);
+                    added.Add(type.Name);
+                }
+
+                if (added.Count > 0) PrefabUtility.SaveAsPrefabAsset(contents, path);
+                return string.Join(", ", added);
             }
             finally
             {
@@ -401,11 +451,29 @@ namespace LastTruck.Networking.EditorTools
             if (animator != null) animator.applyRootMotion = false;
 
             Character character = instance.GetComponent<Character>();
-            if (character != null) character.stats = data;
+            if (character != null) SetCharacterStats(character, data);
 
             GameObject saved = PrefabUtility.SaveAsPrefabAsset(instance, path);
             Object.DestroyImmediate(instance);
             return saved != null ? saved.GetComponent<NetworkObject>() : null;
+        }
+
+        /// <summary>같은 오브젝트의 다른 스크립트가 [RequireComponent]로 이 스크립트를 요구하는가.</summary>
+        private static bool IsRequiredByOthers(MonoBehaviour target)
+        {
+            System.Type targetType = target.GetType();
+            foreach (MonoBehaviour other in target.GetComponents<MonoBehaviour>())
+            {
+                if (other == null || other == target) continue;
+                foreach (RequireComponent require in other.GetType().GetCustomAttributes(typeof(RequireComponent), true))
+                {
+                    if ((require.m_Type0 != null && require.m_Type0.IsAssignableFrom(targetType)) ||
+                        (require.m_Type1 != null && require.m_Type1.IsAssignableFrom(targetType)) ||
+                        (require.m_Type2 != null && require.m_Type2.IsAssignableFrom(targetType)))
+                        return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>모델에서 보이는 것(Transform/렌더러/애니메이터 등)만 남긴다.</summary>
@@ -418,13 +486,15 @@ namespace LastTruck.Networking.EditorTools
 
             // 스크립트 → 물리 순서로 지운다. [RequireComponent]로 서로 묶인 스크립트는 한 번에 안 지워질 수 있어서
             // (예: WeaponController가 PlayerInventory를 요구) 다 없어질 때까지 몇 번 반복한다.
+            // 다른 스크립트가 필요로 하는 것(예: CharacterAbilityController → WeaponController → PlayerInventory)은
+            // 그 스크립트가 먼저 지워진 다음 패스에서 지운다 (콘솔에 "Can't remove" 에러가 나지 않게).
             for (int pass = 0; pass < 8; pass++)
             {
                 MonoBehaviour[] remaining = model.GetComponentsInChildren<MonoBehaviour>(true);
                 if (remaining.Length == 0) break;
-                for (int i = remaining.Length - 1; i >= 0; i--)
+                foreach (MonoBehaviour behaviour in remaining)
                 {
-                    if (remaining[i] != null) Object.DestroyImmediate(remaining[i]);
+                    if (behaviour != null && !IsRequiredByOthers(behaviour)) Object.DestroyImmediate(behaviour);
                 }
             }
             if (model.GetComponentsInChildren<MonoBehaviour>(true).Length > 0)

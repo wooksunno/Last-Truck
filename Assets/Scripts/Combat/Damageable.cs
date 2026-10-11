@@ -124,14 +124,22 @@ namespace Combat
 
         public void TakeDamage(int amount, Vector3 hitPoint)
         {
+            // 캐릭터 고유 능력(군인 추가 피해, 경찰 표식)은 "때린 사람" 기준이다.
+            // 멀티플레이에서는 내 캐릭터의 능력을 쓴다 (아무 플레이어나 찾으면 다른 사람 능력이 적용될 수 있음).
+            TakeDamage(amount, hitPoint, LastTruck.Networking.LocalPlayerLookup.AbilityController);
+        }
+
+        /// <summary>
+        /// 때린 사람의 능력을 직접 넘기는 버전 (덫처럼 "설치한 사람"이 따로 있는 경우).
+        /// attackerAbility가 null이면 능력 보너스 없이 기본 피해만 준다.
+        /// </summary>
+        public void TakeDamage(int amount, Vector3 hitPoint, LastTruck.CharacterAbilityController attackerAbility)
+        {
             if (amount <= 0)
                 return;
 
             int finalDamage = amount;
-
-            // 캐릭터 고유 능력(군인 추가 피해, 경찰 표식)은 "때린 사람" 기준이다.
-            // 멀티플레이에서는 내 캐릭터의 능력을 쓴다 (아무 플레이어나 찾으면 다른 사람 능력이 적용될 수 있음).
-            var abilityController = LastTruck.Networking.LocalPlayerLookup.AbilityController;
+            var abilityController = attackerAbility;
 
             if (abilityController != null)
             {

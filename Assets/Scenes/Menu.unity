@@ -4429,7 +4429,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::LastTruck.Networking.GameLauncher
   lobbyPlayerEntryPrefab: {fileID: 3976751312927228029, guid: e3a7edb17d17072479026052e0facfdf, type: 3}
   menuSceneName: Menu
-  gameSceneName: Demo_01
+  gameSceneName: MiningMapTest
   spawnOrigin: {x: 0, y: 0, z: 0}
   spawnRadius: 1.5
 --- !u!4 &639981884

@@ -16,6 +16,12 @@ namespace CraftingSystem
         {
             get
             {
+                // 멀티플레이: 태그로 찾으면 다른 사람 캐릭터가 잡힐 수 있으므로 내 캐릭터를 쓴다.
+                if (LastTruck.Networking.GameLauncher.IsOnlineSession)
+                {
+                    LastTruck.Networking.NetworkPlayer local = LastTruck.Networking.NetworkPlayer.Local;
+                    return local != null ? local.gameObject : null;
+                }
                 if (_player == null) _player = GameObject.FindWithTag("Player");
                 return _player;
             }

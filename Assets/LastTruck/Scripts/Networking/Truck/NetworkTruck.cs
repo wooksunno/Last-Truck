@@ -327,6 +327,23 @@ namespace LastTruck.Networking
             Instance.RPC_RequestBoard();
         }
 
+        /// <summary>
+        /// 트럭 수리(TruckRepair). 멀티플레이 클라이언트면 호스트에게 요청하고 true,
+        /// 싱글/호스트면 false (호출한 쪽에서 바로 수리하면 호스트 값이 모두에게 동기화된다).
+        /// </summary>
+        public static bool RequestRepair()
+        {
+            if (!GameLauncher.IsOnlineSession || !IsReady || Instance.HasStateAuthority) return false;
+            Instance.RPC_RequestRepair();
+            return true;
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_RequestRepair()
+        {
+            if (FindTruck() && _info != null) _info.Repair(_info.MaxDurability);
+        }
+
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RequestBoard(RpcInfo info = default) => HostBoard(SourceOf(info));
 

@@ -24,6 +24,15 @@ namespace Combat
 
         public float Gravity => gravity;
 
+        // 멀티플레이: 다른 사람이 던진 수류탄을 보여주기만 하는 복제본 (피해 없음, 가스 구름도 모양만).
+        private bool _visualOnly;
+
+        public void LaunchVisual(Vector3 velocity, float blastRadius, float gasDuration, LayerMask hitMask, Transform thrower)
+        {
+            _visualOnly = true;
+            Launch(velocity, 0, blastRadius, gasDuration, 1f, 0, hitMask, thrower);
+        }
+
         public void Launch(Vector3 velocity, int blastDamage, float blastRadius,
             float gasDuration, float gasTickInterval, int gasTickDamage,
             LayerMask hitMask, Transform thrower)
@@ -68,7 +77,7 @@ namespace Combat
         {
             _exploded = true;
 
-            Collider[] hits = Physics.OverlapSphere(point, _blastRadius, _hitMask);
+            Collider[] hits = _visualOnly ? new Collider[0] : Physics.OverlapSphere(point, _blastRadius, _hitMask);
             var damaged = new HashSet<Damageable>();
             foreach (Collider col in hits)
             {
@@ -79,7 +88,7 @@ namespace Combat
                 damaged.Add(d);
             }
 
-            if (_gasDuration > 0f && _gasTickDamage > 0)
+            if (_gasDuration > 0f && (_gasTickDamage > 0 || _visualOnly))
             {
                 GameObject cloudGO = new GameObject("GasCloud");
                 cloudGO.transform.position = point;

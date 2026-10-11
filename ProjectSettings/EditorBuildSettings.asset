@@ -9,7 +9,7 @@ EditorBuildSettings:
     path: Assets/Scenes/Menu.unity
     guid: 4274a8e0e4f543041a6c3f8f32466836
   - enabled: 1
-    path: Assets/Scenes/Demo_01.unity
-    guid: e324e66165d178645ba84f37bb7edc84
+    path: Assets/Scenes/MiningMapTest.unity
+    guid: 9c7087685c72139429e207344b726a3b
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0

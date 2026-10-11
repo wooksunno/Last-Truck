@@ -119,7 +119,7 @@ namespace Combat
         {
             _stuck = true;
             SpawnHitVfx(hit);
-            CameraShake.Shake(0.05f);
+            if (!_visualOnly) CameraShake.Shake(0.05f); // 다른 사람이 쏜 화살(보여주기용)은 내 카메라를 흔들지 않는다
 
             if (!stickOnHit)
             {

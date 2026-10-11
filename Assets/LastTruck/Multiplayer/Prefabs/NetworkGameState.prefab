@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 3699229589022742940}
   - component: {fileID: 4466469230554339209}
   - component: {fileID: 3879197003288997785}
+  - component: {fileID: 4851617076834956385}
   m_Layer: 0
   m_Name: NetworkGameState
   m_TagString: Untagged
@@ -58,6 +59,7 @@ MonoBehaviour:
   - {fileID: 3699229589022742940}
   - {fileID: 4466469230554339209}
   - {fileID: 3879197003288997785}
+  - {fileID: 4851617076834956385}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &2247354688337728814
 MonoBehaviour:
@@ -130,3 +132,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::LastTruck.Networking.NetworkGathering
   maxGatherDistance: 6
   nodeMatchTolerance: 0.25
+--- !u!114 &4851617076834956385
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6958511833890910979}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f25e9575a10e41e69e9412551e05ea13, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LastTruck.Networking.NetworkTruckProcessing

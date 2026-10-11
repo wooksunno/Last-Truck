@@ -23,6 +23,36 @@ namespace CraftingSystem
 
         private bool _done;
 
+        #region 멀티플레이 연동 (LastTruck.Networking.NetworkGathering)
+
+        // 멀티플레이에서는 "누가 먼저 캤는지"를 호스트가 정한다. 캐면 모든 화면에서 같이 사라진다.
+        // 프롭은 씬에 같은 자리로 놓여 있으므로 위치로 같은 프롭을 찾는다.
+
+        public static readonly System.Collections.Generic.List<GatherableProp> AllProps =
+            new System.Collections.Generic.List<GatherableProp>();
+
+        public bool IsDone => _done;
+        public string ItemId => itemId;
+        public int Amount => amount;
+
+        private void Awake() => AllProps.Add(this);
+        private void OnDestroy() => AllProps.Remove(this);
+
+        /// <summary>채집된 것으로 처리하고 프롭을 없앤다 (호스트 판정 결과를 모든 컴퓨터에서 반영).</summary>
+        public void RemoveGathered()
+        {
+            if (_done)
+                return;
+            _done = true;
+            GameObject remove = target != null ? target : (transform.parent != null ? transform.parent.gameObject : gameObject);
+            Destroy(remove);
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics() => AllProps.Clear();
+
+        #endregion
+
         private int EffectiveTier => Mathf.Max(requiredTier, itemId == ItemIds.Stone ? 1 : 0);
 
         public float RequiredHoldSeconds
@@ -80,6 +110,10 @@ namespace CraftingSystem
                 Debug.LogWarning($"[GatherableProp] {displayName}: 아이템 '{itemId}'를 찾을 수 없습니다.");
                 return;
             }
+
+            // 멀티플레이: 호스트가 먼저 캔 사람을 정하고, 모든 화면에서 프롭을 없앤다.
+            if (LastTruck.Networking.NetworkGathering.TryHandleProp(this, inventory, item))
+                return;
 
             int finalAmount = amount;
             if (player.TryGetComponent<LastTruck.CharacterAbilityController>(out var abilityController))

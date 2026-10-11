@@ -17,9 +17,15 @@ namespace LastTruck.Networking
     ///  - 목표는 retargetInterval초마다만 다시 고른다.
     ///
     /// 공격
-    ///  - 목표가 공격 사거리 안이면 멈춰서 cooldown마다 공격.
+    ///  - 목표가 공격 사거리 안이면 멈춰서 cooldown마다 공격 (공격 애니메이션 동안은 제자리).
+    ///  - 피해는 공격 애니메이션의 OnAttackHit 이벤트 순간에 들어간다 (그때도 사거리 안이어야 맞음).
+    ///    이벤트가 오지 않으면(애니메이터 없음 등) 클립에서 읽은 타격 시간 뒤에 대신 넣는다.
     ///  - 플레이어: NetworkHealth 피해 (피격 연출은 모두에게), 트럭: TruckInformation.Take_Damage.
     ///  - 공격 사거리에서 멈추므로 플레이어 몸을 파고들거나 밀지 않는다 (플레이어는 CharacterController라 밀리지도 않음).
+    ///
+    /// 애니메이션 (Monster Animator: Speed float / Attack trigger)
+    ///  - 이동 속도는 호스트가 [Networked] MoveSpeed로 보내고, 모든 화면이 Speed 파라미터에 넣는다 (Idle ↔ Walk).
+    ///  - 공격은 RPC로 모두에게 Attack 트리거.
     ///
     /// 싱글플레이(오프라인)에서는 이 스크립트가 아무것도 하지 않고 기존 MonsterAI가 동작한다.
     /// </summary>
@@ -42,6 +48,14 @@ namespace LastTruck.Networking
         [SerializeField] private float truckDamage = 10f;
         [SerializeField] private float attackCooldown = 1.2f;
 
+        [Header("공격 애니메이션 (클립 이벤트가 없을 때 쓰는 기본값)")]
+        [Tooltip("공격 시작부터 피해가 들어가는 순간까지(초). 클립의 OnAttackHit 이벤트가 있으면 그 시간을 쓴다.")]
+        [SerializeField] private float defaultHitDelay = 0.083f;
+        [Tooltip("공격 애니메이션 길이(초). 이 시간 동안 제자리에서 휘두른다.")]
+        [SerializeField] private float defaultAttackDuration = 0.333f;
+        [Tooltip("타격 순간에 목표가 이만큼 더 멀어져도 맞은 것으로 친다(m).")]
+        [SerializeField] private float hitRangeTolerance = 0.5f;
+
         [Header("디버그")]
         [Tooltip("스폰 위치/내비메시 여부를 콘솔에 출력한다 (호스트).")]
         [SerializeField] private bool logSpawn = true;
@@ -52,12 +66,31 @@ namespace LastTruck.Networking
 
         private NavMeshAgent _agent;
         private NetworkHealth _health;
+        private Combat.Damageable _damageable;
         private NetworkPlayer _targetPlayer;
         private LastTruck.TruckInformation _truck;
         private Collider[] _truckColliders = new Collider[0];
         private Renderer[] _truckRenderers = new Renderer[0];
         private float _nextRetargetTime;
         private float _nextAttackTime;
+
+        // 애니메이션
+        private static readonly int SpeedHash = Animator.StringToHash("Speed");
+        private static readonly int AttackHash = Animator.StringToHash("Attack");
+        private Animator _animator;
+        private float _hitDelay;
+        private float _attackDuration;
+        private float _shownSpeed;
+
+        // 진행 중인 공격 (호스트)
+        private enum AttackTarget { None, Player, Truck }
+        private AttackTarget _pendingTarget;
+        private NetworkPlayer _pendingPlayer;
+        private float _pendingHitTime;
+        private float _attackLockUntil;
+
+        /// <summary>호스트가 정한 이동 속도 (애니메이션 Idle/Walk용).</summary>
+        [Networked] private float MoveSpeed { get; set; }
 
         #endregion
 
@@ -67,6 +100,30 @@ namespace LastTruck.Networking
         {
             _agent = GetComponent<NavMeshAgent>();
             _health = GetComponent<NetworkHealth>();
+            _damageable = GetComponent<Combat.Damageable>();
+            _animator = GetComponentInChildren<Animator>();
+            ReadAttackTiming();
+        }
+
+        /// <summary>공격 클립의 길이와 OnAttackHit 이벤트 시간을 읽는다 (애니메이션과 피해 타이밍을 맞추기 위해).</summary>
+        private void ReadAttackTiming()
+        {
+            _hitDelay = defaultHitDelay;
+            _attackDuration = defaultAttackDuration;
+            if (_animator == null || _animator.runtimeAnimatorController == null) return;
+
+            foreach (AnimationClip clip in _animator.runtimeAnimatorController.animationClips)
+            {
+                if (clip == null || clip.name.IndexOf("Attack", System.StringComparison.OrdinalIgnoreCase) < 0) continue;
+                _attackDuration = clip.length;
+                foreach (AnimationEvent animationEvent in clip.events)
+                {
+                    if (animationEvent.functionName == nameof(OnAttackHit)) _hitDelay = animationEvent.time;
+                }
+                break;
+            }
+            // 쿨다운이 애니메이션보다 짧으면 휘두르는 도중에 또 공격하게 되므로 맞춘다.
+            attackCooldown = Mathf.Max(attackCooldown, _attackDuration);
         }
 
         public override void Spawned()
@@ -121,10 +178,31 @@ namespace LastTruck.Networking
             if (dead || NetworkGameState.IsGameOver)
             {
                 if (!_agent.isStopped) _agent.isStopped = true;
+                _pendingTarget = AttackTarget.None;
+                MoveSpeed = 0f;
                 return;
             }
 
-            if (Time.time >= _nextRetargetTime)
+            // 애니메이션 이벤트가 오지 않았을 때 대신 피해를 넣는다 (조금 여유를 둔다).
+            if (_pendingTarget != AttackTarget.None && Time.time >= _pendingHitTime + 0.15f) DealPendingHit();
+
+            // 공격 애니메이션 동안은 제자리에서 휘두른다.
+            if (Time.time < _attackLockUntil)
+            {
+                if (!_agent.isStopped) _agent.isStopped = true;
+                _agent.velocity = Vector3.zero;
+                MoveSpeed = 0f;
+                ApplyAgentMovement();
+                return;
+            }
+
+            // 덫 등에 묶였으면 제자리에 멈춘다 (공격은 가능).
+            bool rooted = _damageable != null && _damageable.IsRooted;
+            if (rooted)
+            {
+                if (!_agent.isStopped) _agent.isStopped = true;
+            }
+            else if (Time.time >= _nextRetargetTime || _agent.isStopped)
             {
                 _nextRetargetTime = Time.time + retargetInterval;
                 UpdateTarget();
@@ -133,6 +211,7 @@ namespace LastTruck.Networking
 
             TryAttack();
             ApplyAgentMovement();
+            MoveSpeed = rooted ? 0f : HorizontalSpeed(_agent.velocity);
         }
 
         /// <summary>에이전트가 계산한 다음 위치/방향을 실제 Transform에 반영 (NetworkTransform이 모두에게 동기화).</summary>
@@ -215,24 +294,95 @@ namespace LastTruck.Networking
                 NetworkHealth targetHealth = _targetPlayer.Health;
                 if (targetHealth == null || targetHealth.IsDead) return;
 
-                _nextAttackTime = Time.time + attackCooldown;
                 FaceTowards(_targetPlayer.transform.position);
-                targetHealth.ApplyDamage(playerDamage, _targetPlayer.transform.position + Vector3.up, false);
+                StartAttack(AttackTarget.Player, _targetPlayer);
             }
             else if (_truck != null && !_truck.IsBroken)
             {
                 Vector3 closest = ClosestPointOnTruck(transform.position);
                 if (HorizontalDistance(transform.position, closest) > attackRange + _agent.radius) return;
 
-                _nextAttackTime = Time.time + attackCooldown;
                 FaceTowards(closest);
+                StartAttack(AttackTarget.Truck, null);
+            }
+        }
+
+        /// <summary>공격 시작: 모두에게 공격 애니메이션, 피해는 타격 순간(OnAttackHit)에.</summary>
+        private void StartAttack(AttackTarget target, NetworkPlayer player)
+        {
+            _nextAttackTime = Time.time + attackCooldown;
+            _attackLockUntil = Time.time + _attackDuration;
+            _pendingTarget = target;
+            _pendingPlayer = player;
+            _pendingHitTime = Time.time + _hitDelay;
+            RPC_PlayAttack();
+        }
+
+        /// <summary>타격 순간: 목표가 아직 사거리 안에 있으면 피해.</summary>
+        private void DealPendingHit()
+        {
+            AttackTarget target = _pendingTarget;
+            NetworkPlayer player = _pendingPlayer;
+            _pendingTarget = AttackTarget.None;
+            _pendingPlayer = null;
+            if (!HasStateAuthority || (_health != null && _health.IsDead) || NetworkGameState.IsGameOver) return;
+
+            float reach = attackRange + (_agent != null ? _agent.radius : 0.5f) + hitRangeTolerance;
+            if (target == AttackTarget.Player)
+            {
+                if (player == null || !player.IsAlive || player.IsSeated) return;
+                if (HorizontalDistance(transform.position, player.transform.position) > reach) return; // 피했다
+
+                NetworkHealth targetHealth = player.Health;
+                if (targetHealth != null && !targetHealth.IsDead)
+                    targetHealth.ApplyDamage(playerDamage, player.transform.position + Vector3.up, false);
+            }
+            else if (target == AttackTarget.Truck)
+            {
+                if (_truck == null || _truck.IsBroken) return;
+                if (HorizontalDistance(transform.position, ClosestPointOnTruck(transform.position)) > reach) return;
                 _truck.Take_Damage(truckDamage);
             }
         }
 
         #endregion
 
+        #region 애니메이션
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_PlayAttack()
+        {
+            if (_animator != null && _animator.isActiveAndEnabled) _animator.SetTrigger(AttackHash);
+        }
+
+        public override void Render()
+        {
+            if (_animator == null || !_animator.isActiveAndEnabled) return;
+            bool dead = _health != null && _health.IsDead;
+            float target = dead ? 0f : MoveSpeed;
+            _shownSpeed = Mathf.MoveTowards(_shownSpeed, target, 20f * Time.deltaTime);
+            _animator.SetFloat(SpeedHash, _shownSpeed);
+        }
+
+        // 공격 클립(Monster Attack)의 애니메이션 이벤트. 피해 판정은 호스트에서만.
+        public void OnAttackStart() { }
+
+        public void OnAttackHit()
+        {
+            if (Object != null && Object.IsValid && HasStateAuthority && _pendingTarget != AttackTarget.None) DealPendingHit();
+        }
+
+        public void OnAttackEnd() { }
+
+        #endregion
+
         #region 도우미
+
+        private static float HorizontalSpeed(Vector3 velocity)
+        {
+            velocity.y = 0f;
+            return velocity.magnitude;
+        }
 
         /// <summary>
         /// 트럭 몸체 콜라이더 중 가장 가까운 표면 점.

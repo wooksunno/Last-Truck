@@ -22,7 +22,10 @@ namespace LastTruck.Networking
             // 1. 카메라: 비어 있거나 (지워진) 싱글플레이용 캐릭터를 보던 카메라를 내 캐릭터로
             foreach (CinemachineCamera vcam in Object.FindObjectsByType<CinemachineCamera>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             {
-                if (IsReplaceablePlayerTarget(vcam.Target.TrackingTarget)) vcam.Target.TrackingTarget = target;
+                // CameraTargetSmoother가 붙은 카메라는 대상이 항상 중간 대상(Proxy)이라 무조건 내 캐릭터로 바꿔 준다
+                // (스무더가 새 대상을 이어받는다).
+                bool smoothed = vcam.GetComponent<CameraTargetSmoother>() != null;
+                if (smoothed || IsReplaceablePlayerTarget(vcam.Target.TrackingTarget)) vcam.Target.TrackingTarget = target;
             }
             foreach (CameraFollow follow in Object.FindObjectsByType<CameraFollow>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             {

@@ -13,6 +13,7 @@ namespace LastTruck.Networking.EditorTools
     ///  - Prefabs/NetworkGameState.prefab : NetworkObject + NetworkGameState (준비 대기, 낮/밤 동기화, 게임 오버)
     ///      + NetworkTruckInventory (트럭 인벤토리 실시간 동기화)
     ///      + NetworkTruck (트럭 탑승/운전/라이트), NetworkGathering (특산물 채집/고갈)
+    ///      + NetworkTruckProcessing (트럭 가공 대기열)
     ///  - Prefabs/Monsters/Monster_Network.prefab : 기존 Monster.prefab의 Variant
     ///      + NetworkObject + NetworkTransform(위치 동기화) + NetworkHealth(체력) + NetworkMonster(호스트 AI)
     ///    → 원본 Monster.prefab의 모양/크기/Damageable 값을 고치면 그대로 따라온다.
@@ -94,6 +95,12 @@ namespace LastTruck.Networking.EditorTools
                     contents.AddComponent<NetworkGathering>();
                     changed = true;
                     log.AppendLine("- 게임 상태 프리팹: 특산물 채집 동기화(NetworkGathering) 추가");
+                }
+                if (contents.GetComponent<NetworkTruckProcessing>() == null)
+                {
+                    contents.AddComponent<NetworkTruckProcessing>();
+                    changed = true;
+                    log.AppendLine("- 게임 상태 프리팹: 트럭 가공 대기열 동기화(NetworkTruckProcessing) 추가");
                 }
                 if (changed) PrefabUtility.SaveAsPrefabAsset(contents, GameStatePrefabPath);
             }

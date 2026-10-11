@@ -54,7 +54,10 @@ namespace CraftingSystem
             SetRecipes(catalog.GetRecipesForFacility(FacilityType.None));
         }
 
-        public bool TryCraft(RecipeData recipe)
+        public bool TryCraft(RecipeData recipe) => TryCraft(recipe, null);
+
+        /// <summary>crafterAbility: 제작하는 사람의 능력 (null이면 내 캐릭터).</summary>
+        public bool TryCraft(RecipeData recipe, CharacterAbilityController crafterAbility)
         {
             if (recipe == null)
             {
@@ -77,7 +80,10 @@ namespace CraftingSystem
             }
 
             // 대장장이 능력(자원 소모량 감소) 추가 수정
-            CharacterAbilityController abilityController = FindObjectOfType<CharacterAbilityController>();
+            // 멀티플레이: 제작한 사람의 능력을 쓴다 (호스트가 대신 처리할 때는 요청한 사람의 캐릭터를 넘겨준다).
+            CharacterAbilityController abilityController = crafterAbility != null
+                ? crafterAbility
+                : LastTruck.Networking.LocalPlayerLookup.AbilityController;
 
             ItemType type = recipe.output.item.itemType;
 

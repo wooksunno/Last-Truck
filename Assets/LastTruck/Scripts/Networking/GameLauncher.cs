@@ -51,7 +51,7 @@ namespace LastTruck.Networking
 
         [Header("씬 이름 (Build Settings에 등록되어 있어야 한다)")]
         [SerializeField] private string menuSceneName = "Menu";
-        [SerializeField] private string gameSceneName = "Demo_01";
+        [SerializeField] private string gameSceneName = "MiningMapTest";
 
         [Header("플레이어 캐릭터 스폰 (캐릭터는 CharacterCatalog에서 각자 고른 것)")]
         [Tooltip("게임 씬에 싱글플레이용 캐릭터가 없어서 스폰 위치를 못 찾았을 때 쓸 중심점.")]
@@ -893,6 +893,9 @@ namespace LastTruck.Networking
             NetworkPlayer localPlayer = NetworkPlayer.Local;
             PlayerMove localMove = localPlayer != null ? localPlayer.GetComponent<PlayerMove>() : null;
             bool canMove = localMove == null || (localMove.isActiveAndEnabled && localPlayer.gameObject.activeInHierarchy);
+            // UI가 열려 있거나 공격 후딜/맨손 공격 등으로 이동이 잠겨 있으면 이동 입력을 보내지 않는다.
+            if (localMove != null && localMove.IsMovementBlocked) canMove = false;
+            data.SpeedMultiplier = localMove != null ? localMove.SpeedMultiplier : 1f;
 
             Camera cam = Camera.main;
             float h = Input.GetAxisRaw("Horizontal");

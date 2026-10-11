@@ -15,7 +15,7 @@ namespace LastTruck.Networking
     /// - 사망했거나 게임이 아직 시작 전/끝난 뒤에는 움직이지 않는다 (중력만 적용).
     /// - 트럭에 타 있으면 좌석 위치에 붙어 있고 충돌을 끈다 (NetworkTruck).
     ///
-    /// 기존 싱글플레이 PlayerMove와 같은 속도 규칙: 이동 속도 = 캐릭터 스탯 baseSpeed (moveSpeed × 0.3), 걷기 = × 0.3.
+    /// 기존 싱글플레이 PlayerMove와 같은 속도 규칙: 이동 속도 = Character.CurrentMoveSpeed (스탯 moveSpeed × 0.3), 걷기 = × 0.3.
     /// </summary>
     [DisallowMultipleComponent]
     [RequireComponent(typeof(NetworkCharacterController))]
@@ -52,10 +52,10 @@ namespace LastTruck.Networking
         {
             get
             {
-                if (_character != null && _character.stats != null && _character.stats.moveSpeed > 0f)
-                {
-                    return _character.stats.baseSpeed;
-                }
+                // 기존 PlayerMove와 같은 규칙: Character.CurrentMoveSpeed (= 스탯 moveSpeed × 0.3, 능력으로 바뀔 수 있음)
+                if (_character != null && _character.CurrentMoveSpeed > 0f) return _character.CurrentMoveSpeed;
+                if (_character != null && _character.StatsData != null && _character.StatsData.ScaledMoveSpeed > 0f)
+                    return _character.StatsData.ScaledMoveSpeed;
                 return fallbackMoveSpeed;
             }
         }
@@ -126,7 +126,9 @@ namespace LastTruck.Networking
             bool walking = input.Buttons.IsSet(NetworkInputButton.Walk);
             IsWalking = walking;
 
-            float speed = MoveSpeed * (walking ? walkSpeedMultiplier : 1f);
+            // 활 차징/화염 분사 중 감속 등 PlayerMove 속도 배율은 입력에 실려 온다 (0이면 1로 본다).
+            float speedMultiplier = input.SpeedMultiplier > 0f ? Mathf.Min(input.SpeedMultiplier, 2f) : 1f;
+            float speed = MoveSpeed * (walking ? walkSpeedMultiplier : 1f) * speedMultiplier;
             _controller.maxSpeed = speed;
 
             // NetworkCharacterController는 기본적으로 가속/감속이 있는데, 기존 조작감(키를 누르는 즉시 최고 속도,

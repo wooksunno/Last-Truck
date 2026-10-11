@@ -72,6 +72,13 @@ namespace CraftingSystem
             if (!_inventory.RemoveItem(item, 1))
                 return;
 
+            // 멀티플레이: 호스트가 덫을 만들어 모두에게 보여주고, 밟았는지 판정도 호스트가 한다 (몬스터는 호스트에서 움직이므로).
+            if (LastTruck.Networking.NetworkGathering.TryPlaceTrap(transform.position + Vector3.up * 0.02f, trapDamage, trapRootSeconds, trapTriggerRadius))
+            {
+                Debug.Log($"[TrapController] {item.itemName}을(를) 설치했습니다.");
+                return;
+            }
+
             GameObject trapGO = BuildTrapVisual();
             trapGO.transform.position = transform.position + Vector3.up * 0.02f;
 
@@ -81,7 +88,7 @@ namespace CraftingSystem
             Debug.Log($"[TrapController] {item.itemName}을(를) 설치했습니다.");
         }
 
-        private static GameObject BuildTrapVisual()
+        public static GameObject BuildTrapVisual()
         {
             GameObject root = new GameObject("LureTrap");
 

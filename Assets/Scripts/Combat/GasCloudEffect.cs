@@ -58,6 +58,8 @@ namespace Combat
 
         private void Tick()
         {
+            if (_tickDamage <= 0)
+                return; // 멀티플레이 복제 구름(보여주기만)
             Collider[] hits = Physics.OverlapSphere(transform.position, _radius, _hitMask);
             var damaged = new HashSet<Damageable>();
             foreach (Collider col in hits)

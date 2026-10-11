@@ -48,7 +48,8 @@ namespace CraftingSystem
 
             var b = MkButton(row, "CheatRawPlus10", "원재료 +10", new Color(0.25f, 0.30f, 0.26f, 0.9f), 15, () =>
             {
-                AddRawMaterialsToTruck(truckInv, 10);
+                // 멀티플레이: 호스트의 트럭에 넣어야 모두에게 보인다 (싱글/호스트는 바로 AddRawMaterialsToTruck).
+                LastTruck.Networking.TruckInventorySync.GrantRaw(truckInv, 10);
                 afterGrant?.Invoke();
             });
             var brt = (RectTransform)b.transform;

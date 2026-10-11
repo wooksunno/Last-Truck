@@ -341,3 +341,56 @@ InRoom/InGame ─(RequestLeaveSession 또는 연결 끊김)─> Leaving ─> (Me
 - `InGameHud.Ensure()` (NetworkGameState.Spawned): `InGameMenu`(ESC → `GameLauncher.RequestLeaveFromGame`),
   `TeammateNameplates`(화면 캔버스 이름표 + NetworkHealth HP바), `MinimapTeammateMarkers`(MinimapUI에 공개 속성 추가).
 
+\r\n
+## 12. 팀 클라이언트(CSJ/feat(v3))와 머지 (`NDH/feat(v2)`)
+
+팀원 클라이언트 위에 네트워킹을 합친 브랜치. 팀 기능 중 "다른 사람에게 영향이 있는 것"은 호스트를 거치게 바꿨다.
+
+### 12-1. 팀 API 변경 대응
+- `CharacterStatsData`: `basicStats`/`utilityStats` 구조 + `uniqueAbility`. 우리 필드(초상화/설명/모델/네트워크 프리팹)는 유지, `DisplayName` = `PlayerName`.
+- `Character.statsData`는 private → 빌더는 SerializedObject("statsData")로 설정. 이동 속도는 `Character.CurrentMoveSpeed` → `StatsData.ScaledMoveSpeed` 순.
+- `Gameplay/LocalPlayerLookup.cs` (새 파일): 온라인이면 `NetworkPlayer.Local`의 컴포넌트, 오프라인이면 씬에서 찾기.
+  팀 코드의 `FindObjectOfType<CharacterAbilityController/PlayerInventory>`(멀티에서 남의 캐릭터를 잡음)를 이것으로 교체.
+
+### 12-2. 팀 기능 동기화
+| 팀 기능 | 처리 |
+|---|---|
+| 능력(Army/Police 피해 배율, 광부 보너스, 대장장이 제작 할인) | 받는 사람/요청한 사람의 능력으로 호스트가 계산 (`NetworkGathering.GiveToInventory`, `RPC_RequestCraft`) |
+| 경찰 표식 / 속박(Root) | `Damageable`에 합침, 속박된 몬스터는 `NetworkMonster`가 멈춤 |
+| 채집 소품 `GatherableProp` | `NetworkGathering.TryHandleProp` → 호스트가 확인 후 모두에게서 제거 |
+| 덫 `TrapController`/`TrapPlaced` | `NetworkGathering.TryPlaceTrap` → 호스트가 진짜 덫, 클라는 보여주기용(VisualOnly). 발동도 RPC |
+| 트럭 수리 `TruckRepair` | `NetworkTruck.RequestRepair` (호스트가 내구도 회복) |
+| 트럭 가공 | `TruckInventorySync.ConsumeIngredients` → 호스트가 재료 차감 후 결과 콜백 |
+| 치트 버튼 | `TruckInventorySync.GrantRaw` |
+| 무기(근접/총/소총/수류탄/화염/공격 애니) | `NetworkWeaponVisuals`에 이벤트 추가 (`RPC_HitEffect/Bullet/Grenade/AttackAnim/GunFired`), 수류탄은 `GrenadeProjectile.LaunchVisual`(피해 없음) |
+| 이동 잠금/속도 배율(차징, 공격) | `NetworkInputData.SpeedMultiplier`, `PlayerMove.IsMovementBlocked` |
+| 카메라 `CameraTargetSmoother` | `LocalPlayerBinder`가 내 캐릭터로 지정 |
+
+### 12-3. 네트워크 캐릭터 프리팹
+- `NetworkCharacterBuilder.CollectGameplayComponentTypes`: 기본 목록 + **원본 캐릭터 프리팹에 붙은 모든 스크립트**를 Base에 복사.
+  팀원이 캐릭터에 새 스크립트를 붙이면 메뉴 1을 다시 실행하면 따라온다 (기존 Base에도 빠진 것만 추가).
+- 입력 스크립트(Eat/Trap/Pouch 등)는 `NetworkPlayer.DefaultLocalOnlyTypes`로 남의 캐릭터에서 꺼진다.
+
+### 12-4. 게임 씬 = MiningMapTest
+- (도구는 실행 후 삭제됨) 게임 씬 설정: Build Settings(Menu → MiningMapTest, Demo_01 제외), Menu 씬 GameLauncher.gameSceneName,
+  하이어라키를 `--- Managers --- / --- Camera & Light --- / --- Gameplay --- / Map / UI`로 묶음(빈 구분선 삭제), Map에 NavMeshSurface(자식 콜라이더 기준).
+- NavMesh: 몬스터 길찾기용 NavMesh를 `Assets/Scenes/MiningMapTest/NavMesh-Map.asset`에 저장. 맵을 고치면 다시 굽는다.
+- 씬의 싱글플레이용 캐릭터(활성화된 첫 캐릭터)가 멀티 스폰 위치가 된다.
+
+### 12-5. 머지 후 추가 수정
+- 트럭 가공 대기열: `Game/NetworkTruckProcessing.cs` (NetworkGameState). 호스트가 대기열 하나(레시피/대기/완성/TickTimer)를 관리,
+  넣기(`RPC_RequestProcess`: 재료 차감 + 대기열) / 받기(`RPC_RequestClaim`: 가방에 들어가는 만큼) / 못 받은 만큼 되돌림. GameUIController는 `CurrentTruckJob()`으로 표시.
+- 먹기: 멀티에서는 테스트용 시작 피해(EatController.startingDamage)를 주지 않음 (호스트 체력과 어긋나 음식만 사라지던 문제).
+- 덫 피해 보너스: `Damageable.TakeDamage(amount, point, attackerAbility)` 추가, 덫은 설치자의 능력으로 계산.
+- 남이 쏜 화살은 내 카메라를 흔들지 않음. 빌더가 [RequireComponent] 순서대로 스크립트를 지워 "Can't remove" 에러 없음.
+
+### 12-6. 몬스터 스폰 / 애니메이션 / 에디터 도구 정리
+- MiningMapTest 바닥 타일(01_Terrain의 Terrain/Terrain_Stone/ForestGroundTiles, 산·고원·호수·물·동굴 제외)에 `Ground` 태그 → MonsterSpawner 레이캐스트 스폰.
+  (트럭 주변 15~25m에서 레이 1번당 약 35% 성공 → 200번 시도 안에 충분히 찾음). 맵에 바닥 타일을 추가하면 Ground 태그를 붙일 것.
+- `Mr.No/Monster/Monster Animator`: 파라미터 `Speed`(float, 0.15 기준 Idle↔Walk), `Attack`(trigger, Any State → Attack → Idle).
+  `Monster Attack` 클립은 루프 끔, 이벤트 OnAttackStart(0) / OnAttackHit(0.083) / OnAttackEnd(0.333).
+- `NetworkMonster`: 호스트가 `[Networked] MoveSpeed`를 보내 모든 화면이 Speed에 반영, 공격은 `RPC_PlayAttack`으로 트리거.
+  피해는 OnAttackHit 이벤트 순간(호스트)에 사거리+0.5m 안이면 들어감, 이벤트가 안 오면 클립에서 읽은 타격 시간 뒤 대신 처리.
+  공격 애니메이션 동안은 제자리, 쿨다운은 클립 길이 이상. 싱글플레이 MonsterAI도 Speed를 넣는다.
+- 지운 에디터 도구: 초상화 촬영, 캐릭터 선택 UI 설치, 0번 전체 설치, 게임 씬 설정/NavMesh 굽기(NavMesh는 Map의 NavMeshSurface 인스펙터 Bake로).
+  남은 메뉴: `LastTruck > Multiplayer > 1. 네트워크 프리팹 생성`.

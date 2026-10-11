@@ -239,12 +239,12 @@ namespace LastTruck.Networking
         {
             switch (statIndex)
             {
-                case 0: return data.maxHealth;
-                case 1: return data.attackPower;
-                case 2: return data.moveSpeed;
-                case 3: return data.costReducation;
-                case 4: return data.harvestSpeed;
-                case 5: return data.repairBonus;
+                case 0: return data.MaxHealth;
+                case 1: return data.AttackPower;
+                case 2: return data.MoveSpeed;
+                case 3: return data.CostReduction;
+                case 4: return data.HarvestSpeed;
+                case 5: return data.RepairBonus;
                 default: return 0f;
             }
         }

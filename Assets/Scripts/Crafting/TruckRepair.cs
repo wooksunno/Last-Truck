@@ -38,7 +38,7 @@ private bool TryGetHeldRepairItem(out ItemData item, out float seconds)
                 return false;
 
             if (_player == null)
-                _player = FindFirstObjectByType<PlayerInventory>();
+                _player = LastTruck.Networking.LocalPlayerLookup.Inventory; // 멀티플레이: 내 캐릭터의 가방
             if (_player == null)
                 return false;
 
@@ -65,7 +65,9 @@ private bool TryGetHeldRepairItem(out ItemData item, out float seconds)
             if (inventory == null || !inventory.RemoveItem(item, 1))
                 return false;
 
-            _info.Repair(_info.MaxDurability);
+            // 멀티플레이: 내구도는 호스트가 관리하므로 수리도 호스트에게 요청한다 (싱글/호스트는 바로 수리).
+            if (!LastTruck.Networking.NetworkTruck.RequestRepair())
+                _info.Repair(_info.MaxDurability);
             Debug.Log($"[TruckRepair] 트럭이 수리되었습니다. ({item.itemName} 사용) 내구도: {_info.CurrentDurability}/{_info.MaxDurability}");
             return true;
         }

@@ -15,6 +15,26 @@ namespace CraftingSystem
         private Transform _owner;
         private bool _triggered;
 
+        // 멀티플레이 (LastTruck.Networking.NetworkGathering)
+        //  - 호스트의 덫만 밟았는지 판정한다. 클라이언트의 덫은 보여주기만 하다가 호스트가 알려주면 터진다.
+        public int NetworkId { get; set; }
+        public bool VisualOnly { get; set; }
+
+        /// <summary>호스트: 덫이 발동한 순간.</summary>
+        public static event System.Action<TrapPlaced> Triggered;
+
+        /// <summary>클라이언트: 호스트가 알려준 발동 연출만 한다.</summary>
+        public void PlayTriggered()
+        {
+            if (_triggered)
+                return;
+            _triggered = true;
+            StartCoroutine(TriggeredPulseAndDestroy());
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics() => Triggered = null;
+
         public void Setup(int damage, float rootSeconds, float triggerRadius, Transform owner)
         {
             _damage = damage;
@@ -25,7 +45,7 @@ namespace CraftingSystem
 
         private void Update()
         {
-            if (_triggered)
+            if (_triggered || VisualOnly)
                 return;
 
             Collider[] hits = Physics.OverlapSphere(transform.position, _triggerRadius);
@@ -46,8 +66,12 @@ namespace CraftingSystem
         private void Trigger(Damageable target)
         {
             _triggered = true;
-            target.TakeDamage(_damage, target.transform.position);
+            // 능력 보너스(군인/경찰)는 덫을 설치한 사람 기준 (멀티플레이에서 호스트가 판정해도 설치자의 능력).
+            LastTruck.CharacterAbilityController ownerAbility =
+                _owner != null ? _owner.GetComponentInParent<LastTruck.CharacterAbilityController>() : null;
+            target.TakeDamage(_damage, target.transform.position, ownerAbility);
             target.Root(_rootSeconds);
+            Triggered?.Invoke(this);
             Debug.Log($"[TrapPlaced] {target.name}이(가) 트랩을 밟았습니다. 피해 {_damage}, {_rootSeconds}초 속박.");
 
             StartCoroutine(TriggeredPulseAndDestroy());

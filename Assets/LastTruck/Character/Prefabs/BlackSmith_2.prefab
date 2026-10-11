@@ -1548,7 +1548,7 @@ GameObject:
   - component: {fileID: 1073864839836897503}
   m_Layer: 0
   m_Name: BlackSmith_2
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -1587,7 +1587,7 @@ Animator:
   m_GameObject: {fileID: 7786067383137606811}
   m_Enabled: 1
   m_Avatar: {fileID: 9000000, guid: b29b2128ad71ad649baeac918d2d5a2e, type: 2}
-  m_Controller: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: ea4eca2136b5d8243afd79b1d86cf2e4, type: 2}
   m_CullingMode: 0
   m_UpdateMode: 0
   m_ApplyRootMotion: 0
@@ -1674,7 +1674,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fa17b5252e97040409331d3c33fa51e5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LastTruck.CharacterAbilityController
-  weaponController: {fileID: 0}
+  weaponController: {fileID: 1073864839836897503}
   character: {fileID: 0}
 --- !u!114 &3236471011298144499
 MonoBehaviour:
@@ -1745,7 +1745,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LastTruck.PlayerStats
   currentHealth: 0
-  character: {fileID: 0}
+  character: {fileID: 2159132189523049578}
   anim: {fileID: 0}
 --- !u!114 &1073864839836897503
 MonoBehaviour:

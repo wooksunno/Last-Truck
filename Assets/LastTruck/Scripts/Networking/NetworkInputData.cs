@@ -21,6 +21,9 @@ namespace LastTruck.Networking
 
         public NetworkButtons Buttons;
 
+        /// <summary>이동 속도 배율 (PlayerMove.SpeedMultiplier: 활 차징/화염 분사 중 감속 등). 0이면 1로 본다.</summary>
+        public float SpeedMultiplier;
+
         /// <summary>트럭 운전석에 앉아 있을 때: 앞(+1)/뒤(-1) 가속.</summary>
         public float TruckThrottle;
 

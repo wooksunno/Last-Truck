@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using CraftingSystem;
 using Fusion;
@@ -193,6 +194,40 @@ namespace LastTruck.Networking
             if (amount > 0) RPC_RequestGrantRaw(amount);
         }
 
+        private readonly Dictionary<int, Action<bool>> _pendingConsumes = new Dictionary<int, Action<bool>>();
+        private int _nextConsumeId = 1;
+
+        public void RequestConsume(RecipeData recipe, Action<bool> onResult)
+        {
+            int index = ItemIndexLookup.RecipeIndexOf(recipe);
+            if (index < 0)
+            {
+                onResult?.Invoke(false);
+                return;
+            }
+
+            int id = _nextConsumeId++;
+            _pendingConsumes[id] = onResult;
+            RPC_RequestConsume(index, id);
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_RequestConsume(int recipeIndex, int requestId, RpcInfo info = default)
+        {
+            PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
+            bool ok = TruckInventorySync.ConsumeLocal(Truck, ItemIndexLookup.RecipeAt(recipeIndex));
+            RPC_ConsumeResult(source, requestId, ok);
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_ConsumeResult([RpcTarget] PlayerRef target, int requestId, NetworkBool ok)
+        {
+            if (!_pendingConsumes.TryGetValue(requestId, out Action<bool> callback)) return;
+            _pendingConsumes.Remove(requestId);
+            try { callback?.Invoke(ok); }
+            catch (Exception e) { Debug.LogException(e); }
+        }
+
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RequestDeposit(int itemIndex, int count, RpcInfo info = default)
         {
@@ -220,14 +255,19 @@ namespace LastTruck.Networking
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-        private void RPC_RequestCraft(int recipeIndex)
+        private void RPC_RequestCraft(int recipeIndex, RpcInfo info = default)
         {
             TruckInventory truck = Truck;
             RecipeData recipe = ItemIndexLookup.RecipeAt(recipeIndex);
             if (truck == null || recipe == null) return;
 
+            // 재료 할인(대장장이 등)은 제작을 요청한 사람의 캐릭터 능력으로 계산한다.
+            PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
+            NetworkPlayer crafter = NetworkPlayer.Find(source);
+            CharacterAbilityController ability = crafter != null ? crafter.GetComponent<CharacterAbilityController>() : null;
+
             TruckCraftingManager craft = truck.GetComponent<TruckCraftingManager>();
-            if (craft != null) craft.TryCraft(recipe);
+            if (craft != null) craft.TryCraft(recipe, ability);
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
@@ -394,11 +434,41 @@ namespace LastTruck.Networking
         public static void GrantRawLocal(TruckInventory truck, int amount)
         {
             if (truck == null || amount <= 0) return;
-            ItemCatalog catalog = ItemCatalog.GetOrCreate();
-            truck.AddItem(catalog.GetItem(ItemIds.Wood), amount);
-            truck.AddItem(catalog.GetItem(ItemIds.Stone), amount);
-            truck.AddItem(catalog.GetItem(ItemIds.IronOre), amount);
-            truck.AddItem(catalog.GetItem(ItemIds.CopperOre), amount);
+            CraftingCheats.AddRawMaterialsToTruck(truck, amount);
+        }
+
+        /// <summary>
+        /// 트럭 가공을 시작할 때 재료를 뺀다. 결과는 onResult(성공 여부)로 알려준다.
+        /// 싱글/호스트는 바로, 클라이언트는 호스트가 실제 수량을 확인한 뒤 응답이 오면 불린다.
+        /// </summary>
+        public static void ConsumeIngredients(TruckInventory truck, RecipeData recipe, Action<bool> onResult)
+        {
+            if (truck == null || recipe == null)
+            {
+                onResult?.Invoke(false);
+                return;
+            }
+
+            NetworkTruckInventory net = IsRemoteClient ? Net : null;
+            if (net == null)
+            {
+                onResult?.Invoke(ConsumeLocal(truck, recipe));
+                return;
+            }
+
+            net.RequestConsume(recipe, onResult);
+        }
+
+        /// <summary>재료가 모두 있으면 빼고 true (가공 탭: 능력 할인 없이 레시피 수량 그대로 - 기존 동작과 같음).</summary>
+        public static bool ConsumeLocal(TruckInventory truck, RecipeData recipe)
+        {
+            if (truck == null || recipe == null || !truck.HasIngredients(recipe)) return false;
+            foreach (RecipeIngredient ingredient in recipe.inputs)
+            {
+                if (ingredient != null && ingredient.item != null && ingredient.count > 0)
+                    truck.RemoveItem(ingredient.item, ingredient.count);
+            }
+            return true;
         }
 
         /// <summary>
