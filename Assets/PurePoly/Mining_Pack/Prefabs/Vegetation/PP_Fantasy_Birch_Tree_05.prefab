@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 4487890077648927463}
   - component: {fileID: 1850072858832883245}
   - component: {fileID: 192593784012074983}
+  - component: {fileID: 5681071182452044430}
   m_Layer: 0
   m_Name: PP_Fantasy_Birch_Tree_05
   m_TagString: Untagged
@@ -89,6 +90,7 @@ MeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!64 &192593784012074983
 MeshCollider:
@@ -112,3 +114,19 @@ MeshCollider:
   m_Convex: 1
   m_CookingOptions: 30
   m_Mesh: {fileID: -6915556795990081814, guid: 681c237cc05e1384fb58f466fc2e4da9, type: 3}
+--- !u!114 &5681071182452044430
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 192593784012075000}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 90cde8a7b7bf84e4a8d618936abb29a4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FadingObject
+  Renderers: []
+  Position: {x: 0, y: 0, z: 0}
+  Materials: []
+  InitialAlpha: 0
