@@ -13,6 +13,6 @@ MonoBehaviour:
   m_Name: NetworkPrefabRegistry
   m_EditorClassIdentifier: Assembly-CSharp::LastTruck.Networking.NetworkPrefabRegistry
   gameStatePrefab: {fileID: 7615849450806733799, guid: b3028d7a9080bc541ade3d1e509fb7cd, type: 3}
-  monsterPrefab: {fileID: 7396410701426843143, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+  monsterPrefab: {fileID: 2012523762375353008, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
   uiFont: {fileID: 12800000, guid: 22a428bbf4b419f49a2110a1106d6b32, type: 3}
   tmpFont: {fileID: 11400000, guid: ee08c7788285ac84ba3740e218a4da0f, type: 2}

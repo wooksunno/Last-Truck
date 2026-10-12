@@ -31,6 +31,17 @@ namespace Combat
 
         private LastTruck.Networking.NetworkHealth _networkHealth;
 
+        private bool _dead;
+
+        /// <summary>싱글플레이: 피해를 받은 순간 (피해량). 몬스터 경직 등.</summary>
+        public event System.Action<int> Damaged;
+
+        /// <summary>싱글플레이: 체력이 0이 된 순간. 구독자가 있으면 Destroy 대신 구독자가 처리한다 (사망 애니메이션 후 제거).</summary>
+        public event System.Action Died;
+
+        /// <summary>싱글플레이에서 이미 죽었는가 (사망 애니메이션 중).</summary>
+        public bool IsDeadOffline => _dead;
+
         public int CurrentHealth => _currentHealth;
         public int MaxHealth => maxHealth;
 
@@ -174,12 +185,24 @@ namespace Combat
                 return;
             }
 
+            if (_dead) return;
+
             _currentHealth -= finalDamage;
             PlayHitEffect(hitPoint, finalDamage);
+            Damaged?.Invoke(finalDamage);
 
             if (_currentHealth <= 0)
             {
-                Destroy(gameObject);
+                // 사망 연출을 맡은 스크립트(MonsterAI 등)가 있으면 그쪽이 애니메이션 후 없앤다.
+                if (Died != null)
+                {
+                    _dead = true;
+                    Died.Invoke();
+                }
+                else
+                {
+                    Destroy(gameObject);
+                }
             }
         }
 

@@ -21,4 +21,10 @@ namespace LastTruck.Networking
         /// <summary>체력이 0이 된 순간 (사망 애니메이션 등).</summary>
         void OnNetworkDeath();
     }
+
+    /// <summary>기절했다가 부활했을 때 (플레이어 전용, 모든 컴퓨터). INetworkHealthListener와 같이 구현한다.</summary>
+    public interface INetworkReviveListener
+    {
+        void OnNetworkRevived();
+    }
 }

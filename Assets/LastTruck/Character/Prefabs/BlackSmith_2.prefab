@@ -1698,6 +1698,9 @@ MonoBehaviour:
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
+  jumpKey: 32
+  jumpVelocity: 10
+  jumpStateName: Jumping Up
 --- !u!114 &7613147673057204267
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1713,7 +1716,7 @@ MonoBehaviour:
   interactRange: 1.7
   interactLayer:
     serializedVersion: 2
-    m_Bits: 16
+    m_Bits: 0
   interactKey: 101
 --- !u!114 &-764989210585237779
 MonoBehaviour:

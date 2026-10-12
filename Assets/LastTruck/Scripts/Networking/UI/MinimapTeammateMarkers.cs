@@ -37,9 +37,11 @@ namespace LastTruck.Networking
                     _markers[player] = marker;
                 }
 
-                bool visible = player.IsAlive;
+                // 기절한 동료도 표시한다 (빨간 점 → 살리러 갈 위치). 트럭에 탄 동료는 숨긴다.
+                bool visible = !player.IsSeated;
                 if (marker.gameObject.activeSelf != visible) marker.gameObject.SetActive(visible);
                 if (!visible) continue;
+                marker.color = player.IsDowned ? DownedMarkerColor : markerColor;
 
                 Vector3 delta = player.transform.position - center.position;
                 var position = new Vector2(delta.x, delta.z) * scale;
@@ -59,6 +61,8 @@ namespace LastTruck.Networking
                 _markers.Remove(player);
             }
         }
+
+        private static readonly Color DownedMarkerColor = new Color(1f, 0.25f, 0.2f);
 
         private Image CreateMarker()
         {

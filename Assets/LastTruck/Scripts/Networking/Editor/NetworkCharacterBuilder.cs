@@ -270,7 +270,7 @@ namespace LastTruck.Networking.EditorTools
             root.AddComponent<NetworkObject>();
             var networkController = root.AddComponent<NetworkCharacterController>();
             networkController.gravity = -20f;
-            networkController.jumpImpulse = 0f;
+            networkController.jumpImpulse = 9f; // 실제 값은 NetworkPlayerMovement.jumpImpulse가 스폰 때 덮어쓴다
             networkController.acceleration = 100f;
             networkController.braking = 100f;
             networkController.maxSpeed = 6f;

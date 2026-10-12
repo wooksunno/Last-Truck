@@ -1,15 +1,14 @@
 using System.Collections;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace LastTruck
 {
     /// <summary>
     /// 플레이어가 몬스터에게 맞았을 때의 연출.
     ///  - 잠깐 경직: 피격 모션이 나오는 동안 이동/공격 불가 (연속으로 맞아도 계속 묶이지 않게 경직 후 잠깐 면역)
-    ///  - 몸이 빨갛게 번쩍(캐릭터 셰이더 _HitFlash), 피격 불꽃, 화면 가장자리 붉은 비네팅, 카메라 흔들림, 뒤로 밀려남
+    ///  - 몸이 빨갛게 번쩍(캐릭터 셰이더 _HitFlash), 피격 불꽃, 뒤로 밀려남 (화면 붉은 테두리·카메라 흔들림·데미지 숫자는 PlayerStatusHud)
     /// PlayerStats가 맞을 때 HitReaction.Play로 부른다(컴포넌트는 없으면 자동으로 붙는다).
-    /// 화면/카메라 연출과 경직은 내 캐릭터에만, 몸 번쩍임/불꽃은 모든 화면에서 보인다.
+    /// 경직/밀려남은 내 캐릭터에만, 몸 번쩍임/불꽃은 모든 화면에서 보인다.
     /// </summary>
     public class HitReaction : MonoBehaviour
     {
@@ -19,15 +18,12 @@ namespace LastTruck
         [SerializeField] private float stunImmuneSeconds = 0.6f;
         [Tooltip("맞았을 때 공격자 반대쪽으로 밀려나는 속도(m/s, 싱글플레이)")]
         [SerializeField] private float knockbackSpeed = 7f;
-        [Tooltip("카메라 흔들림 세기 (0~1)")]
-        [SerializeField] private float shakeAmount = 0.6f;
         [SerializeField] private Color flashColor = new Color(1f, 0.12f, 0.08f, 1f);
 
         private static readonly int HitFlashId = Shader.PropertyToID("_HitFlash");
         private static readonly int FlashColorId = Shader.PropertyToID("_FlashColor");
 
         private static Texture2D _softCircle;
-        private static Texture2D _vignette;
         private static Material _particleMaterial;
 
         private PlayerMove _move;
@@ -36,8 +32,6 @@ namespace LastTruck
         private MaterialPropertyBlock _block;
         private float _stunImmuneUntil;
         private Coroutine _flashRoutine;
-        private Coroutine _overlayRoutine;
-        private RawImage _overlay;
         private bool _isLocal = true;
 
         public static void Play(GameObject player, Vector3 attackerPosition, bool hasAttacker)
@@ -83,9 +77,7 @@ namespace LastTruck
             if (!_isLocal)
                 return;
 
-            // 화면 연출
-            Combat.CameraShake.Shake(shakeAmount);
-            PlayOverlay();
+            // (화면 가장자리 붉게 + 카메라 흔들림 + 데미지 숫자는 PlayerStatusHud가 한다)
 
             // 경직 + 밀려남 (직전에 경직이 끝났다면 잠깐 면역)
             if (Time.time >= _stunImmuneUntil && _move != null)
@@ -160,85 +152,6 @@ namespace LastTruck
                 if (r != null)
                     r.SetPropertyBlock(null);
             }
-        }
-
-        #endregion
-
-        #region 화면 가장자리 붉은 비네팅
-
-        private void PlayOverlay()
-        {
-            EnsureOverlay();
-            if (_overlayRoutine != null)
-                StopCoroutine(_overlayRoutine);
-            _overlayRoutine = StartCoroutine(OverlayRoutine());
-        }
-
-        private IEnumerator OverlayRoutine()
-        {
-            const float duration = 0.7f;
-            for (float t = 0f; t < duration; t += Time.unscaledDeltaTime)
-            {
-                float k = 1f - t / duration;
-                _overlay.color = new Color(1f, 1f, 1f, 0.75f * k * Mathf.Sqrt(k));
-                yield return null;
-            }
-
-            _overlay.color = new Color(1f, 1f, 1f, 0f);
-            _overlayRoutine = null;
-        }
-
-        private void EnsureOverlay()
-        {
-            if (_overlay != null)
-                return;
-
-            var canvasObject = new GameObject("HitOverlay", typeof(RectTransform));
-            canvasObject.transform.SetParent(transform, false);
-            Canvas canvas = canvasObject.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 400;
-
-            var imageObject = new GameObject("Vignette", typeof(RectTransform));
-            imageObject.transform.SetParent(canvasObject.transform, false);
-            RectTransform rect = (RectTransform)imageObject.transform;
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            rect.offsetMin = Vector2.zero;
-            rect.offsetMax = Vector2.zero;
-
-            _overlay = imageObject.AddComponent<RawImage>();
-            _overlay.texture = GetVignetteTexture();
-            _overlay.raycastTarget = false;
-            _overlay.color = new Color(1f, 1f, 1f, 0f);
-        }
-
-        private static Texture2D GetVignetteTexture()
-        {
-            if (_vignette != null)
-                return _vignette;
-
-            const int size = 128;
-            _vignette = new Texture2D(size, size, TextureFormat.RGBA32, false)
-            {
-                wrapMode = TextureWrapMode.Clamp,
-                filterMode = FilterMode.Bilinear
-            };
-            for (int y = 0; y < size; y++)
-            {
-                for (int x = 0; x < size; x++)
-                {
-                    float dx = (x + 0.5f) / size * 2f - 1f;
-                    float dy = (y + 0.5f) / size * 2f - 1f;
-                    float d = Mathf.Sqrt(dx * dx + dy * dy) / 1.4142f;           // 모서리에서 1
-                    float t = Mathf.InverseLerp(0.3f, 1f, d);                      // 가운데 30%는 투명, 모서리로 갈수록 진해짐
-                    float a = t * t * (3f - 2f * t);
-                    a = Mathf.Pow(a, 1.5f) * 0.95f + 0.03f;                       // 전체에 아주 옅은 붉은 기운
-                    _vignette.SetPixel(x, y, new Color(0.85f, 0.04f, 0.04f, Mathf.Clamp01(a)));
-                }
-            }
-            _vignette.Apply();
-            return _vignette;
         }
 
         #endregion

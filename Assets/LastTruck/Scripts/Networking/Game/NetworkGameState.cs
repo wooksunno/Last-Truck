@@ -165,7 +165,7 @@ namespace LastTruck.Networking
             // 트럭 파괴
             if (Truck != null && Truck.IsBroken) return GameOverReason.TruckDestroyed;
 
-            // 모든 플레이어 사망 (사망 후 사라진 캐릭터도 사망으로 본다, 나간 사람은 제외)
+            // 모든 플레이어 기절 (나간 사람은 제외)
             int activePlayers = 0;
             foreach (PlayerRef player in Runner.ActivePlayers)
             {
@@ -211,7 +211,7 @@ namespace LastTruck.Networking
 
             string message = (GameOverReason)GameOver == GameOverReason.TruckDestroyed
                 ? "트럭이 파괴되었습니다."
-                : "모든 플레이어가 사망했습니다.";
+                : "모든 플레이어가 기절했습니다.";
 
             GameLauncher launcher = GameLauncher.Instance;
             if (launcher != null) launcher.NotifyGameOver();

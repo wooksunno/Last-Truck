@@ -397,6 +397,9 @@ namespace LastTruck.Networking
             }
         }
 
+        /// <summary>ESC "게임 나가기" 확인 팝업 이름 (호스트 이탈/게임 오버 때 자동으로 닫는다).</summary>
+        public const string LeaveGamePopupTag = "LeaveGame";
+
         /// <summary>인게임 ESC 메뉴: 게임에서 나가 방 목록으로 (확인 팝업 후).</summary>
         public void RequestLeaveFromGame()
         {
@@ -405,7 +408,7 @@ namespace LastTruck.Networking
             string message = IsHost && RoomPlayerCount > 1
                 ? "방장이 나가면 게임이 끝나고\n모든 참가자가 방 목록으로 돌아갑니다.\n나가시겠습니까?"
                 : "게임에서 나가 방 목록으로 돌아가시겠습니까?";
-            SystemUI.Confirm("게임 나가기", message, LeaveSession, null, "나가기", "계속하기");
+            SystemUI.Confirm("게임 나가기", message, LeaveSession, null, "나가기", "계속하기", LeaveGamePopupTag);
         }
 
         private async void LeaveSession()
@@ -489,6 +492,7 @@ namespace LastTruck.Networking
 
             BeginOperation();
             SetState(LauncherState.Leaving);
+            SystemUI.Dismiss(LeaveGamePopupTag); // ESC로 띄워 둔 "게임 나가기" 창이 있으면 닫는다
             SystemUI.Alert("연결 끊김", message);
             await ReturnToLobbyAsync();
         }
@@ -841,6 +845,7 @@ namespace LastTruck.Networking
         public void NotifyGameOver()
         {
             _gameOver = true;
+            SystemUI.Dismiss(LeaveGamePopupTag);
         }
 
         /// <summary>게임 오버 팝업의 확인 버튼: 방 목록으로 돌아간다 (방장이면 방이 닫힌다).</summary>
@@ -935,7 +940,7 @@ namespace LastTruck.Networking
                 {
                     driving = true;
                     data.TruckThrottle = Input.GetAxis("Vertical");
-                    data.TruckSteer = Input.GetAxis("Horizontal");
+                    data.TruckSteer = Input.GetAxisRaw("Horizontal"); // 부드럽게 꺾는 것은 TruckMove.Steer가 한다
                 }
             }
 
@@ -944,6 +949,8 @@ namespace LastTruck.Networking
             buttons.Set(NetworkInputButton.Walk, Input.GetButton("Walk"));
             buttons.Set(NetworkInputButton.Attack, Input.GetMouseButton(0));
             buttons.Set(NetworkInputButton.Interact, Input.GetKey(KeyCode.E));
+            // 점프: 걸어 다닐 때만 (트럭 탑승 중 Space는 브레이크)
+            buttons.Set(NetworkInputButton.Jump, seat < 0 && canMove && NetworkGameState.AllowPlayerControl && Input.GetKey(KeyCode.Space));
             data.Buttons = buttons;
 
             input.Set(data);

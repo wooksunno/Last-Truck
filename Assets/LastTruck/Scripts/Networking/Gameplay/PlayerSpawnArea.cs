@@ -8,6 +8,7 @@ namespace LastTruck.Networking
     /// Demo_01에는 싱글플레이용 캐릭터(Army)가 미리 놓여 있는데, 멀티플레이로 들어오면
     /// CraftingSceneBootstrap이 그 캐릭터를 지우면서 "그 자리"를 여기에 기록한다.
     /// 호스트는 그 주변 원 위에 참가자들을 나란히 스폰한다 (씬을 따로 고칠 필요 없음).
+    /// 씬에 PlayerSpawnPoint(스폰 범위 프리팹)가 있으면 그 박스 안에 스폰한다 (우선).
     /// </summary>
     public static class PlayerSpawnArea
     {
@@ -37,6 +38,13 @@ namespace LastTruck.Networking
         /// </summary>
         public static void GetSpawnPose(int slot, Vector3 fallbackOrigin, float radius, out Vector3 position, out Quaternion rotation)
         {
+            // 씬에 스폰 범위(PlayerSpawnPoint 프리팹)가 있으면 그 박스 안에 스폰한다.
+            if (PlayerSpawnPoint.Active != null)
+            {
+                PlayerSpawnPoint.Active.GetSpawnPose(slot, out position, out rotation);
+                return;
+            }
+
             Vector3 center = _hasOrigin ? _origin : fallbackOrigin;
             rotation = _hasOrigin ? _rotation : Quaternion.identity;
 
