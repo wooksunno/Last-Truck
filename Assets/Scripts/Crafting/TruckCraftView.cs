@@ -113,7 +113,7 @@ namespace CraftingSystem
             var g = grid.gameObject.AddComponent<GridLayoutGroup>();
             g.cellSize = new Vector2(124, 140); g.spacing = new Vector2(12, 12);
             g.padding = new RectOffset(6, 6, 8, 12);
-            g.constraint = GridLayoutGroup.Constraint.Flexible; g.childAlignment = TextAnchor.UpperLeft;
+            g.constraint = GridLayoutGroup.Constraint.Flexible; g.childAlignment = TextAnchor.UpperCenter;
             var csf = grid.gameObject.AddComponent<ContentSizeFitter>(); csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             foreach (RecipeData r in items)
@@ -129,7 +129,14 @@ namespace CraftingSystem
 
         bool CanCraft(RecipeData r)
         {
+            if (IsInstalled(r))
+                return false;   // 이미 설치된 설비
             return _inv != null && _inv.HasIngredients(r, _ability);
+        }
+
+        bool IsInstalled(RecipeData r)
+        {
+            return r != null && r.output != null && TruckFacilities.IsInstalledFacilityItem(_inv, r.output.item);
         }
 
         void BuildCard(RectTransform grid, RecipeData r, Color accent, float scale = 1f)
@@ -243,7 +250,8 @@ namespace CraftingSystem
             crt.offsetMin = new Vector2(20, 20); crt.offsetMax = new Vector2(0, 76);
 
             RecipeData rec = _selected;
-            var make = MkButton(right, "CraftButton", can ? "제작하기" : "재료가 부족합니다", BtnGreen, 22, () => _onCraft?.Invoke(rec), can);
+            string makeLabel = can ? "제작하기" : (IsInstalled(rec) ? "설치 완료" : "재료가 부족합니다");
+            var make = MkButton(right, "CraftButton", makeLabel, BtnGreen, 22, () => _onCraft?.Invoke(rec), can);
             var mrt = (RectTransform)make.transform;
             mrt.anchorMin = new Vector2(0.4f, 0); mrt.anchorMax = new Vector2(1, 0); mrt.pivot = new Vector2(0, 0);
             mrt.offsetMin = new Vector2(12, 20); mrt.offsetMax = new Vector2(-20, 76);

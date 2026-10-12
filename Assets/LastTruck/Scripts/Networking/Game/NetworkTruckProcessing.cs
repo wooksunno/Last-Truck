@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using CraftingSystem;
 using Fusion;
 using UnityEngine;
@@ -6,37 +7,40 @@ using UnityEngine;
 namespace LastTruck.Networking
 {
     /// <summary>
-    /// 트럭 가공 탭(시간이 걸리는 가공) 동기화 (NetworkGameState 프리팹에 같이 붙는다).
+    /// 트럭 가공 탭 동기화 (NetworkGameState 프리팹에 같이 붙는다).
     ///
-    /// 가공 시설(모닥불, 숫돌 연마대 ...)마다 대기열이 하나씩 따로 있다 (시설 번호 = GameUIController의 시설 탭 순서).
-    ///  - 한 시설의 대기열에는 한 번에 한 종류의 레시피만 쌓인다.
-    ///  - 누가 재료를 넣든 같은 대기열에 쌓이고, 남은 시간/완성 개수가 모두의 화면에 같이 보인다.
-    ///  - 재료 차감, 시간 계산, 완성은 호스트가 한다 → 넣은 사람이 나가도 가공은 계속되고 결과물은 트럭에 남는다.
-    ///  - 결과물은 "받기"를 누른 사람이 가방에 들어가는 만큼만 받는다 (못 받은 만큼은 대기열에 그대로).
-    ///  - 기다리는 재료는 입력칸을 눌러 1개씩 뺄 수 있다 (재료는 트럭 인벤토리로 돌아온다).
-    ///  - 가공 시간은 대기열을 시작한 사람의 능력(대장장이 등)으로 정한다.
+    /// 설비(모닥불, 숫돌 연마대 ...)마다 가공 "칸"이 있고, 칸마다 따로 가공한다 (TruckFacilities 규칙과 같음).
+    ///  - 설비 번호 = TruckFacilities.All 순서, 칸 번호 = 0 ~ (칸 수 - 1).
+    ///  - 재료 차감, 시간 계산, 완성은 호스트가 한다 → 넣은 사람이 나가도 가공은 계속되고 결과물은 칸에 남는다.
+    ///  - 완성된 결과물은 "받기"를 누른 사람이 가방에 들어가면 가져간다 (가방이 가득 차 있으면 칸에 그대로 남는다).
+    ///  - 가공 중인 칸을 누르면 재료를 돌려받고 칸이 비워진다.
+    ///  - 칸 늘리기: 설비를 만든 재료 × 현재 칸 수를 트럭 인벤토리에서 내고 1칸 늘린다.
+    ///  - 가공 시간은 시작한 사람의 능력(대장장이 등)으로 정한다.
     /// </summary>
     public class NetworkTruckProcessing : NetworkBehaviour
     {
         #region 네트워크 상태
 
-        /// <summary>시설 하나의 대기열 상태.</summary>
-        public struct FacilityState : INetworkStruct
+        /// <summary>칸 하나의 상태.</summary>
+        public struct SlotState : INetworkStruct
         {
-            /// <summary>가공 중인 레시피 번호 + 1 (0 = 대기열 없음).</summary>
+            /// <summary>가공 중인 레시피 번호 + 1 (0 = 빈 칸).</summary>
             public int Recipe;
-            public int Pending;
-            public int Ready;
-            public float SecondsPerItem;
-            public TickTimer ItemTimer;
+            public NetworkBool Ready;
+            public float Seconds;
+            public TickTimer Timer;
         }
 
-        /// <summary>동시에 따로 돌릴 수 있는 시설 수 (현재 7개 + 여유).</summary>
+        /// <summary>네트워크 상태에 잡아 둘 설비 수 (현재 7개 + 여유).</summary>
         public const int FacilitySlots = 8;
+        private const int MaxSlots = TruckFacilities.MaxSlots;
 
-        [Networked, Capacity(FacilitySlots)] private NetworkArray<FacilityState> States => default;
+        [Networked, Capacity(FacilitySlots * MaxSlots)] private NetworkArray<SlotState> Slots => default;
 
-        /// <summary>대기열이 바뀔 때마다 1씩 오른다 (UI가 다시 그릴 때 사용).</summary>
+        /// <summary>설비별 칸 수 (0이면 기본 1칸으로 본다).</summary>
+        [Networked, Capacity(FacilitySlots)] private NetworkArray<int> SlotCounts => default;
+
+        /// <summary>상태가 바뀔 때마다 1씩 오른다 (UI가 다시 그릴 때 사용).</summary>
         [Networked] private int Revision { get; set; }
 
         #endregion
@@ -50,33 +54,36 @@ namespace LastTruck.Networking
 
         public int StateRevision => Revision;
 
-        private static bool ValidSlot(int slot) => slot >= 0 && slot < FacilitySlots;
+        private static bool ValidFacility(int facility) => facility >= 0 && facility < FacilitySlots;
+        private static int Index(int facility, int slot) => facility * MaxSlots + slot;
 
-        public RecipeData RecipeOf(int slot)
+        public int SlotCount(int facility)
         {
-            if (!ValidSlot(slot)) return null;
-            int r = States[slot].Recipe;
-            return r > 0 ? ItemIndexLookup.RecipeAt(r - 1) : null;
+            if (!ValidFacility(facility)) return 1;
+            return Mathf.Clamp(SlotCounts[facility], 1, MaxSlots);
         }
 
-        public int PendingCount(int slot) => ValidSlot(slot) ? States[slot].Pending : 0;
-        public int ReadyCount(int slot) => ValidSlot(slot) ? States[slot].Ready : 0;
-
-        /// <summary>지금 가공 중인 1개의 남은 시간(초).</summary>
-        public float Remaining(int slot)
+        /// <summary>화면에 보여줄 칸 상태.</summary>
+        public ProcessSlotView SlotView(int facility, int slot)
         {
-            if (!ValidSlot(slot) || Runner == null) return 0f;
-            FacilityState s = States[slot];
-            if (s.Pending <= 0) return 0f;
-            float? left = s.ItemTimer.RemainingTime(Runner);
-            return left.HasValue ? Mathf.Max(0f, left.Value) : 0f;
-        }
+            if (!ValidFacility(facility) || slot < 0 || slot >= MaxSlots || Runner == null) return default;
 
-        public float Total(int slot)
-        {
-            if (!ValidSlot(slot)) return 0f;
-            FacilityState s = States[slot];
-            return s.Pending > 0 ? s.SecondsPerItem : 0f;
+            SlotState s = Slots[Index(facility, slot)];
+            if (s.Recipe <= 0) return default;
+
+            float remaining = 0f;
+            if (!s.Ready)
+            {
+                float? left = s.Timer.RemainingTime(Runner);
+                remaining = left.HasValue ? Mathf.Max(0f, left.Value) : 0f;
+            }
+            return new ProcessSlotView
+            {
+                recipe = ItemIndexLookup.RecipeAt(s.Recipe - 1),
+                remaining = remaining,
+                total = s.Seconds,
+                ready = s.Ready,
+            };
         }
 
         #endregion
@@ -106,81 +113,86 @@ namespace LastTruck.Networking
         {
             if (!HasStateAuthority) return;
 
-            for (int i = 0; i < FacilitySlots; i++)
+            for (int f = 0; f < FacilitySlots; f++)
             {
-                FacilityState s = States[i];
-                if (s.Pending <= 0) continue;
-                if (!s.ItemTimer.Expired(Runner)) continue;
+                for (int i = 0; i < MaxSlots; i++)
+                {
+                    SlotState s = Slots[Index(f, i)];
+                    if (s.Recipe <= 0 || s.Ready) continue;
+                    if (!s.Timer.Expired(Runner)) continue;
 
-                s.Pending--;
-                s.Ready++;
-                s.ItemTimer = s.Pending > 0 ? TickTimer.CreateFromSeconds(Runner, Mathf.Max(0.05f, s.SecondsPerItem)) : TickTimer.None;
-                States.Set(i, s);
-                Revision++;
+                    s.Ready = true;
+                    s.Timer = TickTimer.None;
+                    Slots.Set(Index(f, i), s);
+                    Revision++;
+                }
             }
         }
 
         #endregion
 
-        #region 가공 요청 (재료 1회분 넣기)
+        #region 요청 (재료 넣기)
 
         private int _nextRequestId = 1;
-        private readonly System.Collections.Generic.Dictionary<int, Action<bool, string>> _pendingRequests =
-            new System.Collections.Generic.Dictionary<int, Action<bool, string>>();
+        private readonly Dictionary<int, Action<bool, string>> _pendingRequests = new Dictionary<int, Action<bool, string>>();
 
-        /// <summary>재료 1회분을 넣어 해당 시설의 가공 대기열에 추가한다. 결과(성공 여부, 실패 메시지)는 onResult로.</summary>
-        public void RequestProcess(RecipeData recipe, int slot, Action<bool, string> onResult)
+        private int NewRequest(Action<bool, string> onResult)
+        {
+            int id = _nextRequestId++;
+            if (onResult != null) _pendingRequests[id] = onResult;
+            return id;
+        }
+
+        /// <summary>빈 칸에 재료 1회분을 넣고 가공을 시작한다. 결과(성공 여부, 실패 메시지)는 onResult로.</summary>
+        public void RequestPlace(RecipeData recipe, int facility, int slot, Action<bool, string> onResult)
         {
             int recipeIndex = ItemIndexLookup.RecipeIndexOf(recipe);
-            if (recipeIndex < 0 || !ValidSlot(slot))
+            if (recipeIndex < 0 || !ValidFacility(facility) || slot < 0 || slot >= MaxSlots)
             {
                 onResult?.Invoke(false, "이 레시피는 멀티플레이에서 찾을 수 없습니다.");
                 return;
             }
 
-            int id = _nextRequestId++;
-            if (onResult != null) _pendingRequests[id] = onResult;
-            RPC_RequestProcess(recipeIndex, slot, id);
+            RPC_RequestPlace(recipeIndex, facility, slot, NewRequest(onResult));
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-        private void RPC_RequestProcess(int recipeIndex, int slot, int requestId, RpcInfo info = default)
+        private void RPC_RequestPlace(int recipeIndex, int facility, int slot, int requestId, RpcInfo info = default)
         {
             PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
             RecipeData recipe = ItemIndexLookup.RecipeAt(recipeIndex);
             string error = null;
+            TruckInventory truck = FindFirstObjectByType<TruckInventory>();
 
-            if (!ValidSlot(slot))
-            {
-                error = "알 수 없는 가공 시설입니다.";
-            }
-            else
-            {
-                FacilityState s = States[slot];
-                if (recipe == null)
-                    error = "레시피를 찾을 수 없습니다.";
-                else if (s.Recipe != 0 && s.Recipe != recipeIndex + 1)
-                    error = "다른 재료를 가공 중입니다. 결과물을 모두 받은 뒤에 바꿀 수 있습니다.";
-                else if (!TruckInventorySync.ConsumeLocal(FindFirstObjectByType<TruckInventory>(), recipe))
-                    error = "재료가 부족합니다.";
+            if (recipe == null || !ValidFacility(facility) || slot < 0 || slot >= MaxSlots)
+                error = "레시피를 찾을 수 없습니다.";
+            else if (!TruckFacilities.IsBuilt(truck, TruckFacilities.All[Mathf.Min(facility, TruckFacilities.All.Length - 1)]))
+                error = "설비가 설치되어 있지 않습니다.";
+            else if (slot >= SlotCount(facility))
+                error = "아직 열리지 않은 칸입니다.";
+            else if (Slots[Index(facility, slot)].Recipe != 0)
+                error = "이미 사용 중인 칸입니다.";
+            else if (!TruckInventorySync.ConsumeLocal(truck, recipe))
+                error = "재료가 부족합니다.";
 
-                if (error == null)
+            if (error == null)
+            {
+                float seconds = Mathf.Max(0.05f, ProcessingSeconds(recipe, source));
+                Slots.Set(Index(facility, slot), new SlotState
                 {
-                    s.Recipe = recipeIndex + 1;
-                    if (s.Pending == 0) s.SecondsPerItem = ProcessingSeconds(recipe, source);   // 새 대기열을 시작한 사람의 능력 기준
-
-                    s.Pending++;
-                    if (s.Pending == 1) s.ItemTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0.05f, s.SecondsPerItem));
-                    States.Set(slot, s);
-                    Revision++;
-                }
+                    Recipe = recipeIndex + 1,
+                    Ready = false,
+                    Seconds = seconds,
+                    Timer = TickTimer.CreateFromSeconds(Runner, seconds),
+                });
+                Revision++;
             }
 
-            RPC_ProcessResult(source, requestId, error == null, error ?? string.Empty);
+            RPC_Result(source, requestId, error == null, error ?? string.Empty);
         }
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-        private void RPC_ProcessResult([RpcTarget] PlayerRef target, int requestId, NetworkBool ok, string message)
+        private void RPC_Result([RpcTarget] PlayerRef target, int requestId, NetworkBool ok, string message)
         {
             if (!_pendingRequests.TryGetValue(requestId, out Action<bool, string> callback)) return;
             _pendingRequests.Remove(requestId);
@@ -200,42 +212,26 @@ namespace LastTruck.Networking
 
         #endregion
 
-        #region 대기 중인 재료 빼기
+        #region 가공 중인 칸 비우기 (재료 환불)
 
-        /// <summary>해당 시설에서 아직 가공이 끝나지 않은 재료 1회분(맨 뒤)을 빼서 트럭 인벤토리로 돌려준다.</summary>
-        public void RequestCancel(int slot)
+        public void RequestCancel(int facility, int slot)
         {
-            if (!ValidSlot(slot)) return;
-            RPC_RequestCancel(slot);
+            if (!ValidFacility(facility) || slot < 0 || slot >= MaxSlots) return;
+            RPC_RequestCancel(facility, slot);
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-        private void RPC_RequestCancel(int slot)
+        private void RPC_RequestCancel(int facility, int slot)
         {
-            if (!ValidSlot(slot)) return;
+            if (!ValidFacility(facility) || slot < 0 || slot >= MaxSlots) return;
 
-            FacilityState s = States[slot];
-            if (s.Pending <= 0 || s.Recipe == 0) return;
+            SlotState s = Slots[Index(facility, slot)];
+            if (s.Recipe <= 0 || s.Ready) return;
 
             RecipeData recipe = ItemIndexLookup.RecipeAt(s.Recipe - 1);
-            TruckInventory truck = FindFirstObjectByType<TruckInventory>();
-            if (recipe != null && truck != null && recipe.inputs != null)
-            {
-                foreach (RecipeIngredient ingredient in recipe.inputs)
-                {
-                    if (ingredient != null && ingredient.item != null && ingredient.count > 0)
-                        TruckInventorySync.AddAndCount(truck.Inventory, ingredient.item, ingredient.count);
-                }
-            }
+            TruckFacilities.Refund(FindFirstObjectByType<TruckInventory>(), recipe);
 
-            s.Pending--;
-            if (s.Pending <= 0)
-            {
-                // 가공 중이던 것까지 뺐다 → 타이머를 멈추고, 받을 결과물도 없으면 다른 레시피를 고를 수 있다.
-                s.ItemTimer = TickTimer.None;
-                if (s.Ready <= 0) { s.Recipe = 0; }
-            }
-            States.Set(slot, s);
+            Slots.Set(Index(facility, slot), default);
             Revision++;
         }
 
@@ -243,67 +239,101 @@ namespace LastTruck.Networking
 
         #region 결과물 받기
 
-        /// <summary>내 가방에 들어갈 만큼(maxCount회분)만 해당 시설의 결과물을 받는다.</summary>
-        public void RequestClaim(int slot, int maxCount)
+        /// <summary>끝난 칸의 결과물을 받는다 (호출한 쪽이 가방 공간을 미리 확인한다).</summary>
+        public void RequestClaim(int facility, int slot)
         {
-            if (maxCount <= 0 || !ValidSlot(slot)) return;
-            RPC_RequestClaim(slot, maxCount);
+            if (!ValidFacility(facility) || slot < 0 || slot >= MaxSlots) return;
+            RPC_RequestClaim(facility, slot);
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-        private void RPC_RequestClaim(int slot, int maxCount, RpcInfo info = default)
+        private void RPC_RequestClaim(int facility, int slot, RpcInfo info = default)
         {
-            if (!ValidSlot(slot)) return;
+            if (!ValidFacility(facility) || slot < 0 || slot >= MaxSlots) return;
 
             PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
-            FacilityState s = States[slot];
-            int count = Mathf.Min(s.Ready, Mathf.Max(0, maxCount));
-            if (count <= 0 || s.Recipe == 0) return;
+            SlotState s = Slots[Index(facility, slot)];
+            if (s.Recipe <= 0 || !s.Ready) return;
 
             int recipeIndex = s.Recipe - 1;
-            s.Ready -= count;
-            if (s.Ready <= 0 && s.Pending <= 0) { s.Recipe = 0; } // 다 받았으면 다른 레시피를 고를 수 있다
-            States.Set(slot, s);
+            Slots.Set(Index(facility, slot), default);
             Revision++;
 
-            RPC_GiveOutput(source, slot, recipeIndex, count);
+            RPC_GiveOutput(source, facility, slot, recipeIndex);
         }
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-        private void RPC_GiveOutput([RpcTarget] PlayerRef target, int slot, int recipeIndex, int count)
+        private void RPC_GiveOutput([RpcTarget] PlayerRef target, int facility, int slot, int recipeIndex)
         {
             RecipeData recipe = ItemIndexLookup.RecipeAt(recipeIndex);
             PlayerInventory player = TruckInventorySync.LocalPlayerInventory;
             if (recipe == null || recipe.output == null || recipe.output.item == null) return;
 
-            int claimed = 0;
-            while (claimed < count && player != null && player.AddItem(recipe.output.item, recipe.output.count))
-                claimed++;
-
-            // 그사이 가방이 찼으면 못 받은 만큼 대기열로 돌려놓는다.
-            if (claimed < count) RPC_ReturnOutput(slot, recipeIndex, count - claimed);
+            // 그사이 가방이 찼으면 결과물을 칸으로 돌려놓는다.
+            if (player == null || !player.AddItem(recipe.output.item, recipe.output.count))
+                RPC_ReturnOutput(facility, slot, recipeIndex);
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-        private void RPC_ReturnOutput(int slot, int recipeIndex, int count)
+        private void RPC_ReturnOutput(int facility, int slot, int recipeIndex)
         {
-            if (count <= 0 || !ValidSlot(slot)) return;
+            if (!ValidFacility(facility) || slot < 0 || slot >= MaxSlots) return;
 
-            FacilityState s = States[slot];
-            if (s.Recipe != 0 && s.Recipe != recipeIndex + 1)
+            if (Slots[Index(facility, slot)].Recipe == 0)
             {
-                // 이미 다른 레시피로 바뀌었다 → 결과물을 트럭 인벤토리에 넣어 둔다.
-                RecipeData recipe = ItemIndexLookup.RecipeAt(recipeIndex);
-                TruckInventory truck = FindFirstObjectByType<TruckInventory>();
-                if (recipe != null && recipe.output != null && truck != null)
-                    TruckInventorySync.AddAndCount(truck.Inventory, recipe.output.item, recipe.output.count * count);
+                Slots.Set(Index(facility, slot), new SlotState { Recipe = recipeIndex + 1, Ready = true, Seconds = 0f, Timer = TickTimer.None });
+                Revision++;
                 return;
             }
 
-            s.Recipe = recipeIndex + 1;
-            s.Ready += count;
-            States.Set(slot, s);
-            Revision++;
+            // 칸이 이미 다른 용도로 쓰이고 있으면 결과물을 트럭 인벤토리에 넣어 둔다.
+            RecipeData recipe = ItemIndexLookup.RecipeAt(recipeIndex);
+            TruckInventory truck = FindFirstObjectByType<TruckInventory>();
+            if (recipe != null && recipe.output != null && truck != null)
+                TruckInventorySync.AddAndCount(truck.Inventory, recipe.output.item, recipe.output.count);
+        }
+
+        #endregion
+
+        #region 칸 늘리기
+
+        /// <summary>설비 칸을 1개 늘린다. 재료(설비 제작 재료 × 현재 칸 수)는 호스트가 트럭 인벤토리에서 뺀다.</summary>
+        public void RequestUpgrade(int facility, Action<bool, string> onResult)
+        {
+            if (!ValidFacility(facility))
+            {
+                onResult?.Invoke(false, "알 수 없는 설비입니다.");
+                return;
+            }
+            RPC_RequestUpgrade(facility, NewRequest(onResult));
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_RequestUpgrade(int facility, int requestId, RpcInfo info = default)
+        {
+            PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
+            string error = null;
+            TruckInventory truck = FindFirstObjectByType<TruckInventory>();
+
+            if (!ValidFacility(facility) || facility >= TruckFacilities.All.Length)
+            {
+                error = "알 수 없는 설비입니다.";
+            }
+            else
+            {
+                FacilityType type = TruckFacilities.All[facility];
+                int current = SlotCount(facility);
+                if (!TruckFacilities.IsBuilt(truck, type)) error = "설비가 설치되어 있지 않습니다.";
+                else if (current >= MaxSlots) error = "더 늘릴 수 없습니다.";
+                else if (!TruckFacilities.Pay(truck, TruckFacilities.UpgradeCost(type, current))) error = "재료가 부족합니다.";
+                else
+                {
+                    SlotCounts.Set(facility, current + 1);
+                    Revision++;
+                }
+            }
+
+            RPC_Result(source, requestId, error == null, error ?? string.Empty);
         }
 
         #endregion

@@ -29,6 +29,8 @@ namespace CraftingSystem
             {
                 if (item == null)
                     continue;
+                if (TruckFacilities.IsFacilityItem(item))
+                    continue;   // 설비는 직접 제작해야 한다 (가공 탭이 열리는 조건)
                 if (truckInv.GetItemCount(item) <= 0)
                     truckInv.AddItem(item, 1);
             }

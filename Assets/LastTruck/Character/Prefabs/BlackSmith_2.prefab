@@ -1716,7 +1716,7 @@ MonoBehaviour:
   interactRange: 1.7
   interactLayer:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 16
   interactKey: 101
 --- !u!114 &-764989210585237779
 MonoBehaviour:

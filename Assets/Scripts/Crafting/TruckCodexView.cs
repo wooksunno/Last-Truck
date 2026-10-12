@@ -167,7 +167,7 @@ namespace CraftingSystem
             g.cellSize = new Vector2(128, 144); g.spacing = new Vector2(12, 12);
             g.padding = new RectOffset(10, 10, 6, 14);
             g.constraint = GridLayoutGroup.Constraint.Flexible;
-            g.childAlignment = TextAnchor.UpperLeft;
+            g.childAlignment = TextAnchor.UpperCenter;
             var csf = _gridContent.gameObject.AddComponent<ContentSizeFitter>();
             csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
         }

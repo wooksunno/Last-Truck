@@ -75,6 +75,8 @@ public void FillDefaultResources()
             {
                 if (item == null)
                     continue;
+                if (TruckFacilities.IsFacilityItem(item))
+                    continue;   // 설비는 처음에 없다. 트럭에서 제작해야 가공 탭이 열린다.
                 if (GetItemCount(item) <= 0)
                     AddItem(item, 1);
             }

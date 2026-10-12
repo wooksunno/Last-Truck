@@ -79,6 +79,13 @@ namespace CraftingSystem
                 return false;
             }
 
+            // 설비는 하나만 설치한다 (이미 있으면 재료만 날리지 않게 막는다)
+            if (TruckFacilities.IsInstalledFacilityItem(inv, recipe.output.item))
+            {
+                Debug.LogWarning($"[TruckCrafting] 이미 설치된 설비입니다: {recipe.output.item.itemName}");
+                return false;
+            }
+
             // 대장장이 능력(자원 소모량 감소) 추가 수정
             // 멀티플레이: 제작한 사람의 능력을 쓴다 (호스트가 대신 처리할 때는 요청한 사람의 캐릭터를 넘겨준다).
             CharacterAbilityController abilityController = crafterAbility != null
