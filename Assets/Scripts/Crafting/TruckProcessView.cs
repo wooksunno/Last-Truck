@@ -148,7 +148,7 @@ namespace CraftingSystem
                 BuildCard(grid, c, m.accent);
         }
 
-        static void BuildCard(RectTransform grid, CardInfo c, Color accent)
+        static void BuildCard(RectTransform grid, CardInfo c, Color accent, float scale = 1f)
         {
             var card = Mk("Card_" + (c.input != null ? c.input.itemID : "x"), grid);
             var bg = Img(card, Round, c.can ? new Color(0.26f, 0.20f, 0.13f, 1f) : CardCol, true, true);
@@ -166,7 +166,7 @@ namespace CraftingSystem
             float a = c.can ? 1f : 0.5f;
             var inIcon = Mk("In", card);
             inIcon.anchorMin = inIcon.anchorMax = new Vector2(0, 1); inIcon.pivot = new Vector2(0, 1);
-            inIcon.anchoredPosition = new Vector2(12, -14); inIcon.sizeDelta = new Vector2(52, 52);
+            inIcon.anchoredPosition = new Vector2(12, -14); inIcon.sizeDelta = new Vector2(52 * scale, 52 * scale);
             ItemIcon(inIcon, c.input, a);
 
             if (Tri != null)
@@ -180,7 +180,7 @@ namespace CraftingSystem
 
             var outIcon = Mk("Out", card);
             outIcon.anchorMin = outIcon.anchorMax = new Vector2(1, 1); outIcon.pivot = new Vector2(1, 1);
-            outIcon.anchoredPosition = new Vector2(-12, -14); outIcon.sizeDelta = new Vector2(52, 52);
+            outIcon.anchoredPosition = new Vector2(-12, -14); outIcon.sizeDelta = new Vector2(52 * scale, 52 * scale);
             ItemIcon(outIcon, c.output, a);
 
             var nm = Mk("Name", card);

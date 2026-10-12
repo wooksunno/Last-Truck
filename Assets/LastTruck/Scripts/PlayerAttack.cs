@@ -44,7 +44,7 @@ namespace LastTruck
         {
             if (anim != null)
             {
-                anim.SetTrigger("doAttack");
+                if (GetComponent<Combat.WeaponController>() == null) anim.SetTrigger("doAttack"); // with WeaponController the per-weapon attack anims are used (doAttack is a jump pose that lifts the character)
             }
 
             Collider[] hitColliders = Physics.OverlapSphere(attackPoint.position, attackRange);

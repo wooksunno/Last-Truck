@@ -619,6 +619,7 @@ namespace Combat
                 (UnityEngine.EventSystems.EventSystem.current != null &&
                  UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()) ||
                 (GameUIController.Instance != null && GameUIController.Instance.IsPopupOpen) ||
+                (_playerMove != null && _playerMove.IsStunned) ||     // 피격 경직 중에는 공격 불가
                 targetCamera == null;
 
             ItemData selected = _inventory.SelectedItem;
@@ -703,8 +704,8 @@ namespace Combat
 
                     if (!_pressVetoed && Input.GetMouseButton(0))
                     {
-                        if (!AutoFaceNearestTarget(stats.range))
-                            AimTowardMouse(stats.range);
+                        // 근처에 적이 있으면 그쪽으로, 없으면 지금 바라보는 방향으로 그대로 뿜는다
+                        AutoFaceNearestTarget(stats.range);
 
                         if (!_isFlameActive)
                         {
@@ -744,8 +745,7 @@ namespace Combat
                     }
                     else if (_isCharging && Input.GetMouseButton(0))
                     {
-                        if (!AutoFaceNearestTarget(stats.range))
-                            AimTowardMouse(stats.range);
+                        AutoFaceNearestTarget(stats.range);
                     }
                     else if (Input.GetMouseButtonUp(0) && _isCharging)
                     {
@@ -1147,6 +1147,28 @@ namespace Combat
             SetCharging(false);
             StopFlameEffect();
             StopAttackRecovery();
+        }
+
+        /// <summary>피격 등으로 공격이 끊길 때: 차징/화염을 멈추고 공격 모션(상체 레이어)도 즉시 끝낸다.</summary>
+        public void InterruptAttack()
+        {
+            StopAllCoroutines();
+            _fistAttacking = false;
+            _attackRecoveryRoutine = null;
+            LockMovement(false);
+            CancelOngoingActions();
+            _attackLayerHoldUntil = 0f;
+            if (_animator != null && useAttackAnimations)
+            {
+                if (_attackLayer == -2)
+                    _attackLayer = _animator.GetLayerIndex(AttackLayerName);
+                if (_attackLayer >= 0)
+                {
+                    foreach (string t in new[] { "AtkSlash", "AtkStab", "AtkPunch", "AtkShoot1H", "AtkShoot2H", "AtkThrow" })
+                        if (HasAnimParam(t)) _animator.ResetTrigger(t);
+                    _animator.Play("Empty", _attackLayer, 0f);
+                }
+            }
         }
 
         /// <summary>
@@ -1620,7 +1642,7 @@ namespace Combat
         }
 
         /// <summary>
-        /// 원거리 무기 자동 조준용 조준점. 범위 안에 대상이 있으면 그 대상을, 없으면 기존처럼 마우스 조준점을 반환한다.
+        /// 원거리 무기 자동 조준용 조준점. 범위 안에 대상이 있으면 그 대상을, 없으면 지금 바라보는 방향의 정면을 반환한다.
         /// (수류탄은 이 함수를 쓰지 않고 항상 마우스 커서를 직접 조준한다.)
         /// </summary>
         private Vector3 GetAutoAimPoint(float range, float fallbackHeight)
@@ -1629,7 +1651,13 @@ namespace Combat
             if (target != null)
                 return target.transform.position + Vector3.up * 1f;
 
-            return GetMouseAimPoint(range, fallbackHeight);
+            // 적이 없으면 마우스가 아니라 캐릭터가 보는 방향(수평)으로 쏜다
+            Vector3 forward = transform.forward;
+            forward.y = 0f;
+            forward = forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
+            Vector3 point = transform.position + forward * Mathf.Min(range, 12f);
+            point.y = fallbackHeight;
+            return point;
         }
 
         private void StopFlameEffect()

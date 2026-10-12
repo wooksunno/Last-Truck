@@ -1195,7 +1195,8 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 CreateWithdrawPrompt(_popupBody, truckInv);
 
             // 제작/가공/도감 이동은 팝업 오른쪽의 책갈피 탭(UpdateTruckTabs)이 맡는다.
-            RectTransform truckGrid = CreateScrollableGrid(_popupBody, "트럭 보관함", 12, 600f);
+            // 보관함 칸을 크게(10열 × 92×128)
+            RectTransform truckGrid = CreateScrollableGrid(_popupBody, "트럭 보관함", 10, 600f, new Vector2(92f, 128f));
             if (truckInv != null)
             {
                 foreach (InventorySlot slot in truckInv.Slots)
@@ -1204,7 +1205,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                         continue;
 
                     InventorySlot captured = slot;
-                    CreateInventorySlotView(truckGrid, slot.item, slot.count, 72f, () =>
+                    CreateInventorySlotView(truckGrid, slot.item, slot.count, 88f, () =>
                     {
                         // 도구/무기처럼 겹쳐지지 않는(최대 1개) 아이템은 수량을 묻지 않고 바로 인벤토리로 꺼낸다
                         if (captured.item != null && captured.item.maxStack <= 1)
@@ -2651,7 +2652,8 @@ private void ClaimTruckOutput()
             text.raycastTarget = false;
         }
 
-        private RectTransform CreateScrollableGrid(RectTransform parent, string title, int columns, float height = 380f)
+        private RectTransform CreateScrollableGrid(RectTransform parent, string title, int columns, float height = 380f,
+            Vector2? cell = null)
         {
             var containerGo = new GameObject(title + "Container", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(LayoutElement));
             containerGo.transform.SetParent(parent, false);
@@ -2692,7 +2694,7 @@ private void ClaimTruckOutput()
             contentRt.sizeDelta = Vector2.zero;
 
             GridLayoutGroup grid = contentGo.GetComponent<GridLayoutGroup>();
-            grid.cellSize = new Vector2(76f, 100f);
+            grid.cellSize = cell ?? new Vector2(76f, 100f);
             grid.spacing = new Vector2(6f, 6f);
             grid.padding = new RectOffset(4, 4, 4, 4);
             grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
@@ -3067,16 +3069,19 @@ private void ClaimTruckOutput()
             var go = new GameObject(item != null ? $"Slot_{item.itemID}" : "Slot_Empty",
                 typeof(RectTransform), typeof(Image), typeof(LayoutElement));
             go.transform.SetParent(parent, false);
+            // 큰 칸(트럭 보관함)은 이름 글자도 키운다
+            bool big = size >= 80f;
+            float extra = big ? 38f : 28f;
             RectTransform rt = go.GetComponent<RectTransform>();
-            rt.sizeDelta = new Vector2(size, size + 28);
+            rt.sizeDelta = new Vector2(size, size + extra);
             Image slotBg = go.GetComponent<Image>();
             slotBg.color = isSelected ? SlotSelectedColor : SlotNormalColor;
             ApplyRounded(slotBg);
             LayoutElement le = go.GetComponent<LayoutElement>();
             le.preferredWidth = size;
-            le.preferredHeight = size + 28;
+            le.preferredHeight = size + extra;
             le.minWidth = size;
-            le.minHeight = size + 20;
+            le.minHeight = size + extra - 8f;
 
             if (isSelected)
             {
@@ -3113,10 +3118,10 @@ private void ClaimTruckOutput()
             nameRt.anchorMax = new Vector2(1, 0);
             nameRt.pivot = new Vector2(0.5f, 0f);
             nameRt.anchoredPosition = new Vector2(0, 2);
-            nameRt.sizeDelta = new Vector2(-4, 26);
+            nameRt.sizeDelta = new Vector2(-4, big ? 36f : 26f);
             Text nameText = nameGo.GetComponent<Text>();
             nameText.font = uiFont;
-            nameText.fontSize = 11;
+            nameText.fontSize = big ? 14 : 11;
             nameText.alignment = TextAnchor.MiddleCenter;
             nameText.color = Color.white;
             nameText.text = item != null ? $"{item.itemName}\nx{count}" : "(빈 칸)";

@@ -61,7 +61,26 @@ namespace LastTruck
         public bool IsNetworkControlled => _networkControlled;
 
         /// <summary>이동 입력을 막아야 하는가 (UI가 열려 있거나 다른 스크립트가 잠금). 멀티플레이 입력에도 반영된다.</summary>
-        public bool IsMovementBlocked => _movementLocked || IsUIOpen;
+        public bool IsMovementBlocked => _movementLocked || IsUIOpen || IsStunned;
+
+        private float _stunUntil;
+        private Vector3 _knockVelocity;
+
+        /// <summary>피격 경직 중인가 (이동/공격 불가).</summary>
+        public bool IsStunned => Time.time < _stunUntil;
+
+        /// <summary>지정한 시간(초) 동안 움직이지 못하게 한다. 겹치면 더 긴 쪽이 적용된다.</summary>
+        public void Stun(float seconds)
+        {
+            if (seconds > 0f) _stunUntil = Mathf.Max(_stunUntil, Time.time + seconds);
+        }
+
+        /// <summary>피격 시 뒤로 밀려나는 속도(m/s, 수평). 빠르게 줄어든다. 싱글플레이 이동에만 적용.</summary>
+        public void Knockback(Vector3 velocity)
+        {
+            velocity.y = 0f;
+            _knockVelocity = velocity;
+        }
 
         /// <summary>이동 속도 배율 (능력/상태 효과). 멀티플레이 이동에도 반영된다.</summary>
         public float SpeedMultiplier => _speedMultiplier;
@@ -213,7 +232,7 @@ namespace LastTruck
             }
 
             // UI가 켜져 있거나 이동이 잠긴 경우에만 이동 입력 차단
-            bool shouldLockMovement = _movementLocked || IsUIOpen;
+            bool shouldLockMovement = IsMovementBlocked;
 
             if (shouldLockMovement)
             {
@@ -317,6 +336,13 @@ namespace LastTruck
 #else
                 targetVelocity.y = Mathf.Min(rigidbody.velocity.y, 0f);
 #endif
+            }
+
+            // 피격으로 밀려나는 속도 (빠르게 감소)
+            if (_knockVelocity.sqrMagnitude > 0.0001f)
+            {
+                targetVelocity += _knockVelocity;
+                _knockVelocity = Vector3.MoveTowards(_knockVelocity, Vector3.zero, 18f * Time.fixedDeltaTime);
             }
 
             // Unity 버전 호환성 지원 (linearVelocity / velocity)

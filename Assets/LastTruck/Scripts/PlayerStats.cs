@@ -75,9 +75,12 @@ namespace LastTruck
                 return;
             }
 
+            bool hasAttacker = attacker != null;
+            Vector3 attackerPos = hasAttacker ? attacker.transform.position : transform.position;
+
             if (fromPlayer)
             {
-                Hit_Ani();
+                Hit_Ani(attackerPos, hasAttacker);
                 return;
             }
 
@@ -86,7 +89,7 @@ namespace LastTruck
 
             OnHealthChanged?.Invoke(currentHealth, MaxHealth);
 
-            Hit_Ani();
+            Hit_Ani(attackerPos, hasAttacker);
 
             if (currentHealth <= 0)
             {
@@ -110,13 +113,16 @@ namespace LastTruck
 
         #region 애니메이션
 
-        private void Hit_Ani()
+        private void Hit_Ani(Vector3 attackerPosition = default, bool hasAttacker = false)
         {
             if (anim == null) anim = GetComponentInChildren<Animator>();
             if (anim != null)
             {
                 anim.SetTrigger("doHit");
             }
+
+            // 경직(이동/공격 불가) + 몸 번쩍임, 불꽃, 붉은 화면, 카메라 흔들림
+            HitReaction.Play(gameObject, attackerPosition, hasAttacker);
         }
 
         private void Die()

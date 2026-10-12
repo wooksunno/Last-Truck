@@ -98,21 +98,26 @@ namespace CraftingSystem
             left.offsetMin = new Vector2(14, 14); left.offsetMax = new Vector2(-8, -14);
             RectTransform grid;
             NewScroll(left, false, true, 0, 0, 0, 0, out grid);
-            var g = grid.gameObject.AddComponent<GridLayoutGroup>();
-            g.cellSize = new Vector2(124, 140); g.spacing = new Vector2(12, 12);
-            g.padding = new RectOffset(6, 6, 8, 12);
-            g.constraint = GridLayoutGroup.Constraint.Flexible; g.childAlignment = TextAnchor.UpperLeft;
-            var csf = grid.gameObject.AddComponent<ContentSizeFitter>(); csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
+            var items = new List<RecipeData>();
             if (_craft != null)
             {
                 foreach (RecipeData r in _craft.Recipes)
                 {
                     if (r == null || r.output == null || r.output.item == null) continue;
                     if (TruckCodexView.CategoryOf(r.output.item) != cur) continue;
-                    BuildCard(grid, r, TruckCodexView.CategoryColors[cur]);
+                    items.Add(r);
                 }
             }
+
+            // 모든 아이템 카드는 같은 크기(여백은 나중에 항목이 추가되면 채워진다)
+            var g = grid.gameObject.AddComponent<GridLayoutGroup>();
+            g.cellSize = new Vector2(124, 140); g.spacing = new Vector2(12, 12);
+            g.padding = new RectOffset(6, 6, 8, 12);
+            g.constraint = GridLayoutGroup.Constraint.Flexible; g.childAlignment = TextAnchor.UpperLeft;
+            var csf = grid.gameObject.AddComponent<ContentSizeFitter>(); csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            foreach (RecipeData r in items)
+                BuildCard(grid, r, TruckCodexView.CategoryColors[cur]);
 
             // 오른쪽: 상세
             var right = Panel(panel, "Detail", new Color(0.15f, 0.12f, 0.10f, 1f));
@@ -127,7 +132,7 @@ namespace CraftingSystem
             return _inv != null && _inv.HasIngredients(r, _ability);
         }
 
-        void BuildCard(RectTransform grid, RecipeData r, Color accent)
+        void BuildCard(RectTransform grid, RecipeData r, Color accent, float scale = 1f)
         {
             bool can = CanCraft(r);
             bool sel = r == _selected;
@@ -148,13 +153,13 @@ namespace CraftingSystem
 
             var icon = Mk("Icon", card);
             icon.anchorMin = icon.anchorMax = new Vector2(0.5f, 1); icon.pivot = new Vector2(0.5f, 1);
-            icon.anchoredPosition = new Vector2(0, -14); icon.sizeDelta = new Vector2(72, 72);
+            icon.anchoredPosition = new Vector2(0, -14 * scale); icon.sizeDelta = new Vector2(72 * scale, 72 * scale);
             ItemIcon(icon, item, can ? 1f : 0.5f);
 
             var nm = Mk("Name", card);
             nm.anchorMin = new Vector2(0, 0); nm.anchorMax = new Vector2(1, 0); nm.pivot = new Vector2(0.5f, 0);
-            nm.anchoredPosition = new Vector2(0, 8); nm.sizeDelta = new Vector2(-10, 44);
-            var t = Txt(nm, item.itemName, 15, FontStyle.Bold, can ? Cream : Dim, TextAnchor.MiddleCenter);
+            nm.anchoredPosition = new Vector2(0, 8); nm.sizeDelta = new Vector2(-10, 44 * scale);
+            var t = Txt(nm, item.itemName, Mathf.RoundToInt(15 * Mathf.Min(scale, 1.2f)), FontStyle.Bold, can ? Cream : Dim, TextAnchor.MiddleCenter);
             t.horizontalOverflow = HorizontalWrapMode.Wrap; t.verticalOverflow = VerticalWrapMode.Truncate;
 
             if (can)

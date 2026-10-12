@@ -195,16 +195,18 @@ namespace CraftingSystem
             for (int i = _gridContent.childCount - 1; i >= 0; i--) { var ch = _gridContent.GetChild(i).gameObject; ch.SetActive(false); UnityEngine.Object.Destroy(ch); }
             int count = 0;
             foreach (ItemData it in ItemCatalog.GetOrCreate().Items)
+                if (it != null && CategoryOf(it) == _category) count++;
+
+            foreach (ItemData it in ItemCatalog.GetOrCreate().Items)
             {
                 if (it == null || CategoryOf(it) != _category) continue;
                 BuildTile(_gridContent, it, CategoryColors[_category]);
-                count++;
             }
             _catTitle.text = CategoryNames[_category] + "   " + count + "종";
             _catScroll.verticalNormalizedPosition = 1f;
         }
 
-        void BuildTile(RectTransform grid, ItemData item, Color accent)
+        void BuildTile(RectTransform grid, ItemData item, Color accent, float scale = 1f)
         {
             var tile = Mk("Tile_" + item.itemID, grid);
             var bg = Img(tile, Round, CardCol, true, true);
@@ -220,13 +222,13 @@ namespace CraftingSystem
 
             var icon = Mk("Icon", tile);
             icon.anchorMin = icon.anchorMax = new Vector2(0.5f, 1); icon.pivot = new Vector2(0.5f, 1);
-            icon.anchoredPosition = new Vector2(0, -22); icon.sizeDelta = new Vector2(74, 74);
+            icon.anchoredPosition = new Vector2(0, -22 * scale); icon.sizeDelta = new Vector2(74 * scale, 74 * scale);
             ItemIcon(icon, item);
 
             var nm = Mk("Name", tile);
             nm.anchorMin = new Vector2(0, 0); nm.anchorMax = new Vector2(1, 0); nm.pivot = new Vector2(0.5f, 0);
-            nm.anchoredPosition = new Vector2(0, 8); nm.sizeDelta = new Vector2(-10, 40);
-            var t = Txt(nm, item.itemName, 15, FontStyle.Bold, Cream, TextAnchor.MiddleCenter);
+            nm.anchoredPosition = new Vector2(0, 8); nm.sizeDelta = new Vector2(-10, 40 * scale);
+            var t = Txt(nm, item.itemName, Mathf.RoundToInt(15 * Mathf.Min(scale, 1.2f)), FontStyle.Bold, Cream, TextAnchor.MiddleCenter);
             t.horizontalOverflow = HorizontalWrapMode.Wrap; t.verticalOverflow = VerticalWrapMode.Truncate;
         }
 
