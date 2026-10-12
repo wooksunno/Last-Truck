@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 1804cdc27b3976e4f9e5e6f49f111477
+timeCreated: 1541107280
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 131930
+  packageName: POLYGON - City Zombies Pack - Art by Synty
+  packageVersion: 1.7.2
+  assetPath: Assets/Synty/PolygonCityZombies/Prefabs/SM_Gib_LowerArm_01.prefab
+  uploadId: 974014

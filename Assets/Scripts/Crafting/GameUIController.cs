@@ -61,7 +61,8 @@ namespace CraftingSystem
         // 트럭 가공 탭 (실제 가공 시설과 동일한 UI/로직을 트럭 인벤토리 대상으로 재사용)
         private bool _truckProcessingPanelOpen;
         private FacilityType _truckProcessingFacility = FacilityType.Campfire;
-        private FacilityJob _truckJob;
+        // 트럭 가공은 시설(모닥불, 숫돌 연마대 ...)마다 대기열이 따로 있다
+        private readonly Dictionary<FacilityType, FacilityJob> _truckJobs = new Dictionary<FacilityType, FacilityJob>();
         private Text _truckCountdownText;
         private string _truckProcessMessage;
 
@@ -109,6 +110,16 @@ private int _withdrawMax;
             public int pending;
             public int ready;
             public bool running;
+            public int version;   // 취소 등으로 진행 코루틴을 끊을 때 올린다
+        }
+
+        /// <summary>시설 탭 순서 = 멀티플레이 대기열 번호.</summary>
+        private static int FacilitySlotOf(FacilityType type) => System.Array.IndexOf(TruckProcessingFacilities, type);
+
+        private FacilityJob TruckJobOf(FacilityType type)
+        {
+            _truckJobs.TryGetValue(type, out FacilityJob job);
+            return job;
         }
 
         private readonly Dictionary<ProcessingFacility, FacilityJob> _facilityJobs = new Dictionary<ProcessingFacility, FacilityJob>();
@@ -376,6 +387,14 @@ private void ShowPopup(string title, System.Action builder)
             ClearChildren(_popupBody);
             builder?.Invoke();
             UpdateTruckTabs();
+
+            // 스크롤이 꺼진 화면(도감/제작/가공)은 내용이 항상 맨 위에 맞춰져 있어야 한다
+            // (빠르게 여러 번 다시 그릴 때 스크롤 위치가 틀어져 내용이 사라져 보이는 것을 막는다)
+            if (_popupScrollRect != null && !_popupScrollRect.vertical && _popupScrollRect.content != null)
+            {
+                _popupScrollRect.StopMovement();
+                _popupScrollRect.content.anchoredPosition = Vector2.zero;
+            }
         }
 
         // ---------- 팝업 오른쪽 책갈피 탭 (트럭 거점 / 제작 / 가공 / 도감) ----------
@@ -1464,14 +1483,16 @@ private void BuildTruckProcessingPanel()
             m.titleIcon = TruckCodexView.FacilityIcon(_truckProcessingFacility);
             m.accent = TruckCodexView.CategoryColors[(int)_truckProcessingFacility % TruckCodexView.CategoryColors.Length];
             m.listTitle = "가공할 재료";
-            m.listHint = "재료를 누를 때마다 1개씩 가공 목록에 추가됩니다 (1개당 1분)";
+            m.listHint = "재료를 누를 때마다 1개씩 가공기에 들어갑니다 (1개당 1분). 시설마다 따로 돌아가고, 가공기의 입력칸을 누르면 1개씩 뺍니다.";
             m.tabs = new List<TruckProcessView.TabInfo>();
             for (int i = 0; i < TruckProcessingFacilities.Length; i++)
             {
                 FacilityType f = TruckProcessingFacilities[i];
+                FacilityJob tabJob = JobForFacility(f);
+                bool busy = tabJob != null && (tabJob.pending > 0 || tabJob.ready > 0);
                 m.tabs.Add(new TruckProcessView.TabInfo
                 {
-                    label = FacilityDisplayName(f),
+                    label = FacilityDisplayName(f) + (busy ? (tabJob.ready > 0 ? " ★" : " •") : ""),   // • 가공 중, ★ 받을 결과물 있음
                     color = TruckCodexView.CategoryColors[(int)f % TruckCodexView.CategoryColors.Length],
                     selected = f == _truckProcessingFacility,
                     onClick = () =>
@@ -1511,7 +1532,9 @@ private void BuildTruckProcessingPanel()
             if (jr != null && jr.inputs != null && jr.inputs.Count > 0 && jr.inputs[0] != null)
             {
                 m.inItem = jr.inputs[0].item;
-                m.inText = pending > 0 ? "대기 x" + (pending * jr.inputs[0].count) : "-";
+                m.inText = pending > 0 ? "대기 x" + (pending * jr.inputs[0].count) + "\n눌러서 빼기" : "-";
+                if (pending > 0)
+                    m.onInputClick = CancelTruckProcessing;
             }
             else
             {
@@ -1574,7 +1597,7 @@ private void BuildTruckProcessingPanel()
             for (int i = 0; i < TruckProcessingFacilities.Length; i++)
                 CreateFacilityTab(i < 4 ? tabRow : tabRow2, TruckProcessingFacilities[i]);
 
-            CreateTruckFurnacePanel(_popupBody, _truckJob);
+            CreateTruckFurnacePanel(_popupBody, CurrentTruckJob());
 
             if (!string.IsNullOrEmpty(_truckProcessMessage))
                 CreateLabel(_popupBody, _truckProcessMessage, 13, FontStyle.Bold);
@@ -1760,10 +1783,12 @@ private void CreateTruckFurnaceMiddle(RectTransform parent, FacilityJob activeJo
             if (recipe == null || truck == null)
                 return;
 
-            // 멀티플레이: 트럭 가공 대기열은 호스트가 하나로 관리한다 (모두 같은 대기열/남은 시간을 본다).
+            FacilityType facility = _truckProcessingFacility;
+
+            // 멀티플레이: 시설별 가공 대기열은 호스트가 관리한다 (모두 같은 대기열/남은 시간을 본다).
             if (LastTruck.Networking.NetworkTruckProcessing.IsActive)
             {
-                LastTruck.Networking.NetworkTruckProcessing.Instance.RequestProcess(recipe, (ok, message) =>
+                LastTruck.Networking.NetworkTruckProcessing.Instance.RequestProcess(recipe, FacilitySlotOf(facility), (ok, message) =>
                 {
                     _truckProcessMessage = ok ? null : message;
                     if (_activeTruck == truck && IsPopupOpen)
@@ -1772,7 +1797,8 @@ private void CreateTruckFurnaceMiddle(RectTransform parent, FacilityJob activeJo
                 return;
             }
 
-            if (_truckJob != null && _truckJob.recipe != recipe)
+            FacilityJob existing = TruckJobOf(facility);
+            if (existing != null && existing.recipe != recipe)
             {
                 _truckProcessMessage = "다른 재료를 가공 중입니다. 결과물을 모두 받은 뒤에 바꿀 수 있습니다.";
                 ShowPopup("트럭 거점", BuildTruckContent);
@@ -1793,7 +1819,7 @@ private void CreateTruckFurnaceMiddle(RectTransform parent, FacilityJob activeJo
             {
                 if (ok)
                 {
-                    BeginTruckProcessingJob(truck, recipe);
+                    BeginTruckProcessingJob(truck, facility, recipe);
                 }
                 else
                 {
@@ -1804,25 +1830,29 @@ private void CreateTruckFurnaceMiddle(RectTransform parent, FacilityJob activeJo
             });
         }
 
-        /// <summary>재료를 뺀 뒤 가공 작업을 시작한다.</summary>
-        private void BeginTruckProcessingJob(TruckStation truck, RecipeData recipe)
+        /// <summary>재료를 뺀 뒤 해당 시설의 가공 작업을 시작(또는 대기열에 추가)한다.</summary>
+        private void BeginTruckProcessingJob(TruckStation truck, FacilityType facility, RecipeData recipe)
         {
             if (truck == null || recipe == null)
                 return;
 
             _truckProcessMessage = null;
-            if (_truckJob == null)
-                _truckJob = new FacilityJob { recipe = recipe };
+            FacilityJob job = TruckJobOf(facility);
+            if (job == null)
+            {
+                job = new FacilityJob { recipe = recipe };
+                _truckJobs[facility] = job;
+            }
 
-            _truckJob.pending++;
+            job.pending++;
 
-            if (!_truckJob.running)
+            if (!job.running)
             {
                 float finalProcessingTime = GetFinalProcessingSeconds(recipe);
-                _truckJob.remaining = Mathf.Max(0f, finalProcessingTime);
-                _truckJob.total = _truckJob.remaining;
+                job.remaining = Mathf.Max(0f, finalProcessingTime);
+                job.total = job.remaining;
 
-                StartCoroutine(TruckProcessRoutine(truck, _truckJob));
+                StartCoroutine(TruckProcessRoutine(truck, facility, job));
             }
 
             // 멀티플레이에서는 호스트 응답이 조금 늦게 오므로, 그사이 창을 닫았으면 다시 열지 않는다.
@@ -1830,18 +1860,23 @@ private void CreateTruckFurnaceMiddle(RectTransform parent, FacilityJob activeJo
                 ShowPopup("트럭 거점", BuildTruckContent);
         }
 
-        // 가공시간
-        private IEnumerator TruckProcessRoutine(TruckStation truck, FacilityJob job)
+        // 가공시간 (시설마다 따로 돈다)
+        private IEnumerator TruckProcessRoutine(TruckStation truck, FacilityType facility, FacilityJob job)
         {
             job.running = true;
+            int version = ++job.version;
 
             while (job.pending > 0)
             {
                 while (job.remaining > 0f)
                 {
                     yield return null;
+                    if (job.version != version)
+                        yield break;   // 취소되어 다른 코루틴이 이어받았거나 대기열이 비었다
+
                     job.remaining -= Time.deltaTime;
-                    if (_truckJob == job && _truckCountdownText != null && IsPopupOpen)
+                    if (_truckProcessingFacility == facility && _truckJobs.TryGetValue(facility, out FacilityJob shown) && shown == job &&
+                        _truckCountdownText != null && IsPopupOpen)
                     {
                         _truckCountdownText.text = FormatClock(job.remaining);
                         if (_truckRefs != null && job.total > 0.01f)
@@ -1849,31 +1884,77 @@ private void CreateTruckFurnaceMiddle(RectTransform parent, FacilityJob activeJo
                     }
                 }
 
+                if (job.version != version || job.pending <= 0)
+                    yield break;
+
                 job.pending--;
                 job.ready++;
-                // job.remaining = job.pending > 0 ? Mathf.Max(0f, job.recipe.processingSeconds) : 0f;
 
                 float finalProcessingTime = GetFinalProcessingSeconds(job.recipe);
                 job.remaining = job.pending > 0 ? Mathf.Max(0f, finalProcessingTime) : 0f;
                 job.total = job.remaining;
 
-                if (_activeTruck == truck && IsPopupOpen)
+                if (_activeTruck == truck && IsPopupOpen && _truckProcessingPanelOpen)
                     ShowPopup("트럭 거점", BuildTruckContent);
             }
 
             job.running = false;
         }
 
-private void ClaimTruckOutput()
+        /// <summary>현재 시설에서 아직 가공이 끝나지 않은 재료를 1개 빼서 트럭 인벤토리로 돌려준다 (입력칸을 눌렀을 때).</summary>
+        private void CancelTruckProcessing()
         {
-            // 멀티플레이: 가방에 들어갈 만큼만 호스트에게 받아 온다.
+            FacilityType facility = _truckProcessingFacility;
+
             if (LastTruck.Networking.NetworkTruckProcessing.IsActive)
             {
-                ClaimNetworkTruckOutput();
+                LastTruck.Networking.NetworkTruckProcessing.Instance.RequestCancel(FacilitySlotOf(facility));
                 return;
             }
 
-            FacilityJob job = _truckJob;
+            FacilityJob job = TruckJobOf(facility);
+            TruckInventory truckInv = _activeTruck != null ? _activeTruck.TruckInventory : null;
+            if (job == null || job.pending <= 0 || truckInv == null)
+                return;
+
+            // 재료 환불 (가공 탭은 레시피 수량 그대로 소모했다)
+            if (job.recipe != null && job.recipe.inputs != null)
+            {
+                foreach (RecipeIngredient ingredient in job.recipe.inputs)
+                {
+                    if (ingredient != null && ingredient.item != null && ingredient.count > 0)
+                        LastTruck.Networking.TruckInventorySync.AddAndCount(truckInv.Inventory, ingredient.item, ingredient.count);
+                }
+            }
+
+            job.pending--;
+            if (job.pending <= 0)
+            {
+                // 가공 중이던 것까지 뺐다: 진행 코루틴을 끊고 시간을 되돌린다
+                job.version++;
+                job.running = false;
+                job.remaining = 0f;
+                job.total = 0f;
+                if (job.ready <= 0)
+                    _truckJobs.Remove(facility);
+            }
+
+            _truckProcessMessage = null;
+            ShowPopup("트럭 거점", BuildTruckContent);
+        }
+
+        private void ClaimTruckOutput()
+        {
+            FacilityType facility = _truckProcessingFacility;
+
+            // 멀티플레이: 가방에 들어갈 만큼만 호스트에게 받아 온다.
+            if (LastTruck.Networking.NetworkTruckProcessing.IsActive)
+            {
+                ClaimNetworkTruckOutput(facility);
+                return;
+            }
+
+            FacilityJob job = TruckJobOf(facility);
             if (job == null || job.ready <= 0)
                 return;
 
@@ -1908,7 +1989,7 @@ private void ClaimTruckOutput()
             }
 
             if (job.ready <= 0 && job.pending <= 0)
-                _truckJob = null;
+                _truckJobs.Remove(facility);
 
             ShowPopup("트럭 거점", BuildTruckContent);
         }
@@ -1919,25 +2000,29 @@ private void ClaimTruckOutput()
 
         private int _seenTruckJobRevision = -1;
 
-        /// <summary>화면에 보여줄 트럭 가공 상태. 멀티플레이면 호스트의 대기열, 아니면 내 대기열.</summary>
-        private FacilityJob CurrentTruckJob()
+        /// <summary>지금 보고 있는 시설의 트럭 가공 상태.</summary>
+        private FacilityJob CurrentTruckJob() => JobForFacility(_truckProcessingFacility);
+
+        /// <summary>화면에 보여줄 시설별 트럭 가공 상태. 멀티플레이면 호스트의 대기열, 아니면 내 대기열.</summary>
+        private FacilityJob JobForFacility(FacilityType facility)
         {
             var net = LastTruck.Networking.NetworkTruckProcessing.Instance;
             if (!LastTruck.Networking.NetworkTruckProcessing.IsActive)
-                return _truckJob;
+                return TruckJobOf(facility);
 
-            RecipeData recipe = net.Recipe;
-            if (recipe == null || (net.PendingCount <= 0 && net.ReadyCount <= 0))
+            int slot = FacilitySlotOf(facility);
+            RecipeData recipe = net.RecipeOf(slot);
+            if (recipe == null || (net.PendingCount(slot) <= 0 && net.ReadyCount(slot) <= 0))
                 return null;
 
             return new FacilityJob
             {
                 recipe = recipe,
-                pending = net.PendingCount,
-                ready = net.ReadyCount,
-                remaining = net.Remaining,
-                total = net.Total,
-                running = net.PendingCount > 0,
+                pending = net.PendingCount(slot),
+                ready = net.ReadyCount(slot),
+                remaining = net.Remaining(slot),
+                total = net.Total(slot),
+                running = net.PendingCount(slot) > 0,
             };
         }
 
@@ -1956,25 +2041,28 @@ private void ClaimTruckOutput()
                 return;
             }
 
-            if (_truckProcessingPanelOpen && IsPopupOpen && _truckCountdownText != null && net.PendingCount > 0)
+            int slot = FacilitySlotOf(_truckProcessingFacility);
+            if (_truckProcessingPanelOpen && IsPopupOpen && _truckCountdownText != null && net.PendingCount(slot) > 0)
             {
-                _truckCountdownText.text = FormatClock(net.Remaining);
-                if (_truckRefs != null && net.Total > 0.01f)
-                    _truckRefs.SetProgress(1f - Mathf.Clamp01(net.Remaining / net.Total));
+                _truckCountdownText.text = FormatClock(net.Remaining(slot));
+                if (_truckRefs != null && net.Total(slot) > 0.01f)
+                    _truckRefs.SetProgress(1f - Mathf.Clamp01(net.Remaining(slot) / net.Total(slot)));
             }
         }
 
-        private void ClaimNetworkTruckOutput()
+        private void ClaimNetworkTruckOutput(FacilityType facility)
         {
             var net = LastTruck.Networking.NetworkTruckProcessing.Instance;
-            RecipeData recipe = net.Recipe;
+            int slot = FacilitySlotOf(facility);
+            RecipeData recipe = net.RecipeOf(slot);
+            int ready = net.ReadyCount(slot);
             PlayerInventory player = _activePlayer != null ? _activePlayer : playerInventory;
-            if (recipe == null || recipe.output == null || recipe.output.item == null || player == null || net.ReadyCount <= 0)
+            if (recipe == null || recipe.output == null || recipe.output.item == null || player == null || ready <= 0)
                 return;
 
             // 가방에 몇 회분이 들어가는지 미리 계산한다 (못 받은 만큼은 대기열에 그대로 남는다).
             int fit = 0;
-            while (fit < net.ReadyCount &&
+            while (fit < ready &&
                    LastTruck.Networking.NetworkGathering.HasRoomFor(player.Inventory, recipe.output.item, recipe.output.count * (fit + 1)))
                 fit++;
 
@@ -1985,10 +2073,10 @@ private void ClaimTruckOutput()
                 return;
             }
 
-            _truckProcessMessage = fit < net.ReadyCount
+            _truckProcessMessage = fit < ready
                 ? "인벤토리 공간이 부족해 일부만 받았습니다. 남은 결과물은 자리를 만든 뒤 다시 눌러 받으세요."
                 : null;
-            net.RequestClaim(fit);
+            net.RequestClaim(slot, fit);
         }
 
         #endregion

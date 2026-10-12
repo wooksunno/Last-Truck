@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 290945841a81e374a8f11d90ded2c639
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 131930
+  packageName: POLYGON - City Zombies Pack - Art by Synty
+  packageVersion: 1.7.2
+  assetPath: Assets/Synty/PolygonGeneric/Models/Collision/SM_Gen_Prop_Coin_Pile_01_Convex.asset
+  uploadId: 974014

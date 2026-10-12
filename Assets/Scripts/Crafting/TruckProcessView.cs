@@ -33,6 +33,7 @@ namespace CraftingSystem
             public string listTitle = "가공할 재료";
             public string listHint;
             public ItemData inItem; public string inText;
+            public Action onInputClick;          // 입력칸을 누르면 대기 중인 재료를 1개 빼낸다 (null이면 누를 수 없음)
             public ItemData outItem; public string outText;
             public bool outClaim; public Action onClaim;
             public string timerText; public float progress = -1f;   // progress < 0 이면 막대를 숨긴다
@@ -216,6 +217,14 @@ namespace CraftingSystem
 
             // 슬롯 줄: [입력] → 가운데 → [결과]
             var inSlot = Slot(right, "InSlot", new Vector2(0, 0.5f), new Vector2(112, 0), m.inItem, m.inText, false);
+            if (m.onInputClick != null)
+            {
+                var inImg = inSlot.GetComponent<Image>();
+                var ib = inSlot.gameObject.AddComponent<Button>(); ib.targetGraphic = inImg;
+                var icb = ib.colors; icb.highlightedColor = CardHover; icb.pressedColor = new Color(0.8f, 0.8f, 0.8f, 1f); ib.colors = icb;
+                Action pull = m.onInputClick;
+                ib.onClick.AddListener(() => pull());
+            }
             var outSlot = Slot(right, "OutSlot", new Vector2(1, 0.5f), new Vector2(-112, 0), m.outItem, m.outText, m.outClaim);
             if (m.outClaim && m.onClaim != null)
             {

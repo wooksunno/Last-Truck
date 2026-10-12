@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 6cd3d43741f543847ab0575862c6fafa
+timeCreated: 1541107277
+licenseType: Store
+NativeFormatImporter:
+  mainObjectFileID: 100100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 131930
+  packageName: POLYGON - City Zombies Pack - Art by Synty
+  packageVersion: 1.7.2
+  assetPath: Assets/Synty/PolygonCityZombies/Prefabs/SM_Gib_Head_Male_01.prefab
+  uploadId: 974014
