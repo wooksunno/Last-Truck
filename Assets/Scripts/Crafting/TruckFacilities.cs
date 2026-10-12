@@ -112,7 +112,7 @@ namespace CraftingSystem
         {
             if (truck == null || cost == null || cost.Count == 0) return false;
             foreach (RecipeIngredient ing in cost)
-                if (truck.GetItemCount(ing.item) < ing.count) return false;
+                if (truck.GetMaterialCount(ing.item) < ing.count) return false;
             return true;
         }
 
@@ -121,7 +121,7 @@ namespace CraftingSystem
         {
             if (!CanAfford(truck, cost)) return false;
             foreach (RecipeIngredient ing in cost)
-                truck.RemoveItem(ing.item, ing.count);
+                truck.RemoveMaterial(ing.item, ing.count);
             return true;
         }
 

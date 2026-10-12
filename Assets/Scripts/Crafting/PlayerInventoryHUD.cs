@@ -23,8 +23,12 @@ namespace CraftingSystem
         {
             _inventory = inventory;
             for (int i = 0; i < slots.Count; i++)
-                if (slots[i] != null)
-                    slots[i].Setup(i, onSlotClicked != null ? new UnityEngine.Events.UnityAction<int>(onSlotClicked) : null);
+            {
+                if (slots[i] == null) continue;
+                slots[i].Setup(i, onSlotClicked != null ? new UnityEngine.Events.UnityAction<int>(onSlotClicked) : null);
+                slots[i].OnSwapRequested = (from, to) => _inventory.SwapSlots(from, to);
+                slots[i].OnDropOutRequested = from => _inventory.DropSlot(from, int.MaxValue);   // 칸 전부 버리기
+            }
             Refresh();
         }
 

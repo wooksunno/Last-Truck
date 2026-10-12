@@ -946,7 +946,7 @@ namespace LastTruck.Networking
 
             var buttons = new NetworkButtons();
             buttons.Set(NetworkInputButton.TruckBrake, driving && Input.GetKey(KeyCode.Space));
-            buttons.Set(NetworkInputButton.Walk, Input.GetButton("Walk"));
+            buttons.Set(NetworkInputButton.Walk, PlayerStamina.Sprinting);   // Walk 버튼 = 달리기 (Shift + 스태미나가 남아 있을 때)
             buttons.Set(NetworkInputButton.Attack, Input.GetMouseButton(0));
             buttons.Set(NetworkInputButton.Interact, Input.GetKey(KeyCode.E));
             // 점프: 걸어 다닐 때만 (트럭 탑승 중 Space는 브레이크)

@@ -56,6 +56,10 @@ namespace CraftingSystem
         private bool _craftingPanelOpen;
         private CraftingCategory _craftingCategory = CraftingCategory.Tools;
         private ItemData _withdrawItem;
+        // 보관함 정렬/분류: 열 때마다 초기화되지 않도록 기억해 둔다
+        private int _storageCategory = -1;   // -1 = 전체, 0~6 = TruckCodexView.CategoryNames 순서
+        private int _storageSort;            // 0 = 종류순, 1 = 이름순, 2 = 수량순
+        private static readonly string[] StorageSortLabels = { "종류순", "이름순", "수량 많은 순" };
         private PouchInventory _activePouch;
         
 
@@ -1293,14 +1297,13 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
 
             // 제작/가공/도감 이동은 팝업 오른쪽의 책갈피 탭(UpdateTruckTabs)이 맡는다.
             // 보관함 칸을 크게(10열 × 92×128)
+            BuildStorageToolbar(_popupBody, truckInv);
+
             RectTransform truckGrid = CreateScrollableGrid(_popupBody, "트럭 보관함", 10, 600f, new Vector2(92f, 128f));
             if (truckInv != null)
             {
-                foreach (InventorySlot slot in truckInv.Slots)
+                foreach (InventorySlot slot in GetStorageSlotsSorted(truckInv))
                 {
-                    if (slot == null || slot.IsEmpty)
-                        continue;
-
                     InventorySlot captured = slot;
                     CreateInventorySlotView(truckGrid, slot.item, slot.count, 88f, () =>
                     {
@@ -1332,6 +1335,139 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             if (showCheatButtons)
                 CraftingCheats.BuildFooter(_popupBody, truckInv, () => ShowPopup("트럭 거점", BuildTruckContent));
             // [/CHEAT]
+        }
+
+        // ---------- 보관함 정렬 / 분류 ----------
+
+        /// <summary>선택한 분류만 골라서, 선택한 순서로 정렬한 보관함 칸 목록.</summary>
+        private List<InventorySlot> GetStorageSlotsSorted(TruckInventory truckInv)
+        {
+            var list = new List<InventorySlot>();
+            foreach (InventorySlot slot in truckInv.Slots)
+            {
+                if (slot == null || slot.IsEmpty || slot.item == null)
+                    continue;
+                if (_storageCategory >= 0 && TruckCodexView.CategoryOf(slot.item) != _storageCategory)
+                    continue;
+                list.Add(slot);
+            }
+
+            // 도감(카탈로그)에 등록된 순서를 같은 분류 안의 기본 순서로 쓴다
+            var order = new Dictionary<string, int>();
+            int n = 0;
+            foreach (ItemData it in ItemCatalog.GetOrCreate().Items)
+                if (it != null && !order.ContainsKey(it.itemID)) order[it.itemID] = n++;
+            System.Func<ItemData, int> orderOf = it => order.TryGetValue(it.itemID, out int v) ? v : int.MaxValue;
+
+            switch (_storageSort)
+            {
+                case 1:   // 이름순
+                    list.Sort((a, b) => string.CompareOrdinal(a.item.itemName, b.item.itemName));
+                    break;
+                case 2:   // 수량 많은 순
+                    list.Sort((a, b) =>
+                    {
+                        int c = b.count.CompareTo(a.count);
+                        return c != 0 ? c : string.CompareOrdinal(a.item.itemName, b.item.itemName);
+                    });
+                    break;
+                default:  // 종류순: 분류 → 도감 순서
+                    list.Sort((a, b) =>
+                    {
+                        int c = TruckCodexView.CategoryOf(a.item).CompareTo(TruckCodexView.CategoryOf(b.item));
+                        return c != 0 ? c : orderOf(a.item).CompareTo(orderOf(b.item));
+                    });
+                    break;
+            }
+            return list;
+        }
+
+        /// <summary>보관함 위쪽: 분류 탭(전체/원재료/…)과 정렬 방식 버튼.</summary>
+        private void BuildStorageToolbar(RectTransform parent, TruckInventory truckInv)
+        {
+            string[] names = TruckCodexView.CategoryNames;
+            Color[] colors = TruckCodexView.CategoryColors;
+
+            // 분류별 개수
+            int[] counts = new int[names.Length];
+            int total = 0;
+            if (truckInv != null)
+            {
+                foreach (InventorySlot slot in truckInv.Slots)
+                {
+                    if (slot == null || slot.IsEmpty || slot.item == null) continue;
+                    counts[Mathf.Clamp(TruckCodexView.CategoryOf(slot.item), 0, names.Length - 1)]++;
+                    total++;
+                }
+            }
+
+            RectTransform catRow = CreateToolbarRow(parent, "StorageCategories");
+            CreateToolbarChip(catRow, "전체 " + total, _storageCategory < 0, new Color(0.85f, 0.85f, 0.88f), 110f,
+                () => { _storageCategory = -1; ShowPopup("트럭 거점", BuildTruckContent); });
+            for (int i = 0; i < names.Length; i++)
+            {
+                int idx = i;
+                float w = Mathf.Max(96f, names[i].Length * 17f + 56f);
+                CreateToolbarChip(catRow, names[i] + " " + counts[i], _storageCategory == i, colors[i], w,
+                    () => { _storageCategory = idx; ShowPopup("트럭 거점", BuildTruckContent); });
+            }
+
+            RectTransform sortRow = CreateToolbarRow(parent, "StorageSort");
+            CreateToolbarLabel(sortRow, "정렬", 60f);
+            for (int i = 0; i < StorageSortLabels.Length; i++)
+            {
+                int idx = i;
+                CreateToolbarChip(sortRow, StorageSortLabels[i], _storageSort == i, new Color(0.95f, 0.78f, 0.35f), 120f,
+                    () => { _storageSort = idx; ShowPopup("트럭 거점", BuildTruckContent); });
+            }
+        }
+
+        private RectTransform CreateToolbarRow(RectTransform parent, string name)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
+            go.transform.SetParent(parent, false);
+            HorizontalLayoutGroup h = go.GetComponent<HorizontalLayoutGroup>();
+            h.spacing = 6;
+            h.padding = new RectOffset(2, 2, 2, 2);
+            h.childAlignment = TextAnchor.MiddleLeft;
+            h.childControlWidth = false;
+            h.childControlHeight = false;
+            h.childForceExpandWidth = false;
+            h.childForceExpandHeight = false;
+            LayoutElement le = go.GetComponent<LayoutElement>();
+            le.preferredHeight = 44;
+            le.minHeight = 44;
+            return go.GetComponent<RectTransform>();
+        }
+
+        private void CreateToolbarLabel(RectTransform row, string message, float width)
+        {
+            Text t = CreateText(row, "Label", message, 16, TextAnchor.MiddleCenter,
+                new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(0, 0.5f), Vector2.zero, new Vector2(width, 38f));
+            t.fontStyle = FontStyle.Bold;
+            t.color = new Color(1f, 0.9f, 0.6f);
+        }
+
+        private void CreateToolbarChip(RectTransform row, string label, bool selected, Color accent, float width,
+            UnityEngine.Events.UnityAction onClick)
+        {
+            Color bg = selected ? new Color(accent.r, accent.g, accent.b, 0.95f) : new Color(0.15f, 0.16f, 0.2f, 0.95f);
+            Button b = CreateButton(row, "Chip_" + label, label, new Vector2(0, 0.5f), new Vector2(0, 0.5f),
+                new Vector2(0, 0.5f), Vector2.zero, new Vector2(width, 38f), bg, onClick);
+            Text t = b.GetComponentInChildren<Text>();
+            if (t != null)
+            {
+                t.fontSize = 15;
+                t.fontStyle = selected ? FontStyle.Bold : FontStyle.Normal;
+                t.color = selected ? new Color(0.15f, 0.12f, 0.09f) : new Color(0.9f, 0.88f, 0.82f);
+            }
+            if (!selected)
+            {
+                // 선택 안 된 칩은 분류 색을 가는 띠로만 보여준다
+                Outline o = b.gameObject.AddComponent<Outline>();
+                o.effectColor = new Color(accent.r, accent.g, accent.b, 0.6f);
+                o.effectDistance = new Vector2(1.5f, -1.5f);
+            }
         }
 
         private void CreateWithdrawPrompt(RectTransform parent, TruckInventory truckInv)
@@ -1715,7 +1851,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 up.title = "칸 늘리기  (" + slotCount + " → " + (slotCount + 1) + "칸)   설비 제작 재료 × " + slotCount;
                 List<RecipeIngredient> cost = TruckFacilities.UpgradeCost(fac, slotCount);
                 foreach (RecipeIngredient c in cost)
-                    up.costs.Add(new TruckProcessView.CostLine { item = c.item, need = c.count, have = truckInv != null ? truckInv.GetItemCount(c.item) : 0 });
+                    up.costs.Add(new TruckProcessView.CostLine { item = c.item, need = c.count, have = truckInv != null ? truckInv.GetMaterialCount(c.item) : 0 });
                 up.canAfford = TruckFacilities.CanAfford(truckInv, cost);
                 up.onClick = () => UpgradeFacilitySlots(fac);
             }
@@ -1962,7 +2098,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 if (ingredient == null || ingredient.item == null || ingredient.count <= 0)
                     continue;
 
-                int have = truckInv != null ? truckInv.GetItemCount(ingredient.item) : 0;
+                int have = truckInv != null ? truckInv.GetMaterialCount(ingredient.item) : 0;
 
                 // UI 표시 수량 -> 할인 적용 수량
                 int originalNeed = ingredient.count;

@@ -84,10 +84,86 @@ public void FillDefaultResources()
             Debug.Log($"[TruckInventory] 기본 원재료/테스트용 무기·곡괭이 + 전체 아이템 1개씩 지급\n{GetInventorySummary()}");
         }
 
-        public bool HasIngredients(IEnumerable<RecipeIngredient> ingredients) =>
-            inventory.HasIngredients(ingredients);
+        #region 재료 합산 (트럭 + 내 인벤토리)
 
-        public bool HasIngredients(RecipeData recipe) => inventory.HasIngredients(recipe);
+        // 호스트가 다른 사람의 요청을 대신 처리하는 동안에는 호스트 본인의 인벤토리를 건드리면 안 된다.
+        private static int _bagSuppress;
+
+        public readonly struct BagScope : IDisposable
+        {
+            private readonly bool _active;
+            public BagScope(bool active) { _active = active; if (active) _bagSuppress++; }
+            public void Dispose() { if (_active) _bagSuppress--; }
+        }
+
+        /// <summary>suppress가 true인 동안은 재료를 트럭에서만 찾는다 (using으로 감싸서 쓴다).</summary>
+        public static BagScope SuppressBag(bool suppress) => new BagScope(suppress);
+
+        private PlayerInventory _bag;
+
+        /// <summary>
+        /// 재료로 같이 쓸 내 인벤토리. 싱글플레이와 멀티플레이 호스트(본인 요청)만 쓰고,
+        /// 클라이언트는 호스트가 대신 처리하므로 쓰지 않는다 (null).
+        /// </summary>
+        public PlayerInventory Bag
+        {
+            get
+            {
+                if (_bagSuppress > 0 || LastTruck.Networking.TruckInventorySync.IsRemoteClient) return null;
+                if (_bag != null) return _bag;
+
+                _bag = LastTruck.Networking.TruckInventorySync.LocalPlayerInventory;
+                if (_bag == null && !LastTruck.Networking.GameLauncher.IsOnlineSession)
+                    _bag = UnityEngine.Object.FindFirstObjectByType<PlayerInventory>();
+                return _bag;
+            }
+        }
+
+        /// <summary>제작/가공/설비에 쓸 수 있는 재료 수 = 트럭 + 내 인벤토리.</summary>
+        public int GetMaterialCount(ItemData item)
+        {
+            int n = inventory.GetItemCount(item);
+            PlayerInventory bag = Bag;
+            if (bag != null) n += bag.GetItemCount(item);
+            return n;
+        }
+
+        /// <summary>재료를 뺀다: 트럭에서 먼저, 모자라면 내 인벤토리에서. 모자라면 아무것도 빼지 않고 false.</summary>
+        public bool RemoveMaterial(ItemData item, int amount)
+        {
+            if (item == null || amount <= 0) return true;
+            if (GetMaterialCount(item) < amount) return false;
+
+            int fromTruck = Mathf.Min(amount, inventory.GetItemCount(item));
+            if (fromTruck > 0 && !inventory.RemoveItem(item, fromTruck)) return false;
+
+            int rest = amount - fromTruck;
+            if (rest > 0)
+            {
+                PlayerInventory bag = Bag;
+                if (bag == null || !bag.RemoveItem(item, rest))
+                {
+                    if (fromTruck > 0) inventory.AddItem(item, fromTruck);
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        #endregion
+
+        public bool HasIngredients(IEnumerable<RecipeIngredient> ingredients)
+        {
+            if (ingredients == null) return false;
+            foreach (RecipeIngredient ing in ingredients)
+            {
+                if (ing == null || ing.item == null || ing.count <= 0) continue;
+                if (GetMaterialCount(ing.item) < ing.count) return false;
+            }
+            return true;
+        }
+
+        public bool HasIngredients(RecipeData recipe) => recipe != null && HasIngredients(recipe.inputs);
 
         public int GetItemCount(ItemData item) => inventory.GetItemCount(item);
 
@@ -133,7 +209,7 @@ public void FillDefaultResources()
                     requiredCount = abilityController.GetCalculatedCraftingCost(ingredient.count, isWeapon);
                 }
 
-                if (GetItemCount(ingredient.item) < requiredCount)
+                if (GetMaterialCount(ingredient.item) < requiredCount)
                     return false;
             }
 

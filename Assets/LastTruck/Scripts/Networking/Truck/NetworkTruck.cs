@@ -196,7 +196,8 @@ namespace LastTruck.Networking
 
             PlayerRef driver = Seats[DriverSeat];
             bool broken = _info != null && _info.IsBroken;
-            bool canDrive = driver != PlayerRef.None && !broken && NetworkGameState.AllowPlayerControl;
+            // 밤에는 운전할 수 없다 (좌석에는 앉아 있어도 트럭은 움직이지 않는다)
+            bool canDrive = driver != PlayerRef.None && !broken && !GameManager.IsNight && NetworkGameState.AllowPlayerControl;
 
             if (!canDrive)
             {
@@ -515,7 +516,7 @@ namespace LastTruck.Networking
             if (_localSeat < 0 || !IsReady) return;
 
             string text = _localSeat == DriverSeat
-                ? "운전 중   W/S: 전진·후진   A/D: 핸들   Space: 브레이크   L: 라이트   E: 내리기"
+                ? (GameManager.IsNight ? "밤에는 운전할 수 없습니다   E: 내리기" : "운전 중   W/S: 전진·후진   A/D: 핸들   Space: 브레이크   L: 라이트   E: 내리기")
                 : (Seats[DriverSeat] == PlayerRef.None ? "동승 중   F: 운전석으로 이동   E: 내리기" : "동승 중   E: 내리기");
 
             var style = new GUIStyle(GUI.skin.box) { fontSize = Mathf.Max(14, Screen.height / 45), alignment = TextAnchor.MiddleCenter };

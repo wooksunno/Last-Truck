@@ -211,7 +211,7 @@ namespace CraftingSystem
             foreach (RecipeIngredient ing in _selected.inputs)
             {
                 if (ing == null || ing.item == null || ing.count <= 0) continue;
-                int have = _inv != null ? _inv.GetItemCount(ing.item) : 0;
+                int have = _inv != null ? _inv.GetMaterialCount(ing.item) : 0;
                 int orig = ing.count, need = orig;
                 if (_ability != null) need = _ability.GetCalculatedCraftingCost(orig, isWeapon);
                 bool enough = have >= need;

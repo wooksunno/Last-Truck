@@ -42,6 +42,14 @@ namespace LastTruck
         {
             if (isDriving && Time.time >= driveStartTime + exitCooldown)
             {
+                // 운전 중에 밤이 되면 트럭을 세우고 내리게 한다
+                if (GameManager.IsNight)
+                {
+                    HudToast.Show("밤이 되어 트럭에서 내렸습니다. 밤에는 트럭을 운전할 수 없습니다.");
+                    GetOut_Truck();
+                    return;
+                }
+
                 if (Input.GetKeyDown(KeyCode.E))
                 {
                     GetOut_Truck();
@@ -54,6 +62,13 @@ public void Interact(GameObject player)
             if (_repair == null) _repair = GetComponent<CraftingSystem.TruckRepair>();
             if (_repair != null && _repair.TryRepair(player))
                 return;
+
+            // 밤에는 운전할 수 없다 (낮에 이동하고 밤에는 트럭 거점에서 버틴다)
+            if (GameManager.IsNight && !isDriving)
+            {
+                HudToast.Show("밤에는 트럭을 운전할 수 없습니다. 날이 밝을 때까지 버티세요.");
+                return;
+            }
 
             // 멀티플레이: 운전자 1명 + 동승자 방식 (호스트가 좌석을 정한다 - LastTruck.Networking.NetworkTruck).
             // 캐릭터를 끄는 기존 방식은 네트워크 캐릭터를 망가뜨리므로 쓰지 않는다.

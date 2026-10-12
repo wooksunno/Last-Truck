@@ -163,6 +163,7 @@ namespace LastTruck.Networking
             RecipeData recipe = ItemIndexLookup.RecipeAt(recipeIndex);
             string error = null;
             TruckInventory truck = FindFirstObjectByType<TruckInventory>();
+            using var bagScope = TruckInventory.SuppressBag(source != Runner.LocalPlayer);   // 남의 요청은 트럭 재료로만 (호스트 가방 보호)
 
             if (recipe == null || !ValidFacility(facility) || slot < 0 || slot >= MaxSlots)
                 error = "레시피를 찾을 수 없습니다.";
@@ -314,6 +315,7 @@ namespace LastTruck.Networking
             PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
             string error = null;
             TruckInventory truck = FindFirstObjectByType<TruckInventory>();
+            using var bagScope = TruckInventory.SuppressBag(source != Runner.LocalPlayer);   // 남의 요청은 트럭 재료로만 (호스트 가방 보호)
 
             if (!ValidFacility(facility) || facility >= TruckFacilities.All.Length)
             {

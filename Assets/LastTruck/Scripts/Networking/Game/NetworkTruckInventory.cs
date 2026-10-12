@@ -215,7 +215,9 @@ namespace LastTruck.Networking
         private void RPC_RequestConsume(int recipeIndex, int requestId, RpcInfo info = default)
         {
             PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
-            bool ok = TruckInventorySync.ConsumeLocal(Truck, ItemIndexLookup.RecipeAt(recipeIndex));
+            bool ok;
+            using (TruckInventory.SuppressBag(source != Runner.LocalPlayer))   // 남의 요청은 트럭 재료로만 (호스트 가방 보호)
+                ok = TruckInventorySync.ConsumeLocal(Truck, ItemIndexLookup.RecipeAt(recipeIndex));
             RPC_ConsumeResult(source, requestId, ok);
         }
 
@@ -267,7 +269,11 @@ namespace LastTruck.Networking
             CharacterAbilityController ability = crafter != null ? crafter.GetComponent<CharacterAbilityController>() : null;
 
             TruckCraftingManager craft = truck.GetComponent<TruckCraftingManager>();
-            if (craft != null) craft.TryCraft(recipe, ability);
+            if (craft != null)
+            {
+                using (TruckInventory.SuppressBag(source != Runner.LocalPlayer))   // 남의 요청은 트럭 재료로만 (호스트 가방 보호)
+                    craft.TryCraft(recipe, ability);
+            }
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
@@ -466,7 +472,7 @@ namespace LastTruck.Networking
             foreach (RecipeIngredient ingredient in recipe.inputs)
             {
                 if (ingredient != null && ingredient.item != null && ingredient.count > 0)
-                    truck.RemoveItem(ingredient.item, ingredient.count);
+                    truck.RemoveMaterial(ingredient.item, ingredient.count);
             }
             return true;
         }

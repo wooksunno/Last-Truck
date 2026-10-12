@@ -34,11 +34,13 @@ namespace LastTruck
             {
                 if (Input.GetKey(interactKey))
                 {
-                    _holdTimer += Time.deltaTime;
+                    // 진행도는 "초"가 아니라 "비율"로 쌓는다.
+                    // (초로 쌓으면 느린 도구로 캐다가 빠른 도구로 바꿨을 때, 쌓인 시간이 빠른 도구 기준으로 계산돼 바로 완료되던 문제)
+                    _holdTimer += Time.deltaTime / holdable.RequiredHoldSeconds;
                     IsHolding = true;
-                    HoldProgress01 = Mathf.Clamp01(_holdTimer / holdable.RequiredHoldSeconds);
+                    HoldProgress01 = Mathf.Clamp01(_holdTimer);
 
-                    if (_holdTimer >= holdable.RequiredHoldSeconds)
+                    if (_holdTimer >= 1f)
                     {
                         currentInteractable.Interact(gameObject);
                         ResetHoldState();

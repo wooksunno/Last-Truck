@@ -38,6 +38,7 @@ namespace CraftingSystem
         private void Awake()
         {
             inventory.MaxSlots = maxSlots;
+            inventory.KeepSlotPositions = true;   // 1~4번 칸 위치를 고정한다 (아이템을 써도 칸이 밀리지 않고, 칸끼리 교환 가능)
             inventory.Changed += OnInventoryChanged;
         }
 
@@ -49,14 +50,85 @@ namespace CraftingSystem
 
         private void Update()
         {
+            bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+            bool uiOpen = GameUIController.Instance != null && GameUIController.Instance.IsPopupOpen;
+
             for (int i = 0; i < SlotHotkeys.Length; i++)
             {
                 if (Input.GetKeyDown(SlotHotkeys[i]))
                 {
-                    SelectSlot(i);
+                    // Ctrl + 숫자: 지금 든 칸과 그 칸의 아이템을 서로 바꾼다
+                    if (ctrl && !uiOpen)
+                        SwapSlots(SelectedSlotIndex, i);
+                    else
+                        SelectSlot(i);
                     break;
                 }
             }
+
+            // Q: 든 아이템 1개 버리기, Shift+Q: 칸 전부 버리기
+            if (!uiOpen && Input.GetKeyDown(KeyCode.Q))
+                DropSelected(Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift));
+        }
+
+        /// <summary>두 칸의 아이템을 서로 바꾼다 (빈 칸이면 이동, 같은 아이템이면 합친다).</summary>
+        public bool SwapSlots(int from, int to)
+        {
+            bool ok = inventory.MoveOrSwap(from, to);
+            // 든 칸을 옮겼으면 손에 든 칸도 같이 따라간다 (손에 든 아이템이 그대로 유지되게)
+            if (ok && from == SelectedSlotIndex)
+            {
+                SelectedSlotIndex = to;
+                SelectedSlotChanged?.Invoke();
+            }
+            else if (ok && to == SelectedSlotIndex)
+            {
+                SelectedSlotChanged?.Invoke();
+            }
+            return ok;
+        }
+
+        /// <summary>칸의 아이템을 바닥에 버린다 (E로 다시 주울 수 있다). count가 칸의 수량 이상이면 전부.</summary>
+        public bool DropSlot(int slotIndex, int count)
+        {
+            if (slotIndex < 0 || slotIndex >= Slots.Count)
+                return false;
+
+            InventorySlot slot = Slots[slotIndex];
+            if (slot == null || slot.IsEmpty)
+                return false;
+
+            ItemData item = slot.item;
+            int amount = Mathf.Clamp(count, 1, slot.count);
+            if (!RemoveFromSlot(slotIndex, amount))
+                return false;
+
+            DroppedItem.Spawn(transform, item, amount);
+            return true;
+        }
+
+        public bool DropSelected(bool wholeStack)
+        {
+            InventorySlot slot = SelectedSlot;
+            if (slot == null || slot.IsEmpty)
+                return false;
+            return DropSlot(SelectedSlotIndex, wholeStack ? slot.count : 1);
+        }
+
+        private bool RemoveFromSlot(int slotIndex, int amount)
+        {
+            InventorySlot slot = Slots[slotIndex];
+            if (slot == null || slot.IsEmpty || amount <= 0 || amount > slot.count)
+                return false;
+
+            slot.count -= amount;
+            if (slot.count <= 0)
+            {
+                slot.item = null;
+                slot.count = 0;
+            }
+            inventory.NotifyChanged();
+            return true;
         }
 
         public void SelectSlot(int slotIndex)

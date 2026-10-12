@@ -24,8 +24,8 @@ namespace LastTruck.Networking
     {
         #region 인스펙터 / 상태
 
-        [Tooltip("걷기 키(Walk)를 누르고 있을 때 속도 배율 (기존 PlayerMove와 같은 0.3).")]
-        [SerializeField] private float walkSpeedMultiplier = 0.3f;
+        [Tooltip("달리기 키(Shift, 입력 이름은 Walk)를 누르고 있을 때 속도 배율 (싱글플레이 PlayerMove의 sprintMultiplier와 같은 값).")]
+        [SerializeField] private float sprintSpeedMultiplier = 1.6f;
 
         [Tooltip("캐릭터 스탯이 없을 때 쓸 이동 속도.")]
         [SerializeField] private float fallbackMoveSpeed = 5f;
@@ -44,6 +44,7 @@ namespace LastTruck.Networking
         [Networked] private int JumpCount { get; set; }
 
         private int _shownJumpCount = -1;
+        private int _lastJumpTick;
 
         private NetworkCharacterController _controller;
         private CharacterController _characterController;
@@ -141,7 +142,7 @@ namespace LastTruck.Networking
 
             // 활 차징/화염 분사 중 감속 등 PlayerMove 속도 배율은 입력에 실려 온다 (0이면 1로 본다).
             float speedMultiplier = input.SpeedMultiplier > 0f ? Mathf.Min(input.SpeedMultiplier, 2f) : 1f;
-            float speed = MoveSpeed * (walking ? walkSpeedMultiplier : 1f) * speedMultiplier;
+            float speed = MoveSpeed * (walking ? sprintSpeedMultiplier : 1f) * speedMultiplier;
             _controller.maxSpeed = speed;
 
             // NetworkCharacterController는 기본적으로 가속/감속이 있는데, 기존 조작감(키를 누르는 즉시 최고 속도,
@@ -149,6 +150,16 @@ namespace LastTruck.Networking
             Vector3 velocity = _controller.Velocity;
             velocity.x = direction.x * speed;
             velocity.z = direction.z * speed;
+
+            // NetworkCharacterController는 다음 틱의 속도를 "실제로 움직인 거리"로 다시 계산한다.
+            // 경사면을 오르면 움직인 거리에 위쪽 성분이 생기고, 그게 다음 틱 속도로 더해져서 점점 쌓이며 하늘로 튀어 올랐다.
+            // 땅에 붙어 있는 동안은 위로 가는 속도를 0으로 눌러 두고(점프 임펄스는 이 다음에 더해진다),
+            // 공중에서도 점프 속도보다 빠르게 올라가지 못하게 한다.
+            // (isGrounded는 경사면에서 가끔 false가 되므로, 발 바로 밑에 바닥이 있는지도 같이 본다. 방금 점프했을 때는 건드리지 않는다.)
+            bool justJumped = _lastJumpTick != 0 && Runner.Tick - _lastJumpTick < 12;
+            bool onGround = _controller.Grounded ||
+                            Physics.Raycast(transform.position + Vector3.up * 0.2f, Vector3.down, 0.45f, ~0, QueryTriggerInteraction.Ignore);
+            velocity.y = Mathf.Min(velocity.y, (onGround && !justJumped) ? 0f : jumpImpulse);
             _controller.Velocity = velocity;
 
             // 점프: 이번 틱에 새로 눌렸고 땅에 있으면
@@ -157,6 +168,7 @@ namespace LastTruck.Networking
             if (jumpPressed && _controller.Grounded)
             {
                 _controller.Jump();
+                _lastJumpTick = Runner.Tick;
                 JumpCount++;
             }
 
@@ -218,7 +230,7 @@ namespace LastTruck.Networking
 
             bool alive = (_health == null || !_health.IsDead) && !NetworkTruck.IsSeated(Object.InputAuthority);
             _animator.SetBool(IsRunHash, alive && HorizontalSpeed > runAnimationThreshold);
-            _animator.SetBool(IsWalkHash, alive && IsWalking);
+            _animator.SetBool(IsWalkHash, false);   // Shift는 이제 느린 걷기가 아니라 달리기라 걷기 애니메이션은 쓰지 않는다
         }
 
         private void PlayJumpAnimation()

@@ -108,7 +108,7 @@ namespace CraftingSystem
                     requiredCount = abilityController.GetCalculatedCraftingCost(ingredient.count, isWeapon);
                 }
 
-                if (inv.GetItemCount(ingredient.item) < requiredCount)
+                if (inv.GetMaterialCount(ingredient.item) < requiredCount)
                 {
                     Debug.LogWarning($"[TruckCrafting] 재료 부족: {recipe.recipeID}");
                     return false;
@@ -127,7 +127,7 @@ namespace CraftingSystem
                     requiredCount = abilityController.GetCalculatedCraftingCost(ingredient.count, isWeapon);
                 }
 
-                if (!inv.RemoveItem(ingredient.item, requiredCount))
+                if (!inv.RemoveMaterial(ingredient.item, requiredCount))
                 {
                     foreach (var r in removed)
                         inv.AddItem(r.item, r.count);

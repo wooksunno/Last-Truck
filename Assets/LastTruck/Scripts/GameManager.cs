@@ -38,6 +38,24 @@ public class GameManager : MonoBehaviour
     [Tooltip("밤 사이클이 반복될수록 쿼터가 증가하는 값 (사이클당 가산). 필요 없으면 0으로 설정.")]
     [SerializeField] private int quotaIncreasePerCycle = 3;
 
+    [Header("초반 밤 완화 (아직 무기가 없어서 첫 밤이 너무 힘들다는 피드백)")]
+    [Tooltip("1번째 밤, 2번째 밤, ... 의 몬스터 쿼터 배율. 목록 길이보다 큰 회차는 완화 없이 원래 쿼터.")]
+    [SerializeField] private float[] earlyNightQuotaScale = { 0.5f, 0.7f, 0.85f };
+
+    /// <summary>초반 밤(완화 구간)인가. 스폰 속도를 늦추는 데 쓴다.</summary>
+    public bool IsEarlyNight => earlyNightQuotaScale != null && CurrentCycle >= 1 && CurrentCycle <= earlyNightQuotaScale.Length;
+
+    /// <summary>초반 밤에 스폰 속도를 얼마나 늦출지 (1이 보통, 클수록 느림). 후반 회차는 1.</summary>
+    public float EarlyNightPaceMultiplier
+    {
+        get
+        {
+            if (!IsEarlyNight) return 1f;
+            // 첫 밤이 가장 느리고 회차가 올라갈수록 보통 속도에 가까워진다
+            return Mathf.Lerp(1.8f, 1.1f, (CurrentCycle - 1) / Mathf.Max(1f, earlyNightQuotaScale.Length - 1f));
+        }
+    }
+
     [Header("멀티플레이 인원 보정")]
     [Tooltip("접속 인원별 몬스터 쿼터 배율. 0번 = 1인, 1번 = 2인, 2번 = 3인, 3번 = 4인.")]
     [SerializeField] private float[] quotaMultiplierByPlayerCount = { 1f, 1.4f, 1.7f, 2f };
@@ -47,6 +65,9 @@ public class GameManager : MonoBehaviour
     /// 스포너/킬카운트 등 외부 스크립트가 인스펙터 연결 없이도 쉽게 접근할 수 있도록 제공.
     /// </summary>
     public static GameManager Instance { get; private set; }
+
+    /// <summary>지금이 밤인가 (매니저가 없으면 false). 멀티플레이 클라이언트도 호스트 값을 따라간다.</summary>
+    public static bool IsNight => Instance != null && Instance.CurrentPhase == GamePhase.Night;
 
     // ---------------------------------------------------------------
     // 현재 상태 (읽기 전용으로 외부에 노출 - UI 등에서 참조)
@@ -198,6 +219,10 @@ public class GameManager : MonoBehaviour
     private int CalculateNightQuota(int cycle)
     {
         int quota = baseNightMonsterQuota + quotaIncreasePerCycle * (cycle - 1);
+
+        // 초반 밤은 몬스터를 줄여 준다
+        if (earlyNightQuotaScale != null && cycle >= 1 && cycle <= earlyNightQuotaScale.Length)
+            quota = Mathf.Max(3, Mathf.RoundToInt(quota * earlyNightQuotaScale[cycle - 1]));
 
         // 멀티플레이: 인원이 많을수록 몬스터를 더 많이 (1인 기준 배율 1)
         if (quotaMultiplierByPlayerCount != null && quotaMultiplierByPlayerCount.Length > 0 && PlayerCount > 1)

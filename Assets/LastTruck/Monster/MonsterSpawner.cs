@@ -193,13 +193,20 @@ public class MonsterSpawner : MonoBehaviour
         List<Vector3> spawnedPositions = new List<Vector3>(count);
         int spawnedInWave = 0;
 
-        if (firstSpawnDelay > 0f)
-            yield return new WaitForSeconds(firstSpawnDelay);
+        // 초반 밤 완화: 첫 몬스터가 늦게 나오고, 무리가 작고, 무리 사이가 길고, 동시에 많이 못 나온다
+        float pace = GameManager.Instance != null ? GameManager.Instance.EarlyNightPaceMultiplier : 1f;
+        bool early = pace > 1.001f;
+        int wave = early && waveSize > 0 ? Mathf.Max(2, Mathf.RoundToInt(waveSize / pace)) : waveSize;
+        int aliveCap = early && maxAliveMonsters > 0 ? Mathf.Max(4, Mathf.RoundToInt(maxAliveMonsters / (pace * 2f))) : maxAliveMonsters;
+
+        float firstDelay = firstSpawnDelay * pace * (early ? 2f : 1f);
+        if (firstDelay > 0f)
+            yield return new WaitForSeconds(firstDelay);
 
         for (int i = 0; i < count; i++)
         {
             // 동시 생존 상한: 줄어들 때까지 기다린다.
-            while (maxAliveMonsters > 0 && CountAliveMonsters() >= maxAliveMonsters)
+            while (aliveCap > 0 && CountAliveMonsters() >= aliveCap)
                 yield return new WaitForSeconds(0.5f);
 
             // 멀티플레이: 몬스터마다 기준점(플레이어들 / 트럭)을 비중에 따라 하나 고른다.
@@ -234,12 +241,12 @@ public class MonsterSpawner : MonoBehaviour
             if (i < count - 1)
             {
                 spawnedInWave++;
-                float wait = Random.Range(minSpawnInterval, maxSpawnInterval);
-                if (waveSize > 0 && spawnedInWave >= waveSize)
+                float wait = Random.Range(minSpawnInterval, maxSpawnInterval) * pace;
+                if (wave > 0 && spawnedInWave >= wave)
                 {
                     // 한 무리를 다 내보냈다 → 쉬었다가 다음 무리
                     spawnedInWave = 0;
-                    wait = Mathf.Max(wait, waveRestSeconds);
+                    wait = Mathf.Max(wait, waveRestSeconds * pace);
                 }
                 yield return new WaitForSeconds(wait);
             }

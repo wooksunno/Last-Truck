@@ -1,8 +1,6 @@
-using NUnit.Framework;
 using System.Collections.Generic;
 using UnityEngine;
 using System.Collections;
-using UnityEditor.Rendering;
 
 public class FadeObjectBlockingObject : MonoBehaviour
 {

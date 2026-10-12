@@ -29,7 +29,7 @@ namespace LastTruck
 
         [Header("방향")]
         public float turnSensitivity = 1.0f;
-        public float maxSteerAngle = 30.0f;
+        public float maxSteerAngle = 32.0f;
 
         [Header("핸들 조작감")]
         [Tooltip("핸들을 꺾는 속도 (도/초)")]
@@ -37,7 +37,7 @@ namespace LastTruck
         [Tooltip("키를 놓거나 반대로 꺾을 때 핸들이 돌아오는 속도 (도/초). 빠를수록 차가 바로 펴진다.")]
         public float steerReturnSpeed = 240f;
         [Tooltip("빠르게 달릴 때의 최대 조향각 (속도가 오를수록 maxSteerAngle에서 이 값으로 줄어든다 → 고속에서 휙 돌지 않음)")]
-        public float highSpeedSteerAngle = 12f;
+        public float highSpeedSteerAngle = 18f;
         [Tooltip("이 속도(m/s)에서 조향각이 highSpeedSteerAngle까지 줄어든다")]
         public float highSpeedForSteer = 18f;
 
@@ -67,6 +67,8 @@ namespace LastTruck
         public float uprightTorque = 9000f;
         [Tooltip("회전 속도 상한(rad/s)")]
         public float maxAngularSpeed = 2.5f;
+        [Tooltip("회전 저항. 너무 크면 핸들을 꺾어도 차가 안 돌아서 둔하다(기존 3 → 1). 작을수록 잘 돌지만 부딪힌 뒤 빙글 돌 수 있다")]
+        public float angularDamping = 1.0f;
 
         // 트럭이 지나갈 수 있는 맵 오브젝트(철도/나무/작은 바위)는 TruckPass 레이어(9)에 있다 → 충돌 무시
         public const int PassLayer = 9;
@@ -119,6 +121,8 @@ namespace LastTruck
                 _stabilizer = gameObject.AddComponent<TruckStabilizer>();
             // 서스펜션은 이 스크립트의 minMass 기준으로 맞추므로 안정화 장치도 같은 무게를 쓴다 (다르면 스프링 비율이 어긋난다)
             if (_stabilizer != null && _stabilizer.mass < minMass) _stabilizer.mass = minMass;
+            // 안정화 장치도 회전 저항을 너무 크게 걸지 않게 맞춘다 (둔한 핸들링의 원인)
+            if (_stabilizer != null) _stabilizer.angularDamping = Mathf.Min(_stabilizer.angularDamping, angularDamping);
         }
 
         private void Start()
@@ -129,6 +133,7 @@ namespace LastTruck
                 carRb.centerOfMass = _centerOfMass;
                 if (carRb.mass < minMass) carRb.mass = minMass;
                 carRb.maxAngularVelocity = maxAngularSpeed;
+                carRb.angularDamping = angularDamping;
             }
 
             if (autoSuspension) ConfigureSuspension();

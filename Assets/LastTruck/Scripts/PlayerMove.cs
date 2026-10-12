@@ -174,6 +174,9 @@ namespace LastTruck
             {
                 rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
                 rigidbody.constraints = RigidbodyConstraints.FreezeRotation;
+                // 벽/다른 물체와 겹쳤을 때 밀어내는 속도를 낮춰서 튕겨 나가지 않게 한다 (기본 10m/s)
+                rigidbody.maxDepenetrationVelocity = 2.5f;
+                rigidbody.collisionDetectionMode = CollisionDetectionMode.Continuous;
             }
 
             // 마찰 0 재질: 벽/경사면/메시 이음새에 몸이 달라붙어 멈추는 현상 방지
@@ -239,6 +242,12 @@ namespace LastTruck
             }
         }
 
+        [Header("달리기")]
+        [Tooltip("Shift를 누르고 있을 때 이동 속도 배율")]
+        [SerializeField] private float sprintMultiplier = 1.6f;
+
+        private const float MaxFallSpeed = 30f;
+
         private void Update()
         {
             // 멀티플레이: 다른 사람 캐릭터(복제본)는 키보드를 읽지 않는다.
@@ -264,7 +273,7 @@ namespace LastTruck
             {
                 hAxis = Input.GetAxisRaw("Horizontal");
                 vAxis = Input.GetAxisRaw("Vertical");
-                wDown = Input.GetKey(KeyCode.LeftShift);
+                wDown = PlayerStamina.Sprinting;   // 이름은 wDown이지만 지금은 "달리기"다 (Shift + 스태미나가 남아 있을 때)
             }
 
             if (_networkControlled) return;
@@ -274,8 +283,8 @@ namespace LastTruck
             if (anim != null)
             {
                 bool isMoving = (hAxis != 0 || vAxis != 0);
-                anim.SetBool("isRun", isMoving && !wDown);
-                anim.SetBool("isWalk", isMoving && wDown);
+                anim.SetBool("isRun", isMoving);
+                anim.SetBool("isWalk", false);
 
                 // 땅에 붙어있으면 점프/낙하 애니메이션 파라미터 해제
                 if (_grounded && !_jumping)
@@ -336,7 +345,8 @@ namespace LastTruck
                 moveVec.Normalize();
             }
 
-            float currentSpeed = speed * (wDown ? 0.3f : 1f) * _speedMultiplier;
+            // Shift = 달리기 (이전에는 Shift가 0.3배 느린 걷기였다). 활/화염방사 중 감속 등은 _speedMultiplier로 그대로 적용된다
+            float currentSpeed = speed * (wDown ? sprintMultiplier : 1f) * _speedMultiplier;
 
             Vector3 targetVelocity = moveVec * currentSpeed;
 
@@ -393,7 +403,9 @@ namespace LastTruck
 #else
         float currentY = rigidbody.velocity.y;
 #endif
-                targetVelocity.y = _jumping ? currentY : Mathf.Min(currentY, 0f);
+                // 점프 중에도 위로 가는 속도는 점프 속도를 넘지 못하게 한다.
+                // (벽 모서리에 끼면 충돌 해소가 위로 밀어내는 속도를 매 프레임 더해서 하늘로 날아가던 문제)
+                targetVelocity.y = _jumping ? Mathf.Clamp(currentY, -MaxFallSpeed, jumpVelocity) : Mathf.Clamp(currentY, -MaxFallSpeed, 0f);
 
                 // 공중에서 아래로 떨어지는 중(Y 속도가 음수)일 때 낙하 애니메이션 파라미터 켜기
                 if (anim != null && !(_grounded))
