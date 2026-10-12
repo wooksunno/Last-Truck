@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 4822160349958342104}
   - component: {fileID: 7282098513275351314}
   - component: {fileID: 9083701572080423110}
+  - component: {fileID: -8804701744636668015}
   m_Layer: 0
   m_Name: PP_Mountain_Cave_10
   m_TagString: Untagged
@@ -89,6 +90,7 @@ MeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!64 &9083701572080423110
 MeshCollider:
@@ -112,3 +114,19 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 8210986664974549238, guid: a05ccac6c8317dc4db7f7cca9b9042c4, type: 3}
+--- !u!114 &-8804701744636668015
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9083701572080423111}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 90cde8a7b7bf84e4a8d618936abb29a4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FadingObject
+  Renderers: []
+  Position: {x: 0, y: 0, z: 0}
+  Materials: []
+  InitialAlpha: 0

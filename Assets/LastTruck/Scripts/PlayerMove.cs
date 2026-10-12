@@ -46,7 +46,16 @@ namespace LastTruck
 
         private bool _isCursorUnlocked = false;
 
-        public bool IsUIOpen { get; set; } = false;
+        private bool _isUIOpen = false;
+        public bool IsUIOpen
+        {
+            get => _isUIOpen;
+            set
+            {
+                _isUIOpen = value;
+                UpdateCursorState();
+            }
+        }
 
         public void SetMovementLocked(bool locked)
         {
@@ -236,10 +245,9 @@ namespace LastTruck
             {
                 hAxis = Input.GetAxisRaw("Horizontal");
                 vAxis = Input.GetAxisRaw("Vertical");
-                wDown = Input.GetButton("Walk");
+                wDown = Input.GetKey(KeyCode.LeftShift);
             }
 
-            // 멀티플레이: 이동/애니메이션은 NetworkPlayerMovement가 한다 (이동 잠금 상태는 IsMovementBlocked로 전달).
             if (_networkControlled) return;
 
             if (!shouldLockMovement && Input.GetKeyDown(jumpKey)) _jumpRequested = true;
@@ -249,6 +257,13 @@ namespace LastTruck
                 bool isMoving = (hAxis != 0 || vAxis != 0);
                 anim.SetBool("isRun", isMoving && !wDown);
                 anim.SetBool("isWalk", isMoving && wDown);
+
+                // 땅에 붙어있으면 점프/낙하 애니메이션 파라미터 해제
+                if (_grounded && !_jumping)
+                {
+                    anim.SetBool("isJumping", false);
+                    anim.SetBool("isFalling", false);
+                }
             }
         }
 
@@ -257,19 +272,19 @@ namespace LastTruck
         /// </summary>
         public void UpdateCursorState()
         {
-            bool unlockCursor = _isCursorUnlocked || IsUIOpen;
+            bool unlockCursor = _isCursorUnlocked || _isUIOpen;
 
             if (unlockCursor)
             {
                 Cursor.lockState = CursorLockMode.None;
                 Cursor.visible = true;
-                SetCinemachineInputEnabled(false);
+                SetCinemachineInputEnabled(false); // 카메라 회전 입력 차단
             }
             else
             {
                 Cursor.lockState = CursorLockMode.Locked;
                 Cursor.visible = false;
-                SetCinemachineInputEnabled(true);
+                SetCinemachineInputEnabled(true); // 카메라 회전 입력 허용
             }
         }
 
@@ -310,6 +325,7 @@ namespace LastTruck
 
             // 점프 직후 잠깐은 땅에 붙이지 않는다 (붙이면 바로 다시 땅으로 끌려 내려옴)
             if (_jumping && _grounded && Time.time - _jumpStartTime > 0.15f) _jumping = false;
+
             if (_jumpRequested)
             {
                 _jumpRequested = false;
@@ -320,10 +336,18 @@ namespace LastTruck
                     targetVelocity.y = jumpVelocity;
                     rigidbody.useGravity = true;
                     PlayJumpAnimation();
+
+                    // 애니메이터에 점프 시작 전달
+                    if (anim != null)
+                    {
+                        anim.SetBool("isJumping", true);
+                        anim.SetBool("isFalling", false);
+                    }
+
 #if UNITY_6000_0_OR_NEWER
                     rigidbody.linearVelocity = targetVelocity;
 #else
-                    rigidbody.velocity = targetVelocity;
+            rigidbody.velocity = targetVelocity;
 #endif
                     return;
                 }
@@ -344,21 +368,30 @@ namespace LastTruck
             else
             {
                 rigidbody.useGravity = true;
-                // 점프 중이 아니면 공중에서 위로 올라가지 않는다.
-                // (경사로/레일 끝에서 오르던 속도나 충돌 밀어내기 때문에 몸이 붕 뜨는 현상 방지)
+
 #if UNITY_6000_0_OR_NEWER
                 float currentY = rigidbody.linearVelocity.y;
 #else
-                float currentY = rigidbody.velocity.y;
+        float currentY = rigidbody.velocity.y;
 #endif
                 targetVelocity.y = _jumping ? currentY : Mathf.Min(currentY, 0f);
+
+                // 공중에서 아래로 떨어지는 중(Y 속도가 음수)일 때 낙하 애니메이션 파라미터 켜기
+                if (anim != null && !(_grounded))
+                {
+                    if (currentY < -0.1f)
+                    {
+                        anim.SetBool("isJumping", false);
+                        anim.SetBool("isFalling", true);
+                    }
+                }
             }
 
             // Unity 버전 호환성 지원 (linearVelocity / velocity)
 #if UNITY_6000_0_OR_NEWER
             rigidbody.linearVelocity = targetVelocity;
 #else
-            rigidbody.velocity = targetVelocity;
+    rigidbody.velocity = targetVelocity;
 #endif
 
             if (moveVec.sqrMagnitude > 0.001f)

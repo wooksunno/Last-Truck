@@ -1,4 +1,5 @@
 using LastTruck;
+using Photon.Realtime;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -349,6 +350,12 @@ public void OpenPouchPanel(PouchInventory pouch, PlayerInventory player)
             if (_popupRoot != null)
                 _popupRoot.SetActive(false);
 
+            if (playerInventory != null)
+            {
+                var playerMove = playerInventory.GetComponent<PlayerMove>();
+                if (playerMove != null) playerMove.IsUIOpen = false;
+            }
+
             _activeFacility = null;
             _activeTruck = null;
             _selectedRecipe = null;
@@ -368,6 +375,13 @@ private void ShowPopup(string title, System.Action builder)
             WatchTruckInventory(_activeTruck != null ? _activeTruck.TruckInventory : null);
 
             _popupRoot.SetActive(true);
+
+            if (playerInventory != null)
+            {
+                var playerMove = playerInventory.GetComponent<PlayerMove>();
+                if (playerMove != null) playerMove.IsUIOpen = true;
+            }
+
             _popupTitle.text = title;
 
             RectTransform popupRect = _popupRoot.GetComponent<RectTransform>();
