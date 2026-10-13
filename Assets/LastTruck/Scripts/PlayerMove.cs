@@ -284,6 +284,7 @@ namespace LastTruck
         [SerializeField] private float sprintMultiplier = 1.6f;
 
         private const float MaxFallSpeed = 30f;
+        private const float SprintAnimSpeed = 1.2f;
 
         private void Update()
         {
@@ -322,6 +323,11 @@ namespace LastTruck
                 bool isMoving = (hAxis != 0 || vAxis != 0);
                 anim.SetBool("isRun", isMoving);
                 anim.SetBool("isWalk", false);
+
+                // 달리기(Shift): 더 빠른 달리기 모션(Run Fast)이 있으면 그것을, 없으면 같은 달리기 모션을 빠르게 재생한다.
+                bool sprinting = isMoving && wDown;
+                anim.SetBool("isSprint", sprinting);
+                anim.speed = sprinting ? SprintAnimSpeed : 1f;
 
                 // 땅에 붙어있으면 점프/낙하 애니메이션 파라미터 해제
                 if (_grounded && !_jumping)

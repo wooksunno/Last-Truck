@@ -43,7 +43,7 @@ public static class GatherablePropInstaller
     public static int HerbAmount = 1;
     public static float HerbHoldSeconds = 0.8f;
     public static float HerbTriggerPadding = 0.2f;
-    public static float HerbChance = 0.2f;   // 풀 덤불 중 약초로 지정할 비율 (0~1). 한 포기짜리 풀(PP_Grass_Single)은 제외.
+    public static float HerbChance = 0.045f;   // 풀 덤불 중 약초로 지정할 비율 (0~1). 한 포기짜리 풀(PP_Grass_Single)은 제외. (예전 0.2는 맵에 약초가 너무 많았다)
 
     // 위치 기반 고정 랜덤: 다시 Install해도 같은 풀이 약초로 선택된다.
     static bool IsHerbPick(Vector3 pos)

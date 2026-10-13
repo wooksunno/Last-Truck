@@ -227,7 +227,7 @@ namespace CraftingSystem
             // ── 트럭 조립: 도구 / 채집 ──────────────────────────
             Add("assemble_wood_pickaxe", "나무 곡괭이 조립", FacilityType.None, new[] { (ItemIds.Wood, 8) }, ItemIds.WoodPickaxe, 1);
             Add("assemble_stone_pickaxe", "돌 곡괭이 조립", FacilityType.None, new[] { (ItemIds.Wood, 10), (ItemIds.Stone, 8) }, ItemIds.StonePickaxe, 1);
-            Add("assemble_copper_pickaxe", "구리 곡괭이 조립", FacilityType.None, new[] { (ItemIds.CopperBlade, 1), (ItemIds.WoodHandle, 1) }, ItemIds.CopperPickaxe, 1);
+            Add("assemble_copper_pickaxe", "구리 곡괭이 조립", FacilityType.None, new[] { (ItemIds.CopperBlade, 1), (ItemIds.Wood, 6) }, ItemIds.CopperPickaxe, 1);   // 손잡이(절삭기 ← 철 원석 ← 구리 곡괭이)를 요구하면 순환이라 나무를 그대로 쓴다
             Add("assemble_iron_pickaxe", "철제 곡괭이 조립", FacilityType.None, new[] { (ItemIds.ReinforcedIronBlade, 1), (ItemIds.WoodHandle, 1), (ItemIds.Copper, 2) }, ItemIds.IronPickaxe, 1);
             Add("assemble_platinum_drill", "금 착암 드릴 조립", FacilityType.None, new[] { (ItemIds.PlatinumGear, 1), (ItemIds.ReinforcedIronBlade, 1), (ItemIds.Iron, 3) }, ItemIds.PlatinumDrill, 1);
             Add("assemble_diamond_crusher", "다이아몬드 분쇄기 조립", FacilityType.None, new[] { (ItemIds.DiamondCuttingTip, 1), (ItemIds.PlatinumDrill, 1) }, ItemIds.DiamondCrusher, 1);

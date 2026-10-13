@@ -54,6 +54,8 @@ namespace LastTruck.Networking
 
         private static readonly int IsRunHash = Animator.StringToHash("isRun");
         private static readonly int IsWalkHash = Animator.StringToHash("isWalk");
+        private static readonly int IsSprintHash = Animator.StringToHash("isSprint");
+        private const float SprintAnimSpeed = 1.2f;
 
         #endregion
 
@@ -241,8 +243,14 @@ namespace LastTruck.Networking
             }
 
             bool alive = (_health == null || !_health.IsDead) && !NetworkTruck.IsSeated(Object.InputAuthority);
-            _animator.SetBool(IsRunHash, alive && HorizontalSpeed > runAnimationThreshold);
+            bool moving = alive && HorizontalSpeed > runAnimationThreshold;
+            _animator.SetBool(IsRunHash, moving);
             _animator.SetBool(IsWalkHash, false);   // Shift는 이제 느린 걷기가 아니라 달리기라 걷기 애니메이션은 쓰지 않는다
+
+            // 달리기(Shift): IsWalking은 이제 "달리는 중"이다. 더 빠른 달리기 모션이 있으면 그것을, 없으면 같은 모션을 빠르게 재생한다.
+            bool sprinting = moving && IsWalking;
+            _animator.SetBool(IsSprintHash, sprinting);
+            _animator.speed = sprinting ? SprintAnimSpeed : 1f;
         }
 
         private static readonly int JumpLandHash = Animator.StringToHash("jumpLand");

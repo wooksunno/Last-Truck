@@ -47,7 +47,65 @@ namespace CraftingSystem
                 return;
             _done = true;
             GameObject remove = target != null ? target : (transform.parent != null ? transform.parent.gameObject : gameObject);
+            SettleNeighbors(remove);
             Destroy(remove);
+        }
+
+        /// <summary>
+        /// 돌/나무를 없애기 전에 호출: 그 위에 얹혀 있던 약초(풀)가 공중에 뜨지 않도록 땅으로 내려놓는다. 내려놓을 땅이 없으면 같이 지운다.
+        /// </summary>
+        private static void SettleNeighbors(GameObject removed)
+        {
+            if (removed == null)
+                return;
+
+            Renderer[] renderers = removed.GetComponentsInChildren<Renderer>();
+            if (renderers.Length == 0)
+                return;
+
+            Bounds bounds = renderers[0].bounds;
+            for (int i = 1; i < renderers.Length; i++)
+                bounds.Encapsulate(renderers[i].bounds);
+            bounds.Expand(0.8f);
+
+            Collider[] around = Physics.OverlapBox(bounds.center, bounds.extents, Quaternion.identity, ~0, QueryTriggerInteraction.Collide);
+            foreach (Collider col in around)
+            {
+                GatherableProp herb = col.GetComponent<GatherableProp>();
+                if (herb == null || herb._done || herb.itemId != ItemIds.Herb)
+                    continue;
+
+                GameObject root = herb.Root;
+                if (root == null || root == removed || root.transform.IsChildOf(removed.transform))
+                    continue;
+
+                // 이 프롭(과 그 자식)을 뺀 첫 바닥을 찾는다
+                Vector3 from = root.transform.position + Vector3.up * 0.5f;
+                RaycastHit[] hits = Physics.RaycastAll(from, Vector3.down, 30f, ~0, QueryTriggerInteraction.Ignore);
+                System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+
+                bool found = false;
+                RaycastHit ground = default;
+                foreach (RaycastHit hit in hits)
+                {
+                    Transform t = hit.collider.transform;
+                    if (t.IsChildOf(removed.transform) || t.IsChildOf(root.transform))
+                        continue;
+                    ground = hit;
+                    found = true;
+                    break;
+                }
+
+                if (!found)
+                {
+                    Destroy(root);
+                    continue;
+                }
+
+                float gap = ground.distance - 0.5f;   // 풀 발끝 ~ 바닥
+                if (gap > 0.2f)
+                    root.transform.position = new Vector3(root.transform.position.x, ground.point.y, root.transform.position.z);
+            }
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -131,6 +189,7 @@ namespace CraftingSystem
             Debug.Log($"[GatherableProp] {displayName}에서 {item.itemName} x{finalAmount} 채집.");
 
             GameObject remove = target != null ? target : (transform.parent != null ? transform.parent.gameObject : gameObject);
+            SettleNeighbors(remove);
             Destroy(remove);
         }
     }

@@ -18,8 +18,8 @@ MonoBehaviour:
   inputs:
   - item: {fileID: 11400000, guid: b88f963aa9a05594caa71bcbfae3a172, type: 2}
     count: 1
-  - item: {fileID: 11400000, guid: c3d776926fcb1f94193ffcf396bdae97, type: 2}
-    count: 1
+  - item: {fileID: 11400000, guid: 976a6c6056018944aa1e9c15045c77f5, type: 2}
+    count: 6
   output:
     item: {fileID: 11400000, guid: cc4a7c18c650ec749b01c6167ec280f8, type: 2}
     count: 1
