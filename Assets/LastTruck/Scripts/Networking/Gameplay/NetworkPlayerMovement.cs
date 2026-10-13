@@ -35,7 +35,7 @@ namespace LastTruck.Networking
 
         [Header("점프")]
         [Tooltip("점프할 때 위로 주는 속도 (m/s). NetworkCharacterController의 중력과 함께 점프 높이를 정한다.")]
-        [SerializeField] private float jumpImpulse = 9f;
+        [SerializeField] private float jumpImpulse = 6.5f;
         [Tooltip("점프할 때 재생할 애니메이터 상태 이름 (없으면 애니메이션 없이 점프만).")]
         [SerializeField] private string jumpStateName = "Jumping Up";
 

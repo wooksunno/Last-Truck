@@ -203,8 +203,97 @@ namespace Combat
             return has;
         }
 
+        // 채집 타격 신호: "Gather|<도구>|x|y|z" (도구: P = 맨손 주먹, X = 곡괭이). 공격 애니메이션과 같은 경로로 네트워크에 실린다.
+        // 맞은 대상의 위치를 같이 보내서, 받는 쪽도 근처의 다른 나무/돌이 아니라 정확히 그 대상을 흔든다.
+        private const string GatherTriggerPrefix = "Gather|";
+        private const string PickaxeChopTrigger = "AtkChop";
+
+        [Header("채집 타격 (나무/돌)")]
+        [Tooltip("주먹을 뻗은 뒤 대상이 흔들리기까지의 시간(초).")]
+        [SerializeField] private float gatherImpactDelay = 0.25f;
+        [Tooltip("곡괭이를 내려찍은 뒤 대상이 흔들리기까지의 시간(초). AtkChop 상태 속도(1.6)에 맞춘 값.")]
+        [SerializeField] private float pickaxeImpactDelay = 0.4f;
+        [Tooltip("돌은 나무보다 덜 기울고 빠르게 떨린다 (각도 배율, 빠르기 배율).")]
+        [SerializeField] private float rockShakeAmplitudeScale = 0.4f;
+        [SerializeField] private float rockShakeFrequencyScale = 2.2f;
+
+        /// <summary>나무/돌처럼 때려서 캐는 대상인가 (풀/약초는 제외).</summary>
+        public static bool IsPunchGatherItem(string itemId) => itemId == ItemIds.Wood || itemId == ItemIds.Stone;
+
+        public static bool IsPickaxe(string itemId) =>
+            itemId == ItemIds.WoodPickaxe || itemId == ItemIds.StonePickaxe ||
+            itemId == ItemIds.CopperPickaxe || itemId == ItemIds.IronPickaxe;
+
+        /// <summary>
+        /// 채집 중 한 번 때리는 연출: 대상 쪽으로 돌고, 곡괭이를 들고 있으면 내려찍고 아니면 주먹을 뻗은 뒤 그 대상을 흔든다.
+        /// </summary>
+        public void PlayGatherHit(GatherableProp target, bool withPickaxe)
+        {
+            if (target == null)
+                return;
+            FaceDirection(target.transform.position - transform.position);
+            Vector3 p = target.transform.position;
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            PlayAttackAnim(GatherTriggerPrefix + (withPickaxe ? "X" : "P") + "|" +
+                           p.x.ToString("F2", inv) + "|" + p.y.ToString("F2", inv) + "|" + p.z.ToString("F2", inv));
+        }
+
+        private bool PlayGatherAnim(string signal)
+        {
+            string[] parts = signal.Split('|');
+            if (parts.Length < 5)
+                return false;
+            bool withPickaxe = parts[1] == "X";
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            if (!float.TryParse(parts[2], System.Globalization.NumberStyles.Float, inv, out float x) ||
+                !float.TryParse(parts[3], System.Globalization.NumberStyles.Float, inv, out float y) ||
+                !float.TryParse(parts[4], System.Globalization.NumberStyles.Float, inv, out float z))
+                return false;
+
+            if (!_remoteView) AttackAnimPlayed?.Invoke(signal);
+            StartCoroutine(GatherImpactRoutine(new Vector3(x, y, z), withPickaxe ? pickaxeImpactDelay : gatherImpactDelay));
+
+            string trigger = withPickaxe && HasAnimParam(PickaxeChopTrigger) ? PickaxeChopTrigger : "AtkPunch";
+            if (!HasAnimParam(trigger)) return false;
+            _attackLayerHoldUntil = Time.time + 0.25f;
+            _animator.SetTrigger(trigger);
+            return true;
+        }
+
+        private IEnumerator GatherImpactRoutine(Vector3 targetPosition, float delay)
+        {
+            yield return new WaitForSeconds(delay);
+
+            // 보낸 위치에 있는 채집 대상(트리거)을 찾는다. 모든 컴퓨터에서 프롭이 같은 자리에 있으므로 거의 정확히 겹친다.
+            GatherableProp best = null;
+            float bestDist = 0.5f * 0.5f;
+            foreach (GatherableProp prop in GatherableProp.AllProps)
+            {
+                if (prop == null || prop.IsDone || !IsPunchGatherItem(prop.ItemId))
+                    continue;
+                float d = (prop.transform.position - targetPosition).sqrMagnitude;
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    best = prop;
+                }
+            }
+
+            if (best == null)
+                yield break;
+
+            Vector3 me = transform.position;
+            if (best.ItemId == ItemIds.Wood)
+                TreeShake.Shake(best.Root, best.transform.position, me);
+            else
+                TreeShake.Shake(best.Root, best.Root.transform.position, me, rockShakeAmplitudeScale, rockShakeFrequencyScale);
+        }
+
         private bool PlayAttackAnim(string trigger)
         {
+            if (trigger.StartsWith(GatherTriggerPrefix))
+                return PlayGatherAnim(trigger);
+
             if (!HasAnimParam(trigger)) return false;
             if (!_remoteView) AttackAnimPlayed?.Invoke(trigger);
             _attackLayerHoldUntil = Time.time + 0.25f;     // 전이가 시작될 때까지 레이어를 켜 둔다
@@ -641,7 +730,8 @@ namespace Combat
             else
                 UnequipRifle();
 
-            ReportHeldWeapon(selected != null && Weapons.ContainsKey(selected.itemID) ? selected.itemID : null);
+            // 곡괭이처럼 무기는 아니지만 손에 모델이 보이는 도구도 알려서, 다른 사람 화면에서도 들고 있게 한다
+            ReportHeldWeapon(selected != null && (Weapons.ContainsKey(selected.itemID) || IsPickaxe(selected.itemID)) ? selected.itemID : null);
 
             if (!hasWeapon || selected.itemID != _activeWeaponId)
             {
@@ -1164,7 +1254,7 @@ namespace Combat
                     _attackLayer = _animator.GetLayerIndex(AttackLayerName);
                 if (_attackLayer >= 0)
                 {
-                    foreach (string t in new[] { "AtkSlash", "AtkStab", "AtkPunch", "AtkShoot1H", "AtkShoot2H", "AtkThrow" })
+                    foreach (string t in new[] { "AtkSlash", "AtkStab", "AtkPunch", "AtkChop", "AtkShoot1H", "AtkShoot2H", "AtkThrow" })
                         if (HasAnimParam(t)) _animator.ResetTrigger(t);
                     _animator.Play("Empty", _attackLayer, 0f);
                 }

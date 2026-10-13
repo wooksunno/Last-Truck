@@ -9,8 +9,17 @@ namespace LastTruck
         public LayerMask interactLayer;
         public KeyCode interactKey = KeyCode.E;
 
+        [Header("나무/돌 채집 연출")]
+        [Tooltip("E키로 나무/돌을 캐는 동안 주먹으로 때리는 간격(초).")]
+        public float gatherPunchInterval = 0.6f;
+        [Tooltip("곡괭이를 들고 캘 때 내려찍는 간격(초). 곡괭이 모션이 주먹보다 길다.")]
+        public float gatherPickaxeInterval = 0.7f;
+
         private IInteractable currentInteractable;
         private float _holdTimer;
+        private float _nextGatherPunch;
+        private Combat.WeaponController _weapon;
+        private CraftingSystem.PlayerInventory _inventory;
 
         public bool IsHolding { get; private set; }
         public float HoldProgress01 { get; private set; }
@@ -39,6 +48,7 @@ namespace LastTruck
                     _holdTimer += Time.deltaTime / holdable.RequiredHoldSeconds;
                     IsHolding = true;
                     HoldProgress01 = Mathf.Clamp01(_holdTimer);
+                    UpdateGatherPunch();
 
                     if (_holdTimer >= 1f)
                     {
@@ -63,8 +73,36 @@ namespace LastTruck
             }
         }
 
+        /// <summary>
+        /// 나무/돌을 캐는 동안 일정 간격으로 때리는 연출 + 지금 캐고 있는 대상 흔들기 (처음 누르는 순간 바로 한 번).
+        /// 손(1/2/3 슬롯)에 곡괭이를 들고 있으면 곡괭이로 내려찍고, 아니면 맨손 주먹.
+        /// </summary>
+        private void UpdateGatherPunch()
+        {
+            if (!(currentInteractable is CraftingSystem.GatherableProp prop) || !Combat.WeaponController.IsPunchGatherItem(prop.ItemId))
+                return;
+            if (Time.time < _nextGatherPunch)
+                return;
+
+            if (_weapon == null)
+                _weapon = GetComponent<Combat.WeaponController>();
+            if (_weapon == null || !_weapon.isActiveAndEnabled)
+                return;
+
+            if (_inventory == null)
+                _inventory = GetComponent<CraftingSystem.PlayerInventory>();
+            CraftingSystem.ItemData hand = _inventory != null ? _inventory.SelectedItem : null;
+            bool withPickaxe = hand != null && Combat.WeaponController.IsPickaxe(hand.itemID);
+
+            _nextGatherPunch = Time.time + (withPickaxe ? gatherPickaxeInterval : gatherPunchInterval);
+            _weapon.PlayGatherHit(prop, withPickaxe);
+        }
+
         private void ResetHoldState()
         {
+            // E키를 뗐다가 다시 누르면 바로 첫 타격이 나가게 한다 (계속 누른 채 다음 나무로 넘어가면 간격 유지)
+            if (!IsHolding)
+                _nextGatherPunch = 0f;
             _holdTimer = 0f;
             IsHolding = false;
             HoldProgress01 = 0f;

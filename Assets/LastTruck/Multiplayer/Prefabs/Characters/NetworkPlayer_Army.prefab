@@ -1317,6 +1317,58 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 8272233841503857976, guid: 6b584e1dcfd13864fa57ecd848afecb8, type: 3}
+      propertyPath: heldMelee.Array.size
+      value: 15
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272233841503857976, guid: 6b584e1dcfd13864fa57ecd848afecb8, type: 3}
+      propertyPath: heldMelee.Array.data[11].scale
+      value: 3.6
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272233841503857976, guid: 6b584e1dcfd13864fa57ecd848afecb8, type: 3}
+      propertyPath: heldMelee.Array.data[12].scale
+      value: 3.6
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272233841503857976, guid: 6b584e1dcfd13864fa57ecd848afecb8, type: 3}
+      propertyPath: heldMelee.Array.data[13].scale
+      value: 1.25
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272233841503857976, guid: 6b584e1dcfd13864fa57ecd848afecb8, type: 3}
+      propertyPath: heldMelee.Array.data[14].scale
+      value: 1.25
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272233841503857976, guid: 6b584e1dcfd13864fa57ecd848afecb8, type: 3}
+      propertyPath: heldMelee.Array.data[11].itemId
+      value: wood_pickaxe
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272233841503857976, guid: 6b584e1dcfd13864fa57ecd848afecb8, type: 3}
+      propertyPath: heldMelee.Array.data[11].prefab
+      value: 
+      objectReference: {fileID: 919132149155446097, guid: f7c8076711decc247be4ddb2fd8ac72d, type: 3}
+    - target: {fileID: 8272233841503857976, guid: 6b584e1dcfd13864fa57ecd848afecb8, type: 3}
+      propertyPath: heldMelee.Array.data[12].itemId
+      value: stone_pickaxe
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272233841503857976, guid: 6b584e1dcfd13864fa57ecd848afecb8, type: 3}
+      propertyPath: heldMelee.Array.data[12].prefab
+      value: 
+      objectReference: {fileID: 919132149155446097, guid: 0526252e6b5169b41bb8ca415ad11b64, type: 3}
+    - target: {fileID: 8272233841503857976, guid: 6b584e1dcfd13864fa57ecd848afecb8, type: 3}
+      propertyPath: heldMelee.Array.data[13].itemId
+      value: copper_pickaxe
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272233841503857976, guid: 6b584e1dcfd13864fa57ecd848afecb8, type: 3}
+      propertyPath: heldMelee.Array.data[13].prefab
+      value: 
+      objectReference: {fileID: 6211525589844241325, guid: 44071f8e3c8541c43bf2dbf8739314c4, type: 3}
+    - target: {fileID: 8272233841503857976, guid: 6b584e1dcfd13864fa57ecd848afecb8, type: 3}
+      propertyPath: heldMelee.Array.data[14].itemId
+      value: iron_pickaxe
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272233841503857976, guid: 6b584e1dcfd13864fa57ecd848afecb8, type: 3}
+      propertyPath: heldMelee.Array.data[14].prefab
+      value: 
+      objectReference: {fileID: 8749389399153971726, guid: 463f936baa504e749adacd930c5852ef, type: 3}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects:

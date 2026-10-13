@@ -34,6 +34,8 @@ namespace CraftingSystem
         public bool IsDone => _done;
         public string ItemId => itemId;
         public int Amount => amount;
+        /// <summary>채집이 끝나면 사라지는 프롭 전체 (나무 흔들기 연출 대상).</summary>
+        public GameObject Root => target != null ? target : (transform.parent != null ? transform.parent.gameObject : gameObject);
 
         private void Awake() => AllProps.Add(this);
         private void OnDestroy() => AllProps.Remove(this);

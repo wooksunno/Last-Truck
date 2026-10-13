@@ -11,8 +11,20 @@ using UnityEngine.SceneManagement;
 public static class GatherablePropInstaller
 {
     public const string TriggerName = "GatherTrigger";
-    public static float MaxRockSize = 5f;     // 렌더러 bounds의 가장 긴 변(미터)
+    public static float MaxRockSize = 12f;    // 렌더러 bounds의 가장 긴 변(미터). 이끼 돌/돌무더기(6~11m)도 캘 수 있게 한다
     public static float HoldSeconds = 1.5f;
+
+    // 5m 넘는 큰 돌은 클수록 오래 걸리고 많이 나온다 (5m 이하는 기존 규칙: 1~2개, 1.5초).
+    public static float BigRockSize = 5f;
+    public static int MinBigRockStone = 3, MaxBigRockStone = 6;
+    public static float MinBigRockHold = 2f, MaxBigRockHold = 4f;
+
+    static void RockYield(float size, out int amount, out float hold)
+    {
+        float t = Mathf.InverseLerp(BigRockSize, MaxRockSize, size);
+        amount = Mathf.RoundToInt(Mathf.Lerp(MinBigRockStone, MaxBigRockStone, t));
+        hold = Mathf.Round(Mathf.Lerp(MinBigRockHold, MaxBigRockHold, t) * 10f) / 10f;
+    }
 
     // 나무는 크기 제한 없이 모두 채집 가능. 키가 클수록 오래 걸리고 많이 나온다.
     public static float SmallTreeHeight = 5f;    // 이 키 이하 = 작은 나무 (기본값)
@@ -85,9 +97,10 @@ public static class GatherablePropInstaller
         return n;
     }
 
-    public static string Install()
+    /// <summary>reset=false면 기존 채집 트리거는 그대로 두고, 아직 없는 프롭에만 새로 단다.</summary>
+    public static string Install(bool reset = true)
     {
-        Remove();
+        if (reset) Remove();
         RemoveGrassColliders();
         int rocks = 0, trees = 0, logs = 0, herbs = 0, tooBig = 0;
         foreach (var r in Object.FindObjectsByType<MeshRenderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
@@ -98,6 +111,7 @@ public static class GatherablePropInstaller
             Kind kind = Classify(go.name); if (kind == Kind.None) continue;
             // only prop roots (the object that carries the renderer and is not itself inside another gatherable prop)
             if (go.GetComponentInParent<GatherableProp>() != null) continue;
+            if (!reset && go.transform.Find(TriggerName) != null) continue;
 
             if (kind == Kind.Herb && !IsHerbPick(go.transform.position)) continue;
 
@@ -112,6 +126,7 @@ public static class GatherablePropInstaller
             int amount = kind == Kind.Log ? 2 : (size > 3f ? 2 : 1);
             float hold = HoldSeconds;
             if (kind == Kind.Tree) TreeYield(b.size.y, out amount, out hold);
+            if (kind == Kind.Rock && size > BigRockSize) RockYield(size, out amount, out hold);
             if (kind == Kind.Herb) { amount = HerbAmount; hold = HerbHoldSeconds; }
             string label = kind == Kind.Rock ? "돌" : kind == Kind.Tree ? (b.size.y >= 12f ? "큰 나무" : "나무")
                 : kind == Kind.Herb ? "약초" : "통나무";
@@ -149,6 +164,7 @@ public static class GatherablePropInstaller
     }
 
     [MenuItem("Tools/Gatherable Props/Install")] static void MenuInstall() { Install(); }
+    [MenuItem("Tools/Gatherable Props/Install Missing Only")] static void MenuInstallMissing() { Install(false); }
     [MenuItem("Tools/Gatherable Props/Remove Grass Colliders")] static void MenuRemoveGrassColliders() { RemoveGrassColliders(); EditorSceneManagerHelper.MarkDirty(); }
     [MenuItem("Tools/Gatherable Props/Remove")] static void MenuRemove() { Remove(); EditorSceneManagerHelper.MarkDirty(); }
 }

@@ -21,7 +21,7 @@ namespace LastTruck
         [Header("점프 (싱글플레이. 멀티플레이는 NetworkPlayerMovement)")]
         [SerializeField] private KeyCode jumpKey = KeyCode.Space;
         [Tooltip("점프할 때 위로 주는 속도 (m/s).")]
-        [SerializeField] private float jumpVelocity = 6.5f;
+        [SerializeField] private float jumpVelocity = 4.7f;
         [Tooltip("점프할 때 재생할 애니메이터 상태 이름.")]
         [SerializeField] private string jumpStateName = "Jumping Up";
 

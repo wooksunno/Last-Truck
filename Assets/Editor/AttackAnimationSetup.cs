@@ -24,6 +24,67 @@ public static class AttackAnimationSetup
     [MenuItem("Tools/Last Truck/Setup Attack Animation")]
     static void Menu() { Debug.Log(Setup() + "\n" + AssignHeldModels()); }
 
+    [MenuItem("Tools/Last Truck/Setup Pickaxe (Chop Animation + Held Models)")]
+    static void MenuPickaxe() { Debug.Log(Setup() + "\n" + AssignPickaxeModels()); }
+
+    // 곡괭이: 손잡이가 원점, 머리가 +Y 쪽인 모델을 handslot.r에 붙인다 (KayKit 무기와 같은 방향).
+    public static Vector3 PickaxeLocalPosition = Vector3.zero;
+    public static Vector3 PickaxeLocalEuler = Vector3.zero;
+
+    /// <summary>
+    /// 곡괭이 4종을 손에 드는 모델 목록(heldMelee)에 추가/갱신한다. 다른 항목(근접 무기/총)은 건드리지 않는다.
+    /// (AssignHeldModels는 목록을 근접 무기 4개로 덮어써 총 모델이 지워지므로 따로 둔다)
+    /// </summary>
+    public static string AssignPickaxeModels()
+    {
+        var table = new (string id, string path, float scale)[]
+        {
+            (CraftingSystem.ItemIds.WoodPickaxe, "Assets/Free_Assets/Models/FBX format/tool-pickaxe.fbx", 3.6f),
+            (CraftingSystem.ItemIds.StonePickaxe, "Assets/Free_Assets/Models/FBX format/tool-pickaxe-upgraded.fbx", 3.6f),
+            (CraftingSystem.ItemIds.CopperPickaxe, "Assets/PurePoly/Mining_Pack/Prefabs/Tools/PP_Pickaxe_New_01_Copper.prefab", 1.25f),
+            (CraftingSystem.ItemIds.IronPickaxe, "Assets/PurePoly/Mining_Pack/Prefabs/Tools/PP_Pickaxe_New_01_Iron.prefab", 1.25f),
+        };
+
+        int n = 0;
+        foreach (string g in AssetDatabase.FindAssets("t:Prefab", new[] { "Assets/LastTruck/Character/Prefabs", "Assets/LastTruck/Multiplayer/Prefabs" }))
+        {
+            string p = AssetDatabase.GUIDToAssetPath(g);
+            var root = PrefabUtility.LoadPrefabContents(p);
+            var wc = root.GetComponent<Combat.WeaponController>();
+            if (wc != null && UpsertHeld(wc, table)) { PrefabUtility.SaveAsPrefabAsset(root, p); n++; }
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+        foreach (var wc in Object.FindObjectsByType<Combat.WeaponController>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            if (!PrefabUtility.IsPartOfPrefabInstance(wc) && UpsertHeld(wc, table)) n++;
+        return "곡괭이 손 모델 연결: " + n + "곳";
+    }
+
+    static bool UpsertHeld(Combat.WeaponController wc, (string id, string path, float scale)[] table)
+    {
+        var so = new SerializedObject(wc);
+        var arr = so.FindProperty("heldMelee");
+        if (arr == null) return false;
+        foreach (var row in table)
+        {
+            int index = -1;
+            for (int i = 0; i < arr.arraySize; i++)
+                if (arr.GetArrayElementAtIndex(i).FindPropertyRelative("itemId").stringValue == row.id) { index = i; break; }
+            if (index < 0) { index = arr.arraySize; arr.arraySize++; }
+
+            var e = arr.GetArrayElementAtIndex(index);
+            e.FindPropertyRelative("itemId").stringValue = row.id;
+            e.FindPropertyRelative("prefab").objectReferenceValue = AssetDatabase.LoadAssetAtPath<GameObject>(row.path);
+            e.FindPropertyRelative("localPosition").vector3Value = PickaxeLocalPosition;
+            e.FindPropertyRelative("localEuler").vector3Value = PickaxeLocalEuler;
+            e.FindPropertyRelative("scale").floatValue = row.scale;
+            e.FindPropertyRelative("isGun").boolValue = false;
+            e.FindPropertyRelative("casing").intValue = 0;
+        }
+        so.ApplyModifiedPropertiesWithoutUndo();
+        EditorUtility.SetDirty(wc);
+        return true;
+    }
+
     /// <summary>근접 무기를 들면 오른손에 붙는 모델을 WeaponController에 연결한다(KayKit 액세서리 재사용).</summary>
     public static string AssignHeldModels()
     {
@@ -133,10 +194,18 @@ public static class AttackAnimationSetup
             EnsureParam(ctrl, "AtkShoot2H", AnimatorControllerParameterType.Trigger);
             EnsureParam(ctrl, "AtkThrow", AnimatorControllerParameterType.Trigger);
             EnsureParam(ctrl, "AtkShooting", AnimatorControllerParameterType.Bool);
+            EnsureParam(ctrl, "AtkChop", AnimatorControllerParameterType.Trigger);
 
-            bool has = false;
-            foreach (var l in ctrl.layers) if (l.name == LayerName) has = true;
-            if (has) { sb.AppendLine(ctrl.name + ": 이미 있음(파라미터만 확인)"); continue; }
+            AnimatorControllerLayer existing = null;
+            foreach (var l in ctrl.layers) if (l.name == LayerName) existing = l;
+            if (existing != null)
+            {
+                // 나중에 추가된 동작(곡괭이 내려찍기)만 없으면 채워 넣는다
+                bool added = EnsureChop(existing.stateMachine);
+                if (added) EditorUtility.SetDirty(ctrl);
+                sb.AppendLine(ctrl.name + ": 이미 있음" + (added ? " (Chop 상태 추가)" : "(파라미터만 확인)"));
+                continue;
+            }
 
             ctrl.AddLayer(LayerName);
             var layers = ctrl.layers;
@@ -160,6 +229,7 @@ public static class AttackAnimationSetup
             AddAction(sm, empty, "Shoot1H", "Combat Ranged/Ranged_1H_Shoot", "AtkShoot1H", 2.2f, new Vector3(600, 60, 0));
             AddAction(sm, empty, "Shoot2H", "Combat Ranged/Ranged_2H_Shoot", "AtkShoot2H", 2.2f, new Vector3(600, 130, 0));
             AddAction(sm, empty, "Throw", "General/Throw", "AtkThrow", 1.8f, new Vector3(600, 200, 0));
+            EnsureChop(sm);
 
             // 연속 사격 자세(루프): AtkShooting이 켜진 동안 유지
             AnimatorState loop = sm.AddState("Shooting2H", new Vector3(600, 270, 0));
@@ -180,6 +250,20 @@ public static class AttackAnimationSetup
         AssetDatabase.SaveAssets();
         sb.Insert(0, "공격 애니메이션 레이어 적용 컨트롤러: " + done + "개\n");
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// 곡괭이 내려찍기 (AtkChop): 한 손 위에서 아래로 내려치는 모션. 1.6배속이면 0.4초쯤에 내려찍힌다
+    /// (WeaponController.pickaxeImpactDelay와 맞춘 값). 이미 있으면 아무것도 안 한다.
+    /// </summary>
+    static bool EnsureChop(AnimatorStateMachine sm)
+    {
+        foreach (var s in sm.states) if (s.state.name == "Chop") return false;
+        AnimatorState empty = null;
+        foreach (var s in sm.states) if (s.state.name == "Empty") empty = s.state;
+        if (empty == null) return false;
+        AddAction(sm, empty, "Chop", "Combat Melee/Melee_1H_Attack_Chop", "AtkChop", 1.6f, new Vector3(600, 340, 0));
+        return true;
     }
 
     static void AddAction(AnimatorStateMachine sm, AnimatorState empty, string stateName, string clipRel, string trigger, float speed, Vector3 pos)
