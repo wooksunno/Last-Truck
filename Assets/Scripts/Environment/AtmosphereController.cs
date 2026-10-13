@@ -47,6 +47,24 @@ namespace LastTruck
         [SerializeField] private Color nightFog = new Color(0.08f, 0.10f, 0.24f);
         [SerializeField] private float nightFogDensity = 0.0055f;
 
+        [Header("동굴 안 (낮)")]
+        [Tooltip("낮에 내 캐릭터가 동굴 안에 있을 때 햇빛 세기 배율. 밤에는 원래 어두우므로 적용하지 않는다.")]
+        [Range(0f, 1f)] [SerializeField] private float caveSunScale = 0.4f;
+        [Tooltip("낮에 동굴 안에 있을 때 주변광 세기 배율.")]
+        [Range(0f, 1f)] [SerializeField] private float caveAmbientScale = 0.6f;
+        [Tooltip("동굴에 들어가고 나올 때 밝기가 바뀌는 시간(초).")]
+        [SerializeField] private float caveFadeSeconds = 1.2f;
+        [Tooltip("동굴 바닥 레이어. 발밑 바로 아래에 이 레이어가 있으면 동굴 안으로 본다 (TerrainStone = 8).")]
+        [SerializeField] private LayerMask caveFloorMask = 1 << 8;
+        [Tooltip("동굴 바닥을 잠깐 못 찾아도(받침목/종유석 위 등) 이 시간(초) 동안은 동굴 안으로 친다.")]
+        [SerializeField] private float caveExitGrace = 0.6f;
+
+        private float _caveFactor;       // 0 바깥 ~ 1 동굴 안
+        private float _lastInCaveTime = -999f;
+        private float _nextCaveCheck;
+        private float _nextPlayerSearch;
+        private Transform _localPlayer;
+
         private float _nightFactor;      // 현재 값 (0 낮 ~ 1 밤)
         private float _target;
         private Camera _camera;
@@ -113,7 +131,39 @@ namespace LastTruck
         {
             if (transitionSeconds <= 0f) _nightFactor = _target;
             else _nightFactor = Mathf.MoveTowards(_nightFactor, _target, Time.deltaTime / transitionSeconds);
+
+            float caveTarget = IsLocalPlayerInCave() ? 1f : 0f;
+            _caveFactor = caveFadeSeconds <= 0f ? caveTarget : Mathf.MoveTowards(_caveFactor, caveTarget, Time.deltaTime / caveFadeSeconds);
+
             Apply(_nightFactor);
+        }
+
+        /// <summary>
+        /// 내 캐릭터(입력을 받는 PlayerInteract가 켜진 캐릭터) 발밑 바로 아래에 동굴 바닥 레이어가 있으면 동굴 안.
+        /// 동굴 바닥(돌바닥/동굴 호수/터널)은 TerrainStone 레이어, 바깥 땅은 Default 레이어라 이것으로 구분된다.
+        /// </summary>
+        private bool IsLocalPlayerInCave()
+        {
+            if (_localPlayer == null || !_localPlayer.gameObject.activeInHierarchy)
+            {
+                _localPlayer = null;
+                if (Time.time >= _nextPlayerSearch)
+                {
+                    _nextPlayerSearch = Time.time + 1f;
+                    foreach (var pi in FindObjectsByType<PlayerInteract>(FindObjectsSortMode.None))
+                        if (pi.isActiveAndEnabled) { _localPlayer = pi.transform; break; }
+                }
+                if (_localPlayer == null)
+                    return false;
+            }
+
+            if (Time.time >= _nextCaveCheck)
+            {
+                _nextCaveCheck = Time.time + 0.2f;
+                if (Physics.Raycast(_localPlayer.position + Vector3.up * 0.5f, Vector3.down, 3f, caveFloorMask, QueryTriggerInteraction.Ignore))
+                    _lastInCaveTime = Time.time;
+            }
+            return Time.time - _lastInCaveTime <= caveExitGrace;
         }
 
         private static float Ease(float t) { return t * t * (3f - 2f * t); }
@@ -126,10 +176,15 @@ namespace LastTruck
             if (dayVolume != null) dayVolume.weight = 1f;
             if (nightVolume != null) nightVolume.weight = t;
 
+            // 낮에 동굴 안이면 햇빛/주변광을 줄인다 (밤에는 이미 어두우므로 낮 비율만큼만 적용)
+            float cave = Ease(_caveFactor) * (1f - t);
+            float sunCave = Mathf.Lerp(1f, caveSunScale, cave);
+            float ambientCave = Mathf.Lerp(1f, caveAmbientScale, cave);
+
             for (int i = 0; i < sunLights.Count; i++)
             {
                 var l = sunLights[i]; if (l == null || i >= _sunBaseIntensity.Count) continue;
-                l.intensity = _sunBaseIntensity[i] * daySunIntensityScale * (1f - t);
+                l.intensity = _sunBaseIntensity[i] * daySunIntensityScale * (1f - t) * sunCave;
                 l.color = Color.Lerp(_sunBaseColor[i], daySunColor, 0.4f);
                 if (l.shadows != LightShadows.None) l.shadowStrength = Mathf.Lerp(0.85f, 0.4f, t);
             }
@@ -141,7 +196,10 @@ namespace LastTruck
             }
 
             RenderSettings.ambientMode = AmbientMode.Flat;
-            RenderSettings.ambientLight = Color.Lerp(dayAmbient, nightAmbient, t);
+            // Flat 모드는 ambientIntensity를 쓰지 않으므로 동굴 배율은 색에 곱한다
+            Color ambient = Color.Lerp(dayAmbient, nightAmbient, t) * ambientCave;
+            ambient.a = 1f;
+            RenderSettings.ambientLight = ambient;
             RenderSettings.ambientIntensity = Mathf.Lerp(dayAmbientIntensity, nightAmbientIntensity, t);
 
             RenderSettings.fog = true;

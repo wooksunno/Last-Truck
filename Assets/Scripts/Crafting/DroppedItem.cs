@@ -110,7 +110,7 @@ namespace CraftingSystem
 
             // 들어가는 만큼만 줍고 나머지는 남겨 둔다
             int fit = 0;
-            int maxStack = Mathf.Max(1, _item.maxStack);
+            int maxStack = inv.Inventory.StackLimitFor(_item);
             foreach (InventorySlot s in inv.Slots)
             {
                 if (s == null || s.IsEmpty) fit += maxStack;

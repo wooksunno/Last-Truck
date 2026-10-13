@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: assemble_platinum_drill
   m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
   recipeID: assemble_platinum_drill
-  displayName: "\uBC31\uAE08 \uCC29\uC554 \uB4DC\uB9B4 \uC870\uB9BD"
+  displayName: "\uAE08 \uCC29\uC554 \uB4DC\uB9B4 \uC870\uB9BD"
   requiredFacility: 0
   inputs:
   - item: {fileID: 11400000, guid: 6bdf6c9d006460340a6224f0b9e97755, type: 2}

@@ -26,7 +26,10 @@ namespace LastTruck.Networking
         {
             /// <summary>가공 중인 레시피 번호 + 1 (0 = 빈 칸).</summary>
             public int Recipe;
-            public NetworkBool Ready;
+            /// <summary>아직 가공할 개수 (지금 가공 중인 것 포함).</summary>
+            public int Queued;
+            /// <summary>다 만들어져 받을 수 있는 개수.</summary>
+            public int ReadyCount;
             public float Seconds;
             public TickTimer Timer;
         }
@@ -72,7 +75,7 @@ namespace LastTruck.Networking
             if (s.Recipe <= 0) return default;
 
             float remaining = 0f;
-            if (!s.Ready)
+            if (s.Queued > 0)
             {
                 float? left = s.Timer.RemainingTime(Runner);
                 remaining = left.HasValue ? Mathf.Max(0f, left.Value) : 0f;
@@ -82,7 +85,8 @@ namespace LastTruck.Networking
                 recipe = ItemIndexLookup.RecipeAt(s.Recipe - 1),
                 remaining = remaining,
                 total = s.Seconds,
-                ready = s.Ready,
+                queued = s.Queued,
+                readyCount = s.ReadyCount,
             };
         }
 
@@ -118,11 +122,13 @@ namespace LastTruck.Networking
                 for (int i = 0; i < MaxSlots; i++)
                 {
                     SlotState s = Slots[Index(f, i)];
-                    if (s.Recipe <= 0 || s.Ready) continue;
+                    if (s.Recipe <= 0 || s.Queued <= 0) continue;
                     if (!s.Timer.Expired(Runner)) continue;
 
-                    s.Ready = true;
-                    s.Timer = TickTimer.None;
+                    // 1개 완성 → 대기 중인 게 더 있으면 이어서 가공
+                    s.ReadyCount++;
+                    s.Queued--;
+                    s.Timer = s.Queued > 0 ? TickTimer.CreateFromSeconds(Runner, Mathf.Max(0.05f, s.Seconds)) : TickTimer.None;
                     Slots.Set(Index(f, i), s);
                     Revision++;
                 }
@@ -143,7 +149,10 @@ namespace LastTruck.Networking
             return id;
         }
 
-        /// <summary>빈 칸에 재료 1회분을 넣고 가공을 시작한다. 결과(성공 여부, 실패 메시지)는 onResult로.</summary>
+        /// <summary>
+        /// 칸에 재료 1회분을 넣는다. 빈 칸이면 가공을 시작하고, 같은 재료가 들어 있는 칸이면 대기 개수를 1 늘린다.
+        /// 결과(성공 여부, 실패 메시지)는 onResult로.
+        /// </summary>
         public void RequestPlace(RecipeData recipe, int facility, int slot, Action<bool, string> onResult)
         {
             int recipeIndex = ItemIndexLookup.RecipeIndexOf(recipe);
@@ -171,21 +180,32 @@ namespace LastTruck.Networking
                 error = "설비가 설치되어 있지 않습니다.";
             else if (slot >= SlotCount(facility))
                 error = "아직 열리지 않은 칸입니다.";
-            else if (Slots[Index(facility, slot)].Recipe != 0)
-                error = "이미 사용 중인 칸입니다.";
+            else if (Slots[Index(facility, slot)].Recipe != 0 && Slots[Index(facility, slot)].Recipe != recipeIndex + 1)
+                error = "다른 재료를 가공 중인 칸입니다.";
+            else if (Slots[Index(facility, slot)].Queued + Slots[Index(facility, slot)].ReadyCount >= TruckProcessingLocal.MaxPerSlot)
+                error = "이 칸은 가득 찼습니다.";
             else if (!TruckInventorySync.ConsumeLocal(truck, recipe))
                 error = "재료가 부족합니다.";
 
             if (error == null)
             {
-                float seconds = Mathf.Max(0.05f, ProcessingSeconds(recipe, source));
-                Slots.Set(Index(facility, slot), new SlotState
+                SlotState s = Slots[Index(facility, slot)];
+                if (s.Recipe == 0)
                 {
-                    Recipe = recipeIndex + 1,
-                    Ready = false,
-                    Seconds = seconds,
-                    Timer = TickTimer.CreateFromSeconds(Runner, seconds),
-                });
+                    float seconds = Mathf.Max(0.05f, ProcessingSeconds(recipe, source));
+                    s = new SlotState { Recipe = recipeIndex + 1, Queued = 1, ReadyCount = 0, Seconds = seconds, Timer = TickTimer.CreateFromSeconds(Runner, seconds) };
+                }
+                else
+                {
+                    // 같은 재료를 한 개 더: 완성품만 남아 있던 칸이면 새로 타이머를 시작한다
+                    if (s.Queued == 0)
+                    {
+                        s.Seconds = Mathf.Max(0.05f, ProcessingSeconds(recipe, source));
+                        s.Timer = TickTimer.CreateFromSeconds(Runner, s.Seconds);
+                    }
+                    s.Queued++;
+                }
+                Slots.Set(Index(facility, slot), s);
                 Revision++;
             }
 
@@ -227,12 +247,17 @@ namespace LastTruck.Networking
             if (!ValidFacility(facility) || slot < 0 || slot >= MaxSlots) return;
 
             SlotState s = Slots[Index(facility, slot)];
-            if (s.Recipe <= 0 || s.Ready) return;
+            if (s.Recipe <= 0 || s.Queued <= 0) return;
 
+            // 아직 안 만든 재료를 모두 돌려준다. 이미 완성된 것은 칸에 남는다.
             RecipeData recipe = ItemIndexLookup.RecipeAt(s.Recipe - 1);
-            TruckFacilities.Refund(FindFirstObjectByType<TruckInventory>(), recipe);
+            TruckInventory truck = FindFirstObjectByType<TruckInventory>();
+            for (int i = 0; i < s.Queued; i++)
+                TruckFacilities.Refund(truck, recipe);
 
-            Slots.Set(Index(facility, slot), default);
+            s.Queued = 0;
+            s.Timer = TickTimer.None;
+            Slots.Set(Index(facility, slot), s.ReadyCount > 0 ? s : default);
             Revision++;
         }
 
@@ -254,44 +279,58 @@ namespace LastTruck.Networking
 
             PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
             SlotState s = Slots[Index(facility, slot)];
-            if (s.Recipe <= 0 || !s.Ready) return;
+            if (s.Recipe <= 0 || s.ReadyCount <= 0) return;
 
+            // 완성품을 모두 꺼낸다. 아직 가공할 게 남아 있으면 칸은 계속 가공한다.
             int recipeIndex = s.Recipe - 1;
-            Slots.Set(Index(facility, slot), default);
+            int count = s.ReadyCount;
+            s.ReadyCount = 0;
+            Slots.Set(Index(facility, slot), s.Queued > 0 ? s : default);
             Revision++;
 
-            RPC_GiveOutput(source, facility, slot, recipeIndex);
+            RPC_GiveOutput(source, facility, slot, recipeIndex, count);
         }
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-        private void RPC_GiveOutput([RpcTarget] PlayerRef target, int facility, int slot, int recipeIndex)
+        private void RPC_GiveOutput([RpcTarget] PlayerRef target, int facility, int slot, int recipeIndex, int count)
         {
             RecipeData recipe = ItemIndexLookup.RecipeAt(recipeIndex);
             PlayerInventory player = TruckInventorySync.LocalPlayerInventory;
-            if (recipe == null || recipe.output == null || recipe.output.item == null) return;
+            if (recipe == null || recipe.output == null || recipe.output.item == null || count <= 0) return;
 
-            // 그사이 가방이 찼으면 결과물을 칸으로 돌려놓는다.
-            if (player == null || !player.AddItem(recipe.output.item, recipe.output.count))
-                RPC_ReturnOutput(facility, slot, recipeIndex);
+            // 들어가는 만큼만 넣고, 그사이 가방이 찼으면 나머지는 칸으로 돌려놓는다.
+            int given = 0;
+            while (given < count && player != null && player.AddItem(recipe.output.item, recipe.output.count))
+                given++;
+            if (given < count)
+                RPC_ReturnOutput(facility, slot, recipeIndex, count - given);
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-        private void RPC_ReturnOutput(int facility, int slot, int recipeIndex)
+        private void RPC_ReturnOutput(int facility, int slot, int recipeIndex, int count)
         {
-            if (!ValidFacility(facility) || slot < 0 || slot >= MaxSlots) return;
+            if (!ValidFacility(facility) || slot < 0 || slot >= MaxSlots || count <= 0) return;
 
-            if (Slots[Index(facility, slot)].Recipe == 0)
+            SlotState s = Slots[Index(facility, slot)];
+            if (s.Recipe == 0)
             {
-                Slots.Set(Index(facility, slot), new SlotState { Recipe = recipeIndex + 1, Ready = true, Seconds = 0f, Timer = TickTimer.None });
+                Slots.Set(Index(facility, slot), new SlotState { Recipe = recipeIndex + 1, ReadyCount = count, Seconds = 0f, Timer = TickTimer.None });
+                Revision++;
+                return;
+            }
+            if (s.Recipe == recipeIndex + 1)
+            {
+                s.ReadyCount += count;
+                Slots.Set(Index(facility, slot), s);
                 Revision++;
                 return;
             }
 
-            // 칸이 이미 다른 용도로 쓰이고 있으면 결과물을 트럭 인벤토리에 넣어 둔다.
+            // 칸이 이미 다른 재료로 쓰이고 있으면 결과물을 트럭 인벤토리에 넣어 둔다.
             RecipeData recipe = ItemIndexLookup.RecipeAt(recipeIndex);
             TruckInventory truck = FindFirstObjectByType<TruckInventory>();
             if (recipe != null && recipe.output != null && truck != null)
-                TruckInventorySync.AddAndCount(truck.Inventory, recipe.output.item, recipe.output.count);
+                TruckInventorySync.AddAndCount(truck.Inventory, recipe.output.item, recipe.output.count * count);
         }
 
         #endregion

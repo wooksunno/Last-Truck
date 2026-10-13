@@ -42,9 +42,9 @@ namespace CraftingSystem
         // 채집 UI에 표시할 이름/요구 조건
         public string InteractLabel => displayName;
         public string InteractSubLabel => "";
-        public Color InteractLabelColor => item != null && item.itemID == ItemIds.CopperOre ? new Color(1f, 0.62f, 0.3f)
+        public Color InteractLabelColor => item != null && item.itemID == ItemIds.CopperOre ? new Color(1f, 0.5f, 0.32f)   // 적동색 (금과 구분)
             : item != null && item.itemID == ItemIds.IronOre ? new Color(0.72f, 0.82f, 1f)
-            : item != null && item.itemID == ItemIds.Platinum ? new Color(1f, 0.95f, 0.45f)
+            : item != null && item.itemID == ItemIds.Platinum ? new Color(1f, 0.85f, 0.25f)   // 금 (아이템 ID는 platinum_ore 그대로)
             : item != null && item.itemID == ItemIds.Diamond ? new Color(0.45f, 0.9f, 1f) : Color.white;
 
         // public float RequiredHoldSeconds => gatherHoldSeconds;

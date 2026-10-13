@@ -7,6 +7,8 @@ namespace CraftingSystem
     public class PlayerInventory : MonoBehaviour
     {
         [SerializeField] private int maxSlots = 4;
+        [Tooltip("나무/돌/광석 같은 원재료는 한 칸에 이 개수까지만 들고 다닐 수 있다 (트럭 보관함은 제한 없음).")]
+        [SerializeField] private int rawStackLimit = 20;
         [SerializeField] private bool grantStarterItems = true;
         [SerializeField] private ItemStackInventory inventory = new ItemStackInventory();
 
@@ -38,6 +40,7 @@ namespace CraftingSystem
         private void Awake()
         {
             inventory.MaxSlots = maxSlots;
+            inventory.RawStackLimit = rawStackLimit;
             inventory.KeepSlotPositions = true;   // 1~4번 칸 위치를 고정한다 (아이템을 써도 칸이 밀리지 않고, 칸끼리 교환 가능)
             inventory.Changed += OnInventoryChanged;
         }

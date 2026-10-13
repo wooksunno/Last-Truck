@@ -1816,19 +1816,22 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             // 칸
             m.slotHeader = "가공 칸 " + slotCount + " / " + TruckFacilities.MaxSlots;
             m.slotHint = _selectedProcessRecipe != null
-                ? "선택: " + _selectedProcessRecipe.GetDisplayName() + "  →  빈 칸을 눌러 가공 시작"
-                : "왼쪽에서 가공할 재료를 고르세요. 가공 중인 칸을 누르면 재료를 돌려받고, 완료된 칸을 누르면 결과물을 받습니다.";
+                ? "선택: " + _selectedProcessRecipe.GetDisplayName() + "  →  칸을 누를 때마다 1개씩 넣습니다 (같은 재료 칸에 쌓임)"
+                : "왼쪽에서 가공할 재료를 고르세요. 완료된 칸을 누르면 결과물을 받고, 재료 선택 없이 가공 중인 칸을 누르면 재료를 돌려받습니다.";
             m.slots = new List<TruckProcessView.SlotInfo>();
             for (int i = 0; i < slotCount; i++)
             {
                 int slotIndex = i;
                 ProcessSlotView sv = ProcSlot(fac, i);
                 var info = new TruckProcessView.SlotInfo { onClick = () => OnProcessSlotClicked(slotIndex) };
+                info.queued = sv.queued;
+                info.readyCount = sv.readyCount;
+                info.sameSelected = !sv.IsEmpty && _selectedProcessRecipe != null && sv.recipe == _selectedProcessRecipe;
                 if (sv.IsEmpty)
                 {
                     info.state = 0;
                 }
-                else if (sv.ready)
+                else if (!sv.IsBusy)
                 {
                     info.state = 2;
                     info.output = sv.recipe.output != null ? sv.recipe.output.item : null;
@@ -1837,6 +1840,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 {
                     info.state = 1;
                     info.input = sv.recipe.inputs != null && sv.recipe.inputs.Count > 0 ? sv.recipe.inputs[0].item : null;
+                    info.output = sv.recipe.output != null ? sv.recipe.output.item : null;
                     info.progress = sv.total > 0.01f ? 1f - Mathf.Clamp01(sv.remaining / sv.total) : 0f;
                     info.timerText = FormatClock(sv.remaining);
                 }
@@ -1861,7 +1865,14 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             _truckRefs = TruckProcessView.Build(_popupBody, inner.y, m, null);   // 책갈피 탭으로 이동하므로 뒤로 버튼 없음
         }
 
-        /// <summary>칸을 눌렀을 때: 빈 칸 → 고른 재료로 가공 시작, 가공 중 → 재료 돌려받기, 완료 → 결과물 받기.</summary>
+        /// <summary>
+        /// 칸을 눌렀을 때:
+        ///  - 빈 칸 → 고른 재료 1개로 가공 시작
+        ///  - 같은 재료를 고른 채 가공 중인 칸 → 1개 더 넣기 (앞의 것이 끝나면 이어서 가공)
+        ///  - 완성품이 있는 칸 → 결과물 받기
+        ///  - 그 밖의 가공 중인 칸(재료 선택 없음/다른 재료) → 남은 재료 돌려받기
+        /// (예전에는 가공 중인 칸을 다시 누르면 바로 재료가 빠져서 2개 이상 넣을 수 없었다)
+        /// </summary>
         private void OnProcessSlotClicked(int slotIndex)
         {
             FacilityType fac = _truckProcessingFacility;
@@ -1876,6 +1887,10 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                     ShowPopup("트럭 거점", BuildTruckContent);
                     return;
                 }
+                PlaceProcessing(fac, slotIndex, _selectedProcessRecipe);
+            }
+            else if (sv.IsBusy && _selectedProcessRecipe != null && sv.recipe == _selectedProcessRecipe)
+            {
                 PlaceProcessing(fac, slotIndex, _selectedProcessRecipe);
             }
             else if (sv.ready)
@@ -1914,12 +1929,21 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 return;
             }
 
-            // 싱글/호스트: 바로 재료를 빼고 시작한다.
+            ProcessSlotView current = _localProcessing.Slot(FacilitySlotOf(fac), slotIndex);
+            if (!current.IsEmpty && (current.recipe != recipe || current.queued + current.readyCount >= TruckProcessingLocal.MaxPerSlot))
+            {
+                _truckProcessMessage = current.recipe != recipe ? "다른 재료를 가공 중인 칸입니다." : "이 칸은 가득 찼습니다.";
+                ShowPopup("트럭 거점", BuildTruckContent);
+                return;
+            }
+
+            // 싱글/호스트: 바로 재료를 빼고 시작한다 (같은 재료 칸이면 대기 개수 +1).
             LastTruck.Networking.TruckInventorySync.ConsumeIngredients(truckInv, recipe, ok =>
             {
                 if (ok)
                 {
-                    _localProcessing.Place(FacilitySlotOf(fac), slotIndex, recipe, GetFinalProcessingSeconds(recipe));
+                    if (!_localProcessing.Place(FacilitySlotOf(fac), slotIndex, recipe, GetFinalProcessingSeconds(recipe)))
+                        TruckFacilities.Refund(truckInv, recipe);
                 }
                 else
                 {
@@ -1938,8 +1962,9 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 return;
             }
 
-            if (_localProcessing.Cancel(FacilitySlotOf(fac), slotIndex, out RecipeData recipe))
-                TruckFacilities.Refund(ActiveTruckInventory, recipe);
+            if (_localProcessing.Cancel(FacilitySlotOf(fac), slotIndex, out RecipeData recipe, out int count))
+                for (int i = 0; i < count; i++)
+                    TruckFacilities.Refund(ActiveTruckInventory, recipe);
             ShowPopup("트럭 거점", BuildTruckContent);
         }
 
@@ -1952,6 +1977,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
 
             if (NetworkProcessing)
             {
+                // 하나라도 들어갈 자리가 있으면 받는다 (못 들어간 나머지는 호스트가 칸으로 돌려놓는다)
                 if (!LastTruck.Networking.NetworkGathering.HasRoomFor(player.Inventory, output.item, output.count))
                 {
                     _truckProcessMessage = "인벤토리가 가득 찼습니다. 아래 내 인벤토리 칸을 눌러 트럭에 넣어 자리를 만드세요.";
@@ -1962,14 +1988,18 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 return;
             }
 
-            if (!player.AddItem(output.item, output.count))
-            {
-                _truckProcessMessage = "인벤토리가 가득 찼습니다. 아래 내 인벤토리 칸을 눌러 트럭에 넣어 자리를 만드세요.";
-                ShowPopup("트럭 거점", BuildTruckContent);
+            if (!_localProcessing.Claim(FacilitySlotOf(fac), slotIndex, out RecipeData _, out int count))
                 return;
-            }
 
-            _localProcessing.Claim(FacilitySlotOf(fac), slotIndex, out RecipeData _);
+            // 들어가는 만큼만 받고, 남은 완성품은 칸에 되돌려 둔다
+            int given = 0;
+            while (given < count && player.AddItem(output.item, output.count))
+                given++;
+            if (given < count)
+            {
+                _localProcessing.ReturnReady(FacilitySlotOf(fac), slotIndex, sv.recipe, count - given);
+                _truckProcessMessage = "인벤토리가 가득 찼습니다. 아래 내 인벤토리 칸을 눌러 트럭에 넣어 자리를 만드세요.";
+            }
             ShowPopup("트럭 거점", BuildTruckContent);
         }
 

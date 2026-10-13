@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: assemble_platinum_rail_cannon
   m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
   recipeID: assemble_platinum_rail_cannon
-  displayName: "\uBC31\uAE08 \uB808\uC77C \uCE90\uB17C \uC870\uB9BD"
+  displayName: "\uAE08 \uB808\uC77C \uCE90\uB17C \uC870\uB9BD"
   requiredFacility: 0
   inputs:
   - item: {fileID: 11400000, guid: 49ac97b3f12290b4e9cd0300952649c2, type: 2}

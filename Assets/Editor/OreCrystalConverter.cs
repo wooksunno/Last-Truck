@@ -6,12 +6,15 @@ using CraftingSystem;
 
 /// <summary>
 /// 광물 노드(SpecialResourceNode)의 모델을 광석 색상별 "크리스탈 군락"으로 바꾼다.
-///  구리=주황(Copper) / 철=강철색(Iron) / 백금=은백색(Silver) / 다이아=청색(Blue)
+///  구리=적동색(Copper 모델 + 붉은 틴트 재질) / 철=강철색(Iron) / 금(아이템 ID는 platinum_ore)=금색(Gold) / 다이아=청색(Blue)
+///  (PurePoly의 Copper 결정은 Gold와 거의 같은 노란색이라 구분이 안 돼서 구리만 붉게 물들인 재질을 쓴다)
 /// 노드의 상호작용 구조(SphereCollider + SpecialResourceNode + Glow 라이트)는 그대로 두고 모델 자식만 교체한다.
 /// </summary>
 public static class OreCrystalConverter
 {
     const string Dir = "Assets/PurePoly/Mining_Pack/Prefabs/Ores and Crystals/";
+    public const string CopperMaterialPath = "Assets/LastTruck/Materials/Ore_Copper_Crystal.mat";
+    static readonly Color CopperTint = new Color(0.95f, 0.42f, 0.3f);
 
     static GameObject Load(string name) { return AssetDatabase.LoadAssetAtPath<GameObject>(Dir + name + ".prefab"); }
 
@@ -21,7 +24,7 @@ public static class OreCrystalConverter
         {
             case "copper_ore": return "Copper";
             case "iron_ore": return "Iron";
-            case "platinum_ore": return "Silver";
+            case "platinum_ore": return "Gold";
             case "diamond": return "Blue";
         }
         return null;
@@ -31,12 +34,40 @@ public static class OreCrystalConverter
     {
         switch (itemId)
         {
-            case "copper_ore": return new Color(1f, 0.55f, 0.22f);
+            case "copper_ore": return new Color(1f, 0.42f, 0.22f);
             case "iron_ore": return new Color(0.62f, 0.78f, 1f);
-            case "platinum_ore": return new Color(0.95f, 0.95f, 1f);
+            case "platinum_ore": return new Color(1f, 0.82f, 0.3f);
             case "diamond": return new Color(0.35f, 0.9f, 1f);
         }
         return Color.white;
+    }
+
+    /// <summary>구리 결정용 재질 (PurePoly 기본 재질 + 붉은 틴트). 없으면 만든다.</summary>
+    public static Material CopperMaterial()
+    {
+        var mat = AssetDatabase.LoadAssetAtPath<Material>(CopperMaterialPath);
+        if (mat != null) return mat;
+        var src = Load("PP_Crystal_Cluster_01_Copper");
+        var baseMat = src != null ? src.GetComponentInChildren<Renderer>().sharedMaterial : null;
+        if (baseMat == null) return null;
+        if (!AssetDatabase.IsValidFolder("Assets/LastTruck/Materials")) AssetDatabase.CreateFolder("Assets/LastTruck", "Materials");
+        mat = new Material(baseMat) { name = "Ore_Copper_Crystal" };
+        mat.SetColor("_BaseColor", CopperTint);
+        AssetDatabase.CreateAsset(mat, CopperMaterialPath);
+        return mat;
+    }
+
+    /// <summary>구리 노드의 결정 렌더러에 구리 재질을 입힌다.</summary>
+    public static void ApplyCopperMaterial(Transform model)
+    {
+        var mat = CopperMaterial();
+        if (mat == null || model == null) return;
+        foreach (var r in model.GetComponentsInChildren<Renderer>(true))
+        {
+            var mats = r.sharedMaterials;
+            for (int i = 0; i < mats.Length; i++) mats[i] = mat;
+            r.sharedMaterials = mats;
+        }
     }
 
     static float HeightOf(string itemId)
@@ -106,6 +137,7 @@ public static class OreCrystalConverter
         }
         foreach (var tr in model.GetComponentsInChildren<Transform>(true)) tr.gameObject.layer = layer;
         model.transform.localRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+        if (itemId == "copper_ore") ApplyCopperMaterial(model.transform);
 
         // 색상 맞춘 글로우 + 상호작용 범위(구)를 군락 크기에 맞춤
         var glow = t.Find("Glow"); if (glow == null) glow = t.Find("OreGlow");
@@ -129,7 +161,8 @@ public static class OreCrystalConverter
         {
             if (onlySceneName != null && n.gameObject.scene.name != onlySceneName) continue;
             if (n.transform.Find("Crystals_Blue") != null || n.transform.Find("Crystals_Copper") != null
-                || n.transform.Find("Crystals_Iron") != null || n.transform.Find("Crystals_Silver") != null) continue;   // 이미 변환됨
+                || n.transform.Find("Crystals_Iron") != null || n.transform.Find("Crystals_Silver") != null
+                || n.transform.Find("Crystals_Gold") != null) continue;   // 이미 변환됨
             var so = new SerializedObject(n);
             var it = so.FindProperty("item").objectReferenceValue as ItemData;
             if (it == null) continue;

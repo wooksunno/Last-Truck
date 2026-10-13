@@ -360,7 +360,7 @@ namespace LastTruck.Networking
         public static bool HasRoomFor(ItemStackInventory inventory, ItemData item, int amount)
         {
             if (inventory == null || item == null) return false;
-            int maxStack = Mathf.Max(1, item.maxStack);
+            int maxStack = inventory.StackLimitFor(item);
             int room = 0;
             foreach (InventorySlot slot in inventory.Slots)
             {

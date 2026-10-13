@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: cut_platinum_gear
   m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
   recipeID: cut_platinum_gear
-  displayName: "\uBC31\uAE08 \uC815\uBC00 \uAE30\uC5B4 \uAC00\uACF5"
+  displayName: "\uAE08 \uC815\uBC00 \uAE30\uC5B4 \uAC00\uACF5"
   requiredFacility: 4
   inputs:
   - item: {fileID: 11400000, guid: e111514340b63dd448eb5ac3044ca048, type: 2}

@@ -13,8 +13,9 @@ MonoBehaviour:
   m_Name: platinum_rail_cannon
   m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.ItemData
   itemID: platinum_rail_cannon
-  itemName: "\uBC31\uAE08 \uB808\uC77C \uCE90\uB17C"
+  itemName: "\uAE08 \uB808\uC77C \uCE90\uB17C"
   itemType: 2
+  isWeapon: 0
   maxStack: 1
   icon: {fileID: 21300000, guid: 0d97bdab32d356a4cb7a4d2745fc22fb, type: 3}
   toolTier: 0
