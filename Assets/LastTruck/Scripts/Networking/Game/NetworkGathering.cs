@@ -86,15 +86,7 @@ namespace LastTruck.Networking
             // 게임 시작 전(다른 사람 로딩 중)에는 채집하지 않는다 (아직 맵을 만들지 못한 사람이 고갈 알림을 놓치지 않게).
             if (!NetworkGameState.AllowPlayerControl) return true;
 
-            // 가방이 꽉 차 있으면 요청하지 않는다 (채집 횟수만 날아가지 않게). 보너스로 나올 수 있는 아이템도 확인한다.
-            if (!HasRoomFor(inventory.Inventory, node.Item, node.Amount) ||
-                (node.CommonBonusItem != null && !HasRoomFor(inventory.Inventory, node.CommonBonusItem, node.Amount)) ||
-                (node.RareBonusItem != null && !HasRoomFor(inventory.Inventory, node.RareBonusItem, node.Amount)))
-            {
-                Debug.LogWarning($"[SpecialResourceNode] 인벤토리 공간이 부족하여 {node.Item.itemName}을(를) 획득하지 못했습니다.");
-                return true;
-            }
-
+            // 가방이 꽉 차 있어도 캔다. 받을 때 안 들어가는 만큼은 발밑에 떨어진다 (GiveToInventory).
             if (Instance.HasStateAuthority)
             {
                 Instance.HostGather(node, inventory);
@@ -134,12 +126,7 @@ namespace LastTruck.Networking
 
             if (!NetworkGameState.AllowPlayerControl) return true;
 
-            if (!HasRoomFor(inventory.Inventory, item, prop.Amount))
-            {
-                Debug.LogWarning($"[GatherableProp] 인벤토리 공간이 부족하여 {item.itemName}을(를) 채집하지 못했습니다.");
-                return true;
-            }
-
+            // 가방이 꽉 차 있어도 캔다. 받을 때 안 들어가는 만큼은 발밑에 떨어진다 (GiveToInventory).
             if (Instance.HasStateAuthority)
             {
                 if (prop.IsDone) return true;
@@ -247,11 +234,9 @@ namespace LastTruck.Networking
                 if (applyMiningBonus) amount = ability.GetCalculatedMiningAmount(item, amount);
             }
 
-            int added = TruckInventorySync.AddAndCount(inventory.Inventory, item, amount);
-            if (added < amount)
-                Debug.LogWarning($"[SpecialResourceNode] 인벤토리 공간이 부족하여 {item.itemName} x{amount - added}을(를) 받지 못했습니다.");
-            else
-                Debug.Log($"[SpecialResourceNode] {item.itemName} x{amount} 획득.");
+            // 안 들어가는 만큼은 받은 사람 발밑에 떨어진다 (떨어진 아이템은 그 사람 화면에만 보인다)
+            int dropped = inventory.AddOrDrop(item, amount);
+            Debug.Log($"[SpecialResourceNode] {item.itemName} x{amount} 획득" + (dropped > 0 ? $" (가방 초과 {dropped}개는 바닥에)" : "."));
         }
 
         #endregion

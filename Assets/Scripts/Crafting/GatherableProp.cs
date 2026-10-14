@@ -179,11 +179,8 @@ namespace CraftingSystem
             if (player.TryGetComponent<LastTruck.CharacterAbilityController>(out var abilityController))
                 finalAmount = abilityController.GetCalculatedResourceAmount(amount);
 
-            if (!inventory.AddItem(item, finalAmount))
-            {
-                Debug.LogWarning($"[GatherableProp] 인벤토리 공간이 부족하여 {item.itemName}을(를) 채집하지 못했습니다.");
-                return;
-            }
+            // 가방에 안 들어가는 만큼은 발밑에 떨어진다
+            inventory.AddOrDrop(item, finalAmount);
 
             _done = true;
             Debug.Log($"[GatherableProp] {displayName}에서 {item.itemName} x{finalAmount} 채집.");

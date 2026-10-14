@@ -255,11 +255,8 @@ namespace CraftingSystem
             }
             //////////////////////
 
-            if (!inventory.AddItem(gatherItem, finalAmount))
-            {
-                Debug.LogWarning($"[SpecialResourceNode] 인벤토리 공간이 부족하여 {gatherItem.itemName}을(를) 획득하지 못했습니다.");
-                return;
-            }
+            // 가방에 안 들어가는 만큼은 발밑에 떨어진다
+            inventory.AddOrDrop(gatherItem, finalAmount);
 
             Debug.Log($"[SpecialResourceNode] {displayName}에서 {gatherItem.itemName} x{finalAmount} 획득.");
 
