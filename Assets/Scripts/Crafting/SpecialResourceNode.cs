@@ -41,7 +41,7 @@ namespace CraftingSystem
 
         // 채집 UI에 표시할 이름/요구 조건
         public string InteractLabel => displayName;
-        public string InteractSubLabel => "";
+        public string InteractSubLabel => DepthMultiplier >= 1.15f ? $"깊은 광맥 ×{DepthMultiplier:0.0}" : "";
         public Color InteractLabelColor => item != null && item.itemID == ItemIds.CopperOre ? new Color(1f, 0.5f, 0.32f)   // 적동색 (금과 구분)
             : item != null && item.itemID == ItemIds.IronOre ? new Color(0.72f, 0.82f, 1f)
             : item != null && item.itemID == ItemIds.Platinum ? new Color(1f, 0.85f, 0.25f)   // 금 (아이템 ID는 platinum_ore 그대로)
@@ -123,7 +123,30 @@ namespace CraftingSystem
 
         public bool IsDepleted => _depleted;
         public ItemData Item => item;
-        public int Amount => amount;
+        public int Amount => EffectiveAmount;
+
+        // ───── 깊이 보너스: 광물은 깊은 곳에 있을수록 한 번에 더 많이 나온다 ─────
+        // 지표(높이 2) 기준 1배, 깊이 DepthForDouble(50m) 이상이면 2배. 채석장 구덩이 바닥/지하 동굴이 가장 많이 나온다.
+        public const float SurfaceY = 2f;
+        public const float DepthForDouble = 50f;
+
+        private bool IsMineral => item != null && (item.itemID == ItemIds.CopperOre || item.itemID == ItemIds.IronOre
+                                                   || item.itemID == ItemIds.PlatinumOre || item.itemID == ItemIds.Diamond);
+
+        public float DepthMultiplier => IsMineral ? 1f + Mathf.Clamp01((SurfaceY - transform.position.y) / DepthForDouble) : 1f;
+
+        /// <summary>깊이 보너스를 반영한 1회 채집량.</summary>
+        public int EffectiveAmount => Mathf.Max(1, Mathf.RoundToInt(amount * DepthMultiplier));
+
+        // ───── 일시 정지: 기름 웅덩이에 펌프잭이 설치되면 손 펌프로는 못 퍼게 막는다 ─────
+        public bool Suppressed { get; private set; }
+
+        public void SetSuppressed(bool suppressed)
+        {
+            Suppressed = suppressed;
+            if (_ownCollider == null) _ownCollider = GetComponent<Collider>();
+            if (_ownCollider != null) _ownCollider.enabled = !suppressed && !_depleted;
+        }
         public ItemData CommonBonusItem => commonBonusItem;
         public ItemData RareBonusItem => rareBonusItem;
 
@@ -136,7 +159,7 @@ namespace CraftingSystem
                 return false;
 
             gathered = RollGatherItem();
-            gatheredAmount = amount;
+            gatheredAmount = EffectiveAmount;
 
             if (_remainingHits > 0)
             {
@@ -180,6 +203,7 @@ namespace CraftingSystem
         {
             if (_cachedRenderers != null) foreach (var r in _cachedRenderers) if (r != null) r.enabled = on;
             if (_cachedColliders != null) foreach (var c in _cachedColliders) if (c != null) c.enabled = on;
+            if (Suppressed && _ownCollider != null) _ownCollider.enabled = false;   // 펌프잭이 있는 동안은 계속 막아 둔다
         }
 
         private IEnumerator RegenRoutine()
@@ -210,7 +234,7 @@ namespace CraftingSystem
 
         public void Interact(GameObject player)
         {
-            if (_depleted)
+            if (_depleted || Suppressed)
                 return;
 
             if (item == null)
@@ -243,7 +267,7 @@ namespace CraftingSystem
             ItemData gatherItem = RollGatherItem();
 
             ////////////////////////
-            int finalAmount = amount;
+            int finalAmount = EffectiveAmount;   // 깊이 보너스 포함
 
             if (player.TryGetComponent<LastTruck.CharacterAbilityController>(out var abilityController))
             {

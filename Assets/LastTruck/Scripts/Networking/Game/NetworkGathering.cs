@@ -304,6 +304,116 @@ namespace LastTruck.Networking
 
         #endregion
 
+        #region 석유 펌프잭 (OilWellSite / OilPumpjack)
+
+        // 펌프잭은 호스트가 설치/수거/회수를 정하고 모두에게 알린다. 유정은 "위치"로 찾는다.
+        // 탱크 양은 각 화면이 같은 속도로 채우되(표시용), 기름을 꺼낼 때는 호스트 값이 기준이다.
+
+        /// <summary>멀티플레이면 펌프잭 설치를 호스트에 요청하고 true (펌프잭 아이템은 이미 소모됨). 싱글이면 false.</summary>
+        public static bool TryPlacePump(Vector3 sitePosition)
+        {
+            if (!GameLauncher.IsOnlineSession || !IsReady) return false;
+            Instance.RPC_RequestPump(sitePosition);
+            return true;
+        }
+
+        public static bool TryCollectPump(Vector3 sitePosition)
+        {
+            if (!GameLauncher.IsOnlineSession || !IsReady) return false;
+            Instance.RPC_RequestPumpCollect(sitePosition);
+            return true;
+        }
+
+        public static bool TryRemovePump(Vector3 sitePosition)
+        {
+            if (!GameLauncher.IsOnlineSession || !IsReady) return false;
+            Instance.RPC_RequestPumpRemove(sitePosition);
+            return true;
+        }
+
+        private bool IsNear(PlayerRef source, Vector3 position)
+        {
+            NetworkPlayer character = NetworkPlayer.Find(source);
+            return character != null && character.IsAlive &&
+                   Vector3.Distance(character.transform.position, position) <= maxGatherDistance + 3f;
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_RequestPump(Vector3 sitePosition, RpcInfo info = default)
+        {
+            PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
+            OilWellSite site = OilWellSite.FindAt(sitePosition);
+            if (site == null || site.Pump != null || !IsNear(source, sitePosition))
+            {
+                // 이미 다른 사람이 설치했거나 멀면: 소모된 펌프잭을 돌려준다
+                int pumpIndex = ItemIndexLookup.IndexOf(ItemCatalog.GetOrCreate().GetItem(ItemIds.OilPumpjack));
+                if (pumpIndex >= 0) RPC_GiveItemExact(source, pumpIndex, 1);
+                return;
+            }
+            RPC_SpawnPump(sitePosition);
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_SpawnPump(Vector3 sitePosition)
+        {
+            OilWellSite site = OilWellSite.FindAt(sitePosition);
+            if (site != null) site.SpawnPump();
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_RequestPumpCollect(Vector3 sitePosition, RpcInfo info = default)
+        {
+            PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
+            OilWellSite site = OilWellSite.FindAt(sitePosition);
+            if (site == null || site.Pump == null || !IsNear(source, sitePosition)) return;
+
+            int amount = site.Pump.TakeReady();
+            RPC_SetPumpTank(sitePosition, site.Pump.Tank);
+            int oilIndex = ItemIndexLookup.IndexOf(ItemCatalog.GetOrCreate().GetItem(ItemIds.Oil));
+            if (amount > 0 && oilIndex >= 0) RPC_GiveItemExact(source, oilIndex, amount);
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_SetPumpTank(Vector3 sitePosition, float tank)
+        {
+            if (HasStateAuthority) return; // 호스트는 이미 반영됨
+            OilWellSite site = OilWellSite.FindAt(sitePosition);
+            if (site != null && site.Pump != null) site.Pump.SetTank(tank);
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_RequestPumpRemove(Vector3 sitePosition, RpcInfo info = default)
+        {
+            PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
+            OilWellSite site = OilWellSite.FindAt(sitePosition);
+            if (site == null || site.Pump == null || !IsNear(source, sitePosition)) return;
+            if (site.Pump.Ready >= 1) return; // 기름이 남아 있으면 먼저 받아야 한다
+
+            RPC_RemovePump(sitePosition);
+            int pumpIndex = ItemIndexLookup.IndexOf(ItemCatalog.GetOrCreate().GetItem(ItemIds.OilPumpjack));
+            if (pumpIndex >= 0) RPC_GiveItemExact(source, pumpIndex, 1);
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_RemovePump(Vector3 sitePosition)
+        {
+            OilWellSite site = OilWellSite.FindAt(sitePosition);
+            if (site != null) site.RemovePump();
+        }
+
+        /// <summary>능력 보너스 없이 정확히 그 개수만 준다 (펌프잭 반환/펌프 기름). 넘치면 발밑에 떨어진다.</summary>
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_GiveItemExact([RpcTarget] PlayerRef target, int itemIndex, int amount)
+        {
+            ItemData item = ItemIndexLookup.ItemAt(itemIndex);
+            PlayerInventory inventory = TruckInventorySync.LocalPlayerInventory;
+            if (item == null || inventory == null || amount <= 0) return;
+            inventory.AddOrDrop(item, amount);
+            if (item.itemID == ItemIds.Oil) LastTruck.HudToast.Show($"기름 {amount}개를 받았어요");
+        }
+
+        #endregion
+
         #region 고갈 / 재생성 알림 (호스트 → 모두)
 
         private void OnHostDepletionChanged(SpecialResourceNode node, bool depleted)

@@ -148,7 +148,10 @@ public static class CaveOreConverter
         return srn;
     }
 
-    public static string Run()
+    public static string Run() => RunOn(Roots);
+
+    /// <summary>지정한 묶음(경로들) 안의 광석만 변환한다. 예: 채석장 지하 동굴 "Map/09_Quarry/UndergroundMine".</summary>
+    public static string RunOn(string[] roots)
     {
         var sb = new StringBuilder();
         var nodePositions = new List<Vector3>();
@@ -166,7 +169,7 @@ public static class CaveOreConverter
 
         // 대상 수집 (루트 렌더러 오브젝트 단위)
         var targets = new List<MeshRenderer>();
-        foreach (var path in Roots)
+        foreach (var path in roots)
         {
             var root = GameObject.Find(path);
             if (root == null) { sb.AppendLine("missing " + path); continue; }
@@ -267,6 +270,9 @@ public static class CaveOreConverter
         foreach (var k in keys) sb.AppendLine(k + " = " + counts[k]);
         return sb.ToString();
     }
+
+    [MenuItem("Tools/Last Truck/Quarry Underground Ores To Resources")]
+    static void MenuQuarryCave() { Debug.Log("[CaveOreConverter]\n" + RunOn(new[] { "Map/09_Quarry/UndergroundMine" })); }
 
     [MenuItem("Tools/Last Truck/Cave Ores To Resources")]
     static void Menu() { Debug.Log("[CaveOreConverter]\n" + Run()); }
