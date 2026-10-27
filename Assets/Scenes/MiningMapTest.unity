@@ -379032,7 +379032,7 @@ Transform:
   m_GameObject: {fileID: 453562870}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.2, y: 1, z: 1}
+  m_LocalPosition: {x: -1.2, y: 1, z: 2}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -379077,11 +379077,11 @@ Light:
   m_Enabled: 1
   serializedVersion: 12
   m_Type: 0
-  m_Color: {r: 1, g: 0.92970765, b: 0.46226406, a: 1}
+  m_Color: {r: 1, g: 0.9764706, b: 0.8, a: 1}
   m_Intensity: 500
-  m_Range: 50
-  m_SpotAngle: 40
-  m_InnerSpotAngle: 23
+  m_Range: 20
+  m_SpotAngle: 110
+  m_InnerSpotAngle: 50
   m_CookieSize2D: {x: 0.5, y: 0.5}
   m_Shadows:
     m_Type: 0
@@ -597633,7 +597633,6 @@ GameObject:
   - component: {fileID: 743834704}
   - component: {fileID: 743834694}
   - component: {fileID: 743834699}
-  - component: {fileID: 743834703}
   - component: {fileID: 743834705}
   m_Layer: 0
   m_Name: FreeLook Camera
@@ -597849,28 +597848,6 @@ MonoBehaviour:
   cam: {fileID: 0}
   verticalSmoothTime: 0.22
   snapDistance: 3
---- !u!114 &743834703
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 743834693}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 58e52237ff81cba41a44dcf6e2572639, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CameraOcclusionController
-  playerTransform: {fileID: 543450651816089916}
-  cameraTransform: {fileID: 743834698}
-  fadeMaterial: {fileID: 2100000, guid: fd0f4882de093db4f9c12d6e0e6d8a54, type: 2}
-  treeLayer:
-    serializedVersion: 2
-    m_Bits: 1
-  excludeTags:
-  - Ground
-  maxCameraDistance: 15
-  playerCheckRadius: 10
 --- !u!114 &743834704
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -708298,7 +708275,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5937146200717654661, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
       propertyPath: m_Range
-      value: 50
+      value: 20
+      objectReference: {fileID: 0}
+    - target: {fileID: 5937146200717654661, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
+      propertyPath: m_Color.b
+      value: 0.8
+      objectReference: {fileID: 0}
+    - target: {fileID: 5937146200717654661, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
+      propertyPath: m_Color.g
+      value: 0.9764706
       objectReference: {fileID: 0}
     - target: {fileID: 5937146200717654661, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
       propertyPath: m_Intensity
@@ -708306,11 +708291,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5937146200717654661, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
       propertyPath: m_SpotAngle
-      value: 40
+      value: 110
       objectReference: {fileID: 0}
     - target: {fileID: 5937146200717654661, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
       propertyPath: m_InnerSpotAngle
-      value: 23
+      value: 50
       objectReference: {fileID: 0}
     - target: {fileID: 6812647138314655736, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
       propertyPath: m_IsActive
@@ -708326,7 +708311,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7171383227632960109, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 1
+      value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 7313451405434990046, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
       propertyPath: m_Mass

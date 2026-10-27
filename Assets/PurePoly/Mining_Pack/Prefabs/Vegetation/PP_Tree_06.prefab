@@ -12,7 +12,6 @@ GameObject:
   - component: {fileID: 5881098660070844060}
   - component: {fileID: 8536902240657248854}
   - component: {fileID: 7888572805056508860}
-  - component: {fileID: -6256265159440441901}
   m_Layer: 0
   m_Name: PP_Tree_06
   m_TagString: Untagged
@@ -114,19 +113,3 @@ MeshCollider:
   m_Convex: 1
   m_CookingOptions: 30
   m_Mesh: {fileID: -8967947318602930329, guid: f0aaa41944d21ba499e1bd1df634c79a, type: 3}
---- !u!114 &-6256265159440441901
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7888572805056508803}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 90cde8a7b7bf84e4a8d618936abb29a4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FadingObject
-  Renderers: []
-  Position: {x: 0, y: 0, z: 0}
-  Materials: []
-  InitialAlpha: 0

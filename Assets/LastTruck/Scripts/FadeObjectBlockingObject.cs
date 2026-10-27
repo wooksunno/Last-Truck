@@ -21,8 +21,19 @@ public class FadeObjectBlockingObject : MonoBehaviour
 
     private void Start()
     {
+        if (Camera == null)
+        {
+            Camera = Camera.main;
+        }
+
+        if (Target == null)
+        {
+            Target = transform;
+        }
+
         StartCoroutine(CheckForObject());
     }
+
     private void FadeObjectsNoLongerBeingHit()
     {
         List<FadingObject> objectsToRemove = new List<FadingObject>(ObjectBlookingView.Count);
@@ -97,7 +108,6 @@ public class FadeObjectBlockingObject : MonoBehaviour
                     }
                 }
             }
-
             FadeObjectsNoLongerBeingHit();
 
             ClearHits();

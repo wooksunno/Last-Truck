@@ -12,8 +12,6 @@ GameObject:
   - component: {fileID: 7654096559907173713}
   - component: {fileID: 5610402173857726875}
   - component: {fileID: 6259118914160107599}
-  - component: {fileID: -2609870269073352146}
-  - component: {fileID: -4857388934371277002}
   m_Layer: 0
   m_Name: PP_Fir_Tree_09
   m_TagString: Untagged
@@ -115,35 +113,3 @@ MeshCollider:
   m_Convex: 1
   m_CookingOptions: 30
   m_Mesh: {fileID: 3185965286454076207, guid: abd9bce546caaa2408c57148a82b26d4, type: 3}
---- !u!114 &-2609870269073352146
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6259118914160107598}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 90cde8a7b7bf84e4a8d618936abb29a4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FadingObject
-  Renderers: []
-  Position: {x: 0, y: 0, z: 0}
-  Materials: []
-  InitialAlpha: 0
---- !u!114 &-4857388934371277002
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6259118914160107598}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 90cde8a7b7bf84e4a8d618936abb29a4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FadingObject
-  Renderers: []
-  Position: {x: 0, y: 0, z: 0}
-  Materials: []
-  InitialAlpha: 0
