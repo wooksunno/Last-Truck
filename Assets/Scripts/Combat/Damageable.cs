@@ -56,14 +56,20 @@ namespace Combat
         private void Awake()
         {
             _currentHealth = maxHealth;
+            RefreshRenderers();
+            _rigidbody = GetComponent<Rigidbody>();
+            _networkHealth = GetComponent<LastTruck.Networking.NetworkHealth>();
+        }
+
+        /// <summary>빨갛게 깜빡일 렌더러 목록을 다시 모은다 (외형을 바꾼 뒤에 부른다).</summary>
+        public void RefreshRenderers()
+        {
             _renderers = GetComponentsInChildren<Renderer>();
             _originalColors = new Color[_renderers.Length];
             for (int i = 0; i < _renderers.Length; i++)
             {
                 _originalColors[i] = GetColor(_renderers[i]);
             }
-            _rigidbody = GetComponent<Rigidbody>();
-            _networkHealth = GetComponent<LastTruck.Networking.NetworkHealth>();
         }
 
         #endregion

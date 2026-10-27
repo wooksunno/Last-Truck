@@ -55,7 +55,7 @@ namespace CraftingSystem
                 Make(ItemIds.Stone, "돌", ItemType.Raw, 99, sprites),
                 Make(ItemIds.IronOre, "철 원석", ItemType.Raw, 99, sprites),
                 Make(ItemIds.CopperOre, "구리 원석", ItemType.Raw, 99, sprites),
-                Make(ItemIds.PlatinumOre, "백금 원석", ItemType.Raw, 99, sprites),
+                Make(ItemIds.PlatinumOre, "금 원석", ItemType.Raw, 99, sprites),
                 Make(ItemIds.Diamond, "다이아몬드 원석", ItemType.Raw, 99, sprites),
                 Make(ItemIds.Oil, "기름", ItemType.Raw, 99, sprites),
                 Make(ItemIds.Herb, "약초", ItemType.Raw, 99, sprites),
@@ -69,7 +69,7 @@ namespace CraftingSystem
                 Make(ItemIds.ReinforcedWoodPanel, "강화 목재 패널", ItemType.Intermediate, 50, sprites),
                 Make(ItemIds.Iron, "순수 철", ItemType.Intermediate, 99, sprites),
                 Make(ItemIds.Copper, "순수 구리", ItemType.Intermediate, 99, sprites),
-                Make(ItemIds.PurePlatinum, "순수 백금", ItemType.Intermediate, 99, sprites),
+                Make(ItemIds.PurePlatinum, "순수 금", ItemType.Intermediate, 99, sprites),
                 Make(ItemIds.StonePowder, "돌가루", ItemType.Intermediate, 99, sprites),
                 Make(ItemIds.WoodHandle, "원목 손잡이", ItemType.Intermediate, 50, sprites),
                 Make(ItemIds.CopperBlade, "구리 절삭날", ItemType.Intermediate, 50, sprites),
@@ -78,7 +78,7 @@ namespace CraftingSystem
                 Make(ItemIds.PrecisionBarrel, "정밀 총열", ItemType.Intermediate, 50, sprites),
                 Make(ItemIds.ReinforcedIronBlade, "강화 철제 날", ItemType.Intermediate, 50, sprites),
                 Make(ItemIds.ArmorPlate, "방호 장갑판", ItemType.Intermediate, 50, sprites),
-                Make(ItemIds.PlatinumGear, "백금 정밀 기어", ItemType.Intermediate, 50, sprites),
+                Make(ItemIds.PlatinumGear, "금 정밀 기어", ItemType.Intermediate, 50, sprites),
                 Make(ItemIds.SuperconductorCatalyst, "초전도 촉매", ItemType.Intermediate, 50, sprites),
                 Make(ItemIds.DiamondCuttingTip, "다이아 커팅 팁", ItemType.Intermediate, 50, sprites),
                 Make(ItemIds.EternalEnergyCore, "영구 에너지 코어", ItemType.Intermediate, 10, sprites),
@@ -108,7 +108,7 @@ namespace CraftingSystem
                 Make(ItemIds.StonePickaxe, "돌 곡괭이", ItemType.Tool, 1, sprites, 2),
                 Make(ItemIds.CopperPickaxe, "구리 곡괭이", ItemType.Tool, 1, sprites, 3),
                 Make(ItemIds.IronPickaxe, "철제 곡괭이", ItemType.Tool, 1, sprites, 4),
-                Make(ItemIds.PlatinumDrill, "백금 착암 드릴", ItemType.Tool, 1, sprites, 5),
+                Make(ItemIds.PlatinumDrill, "금 착암 드릴", ItemType.Tool, 1, sprites, 5),
                 Make(ItemIds.DiamondCrusher, "다이아몬드 분쇄기", ItemType.Tool, 1, sprites, 6),
                 Make(ItemIds.CopperHandPump, "구리 수동 펌프", ItemType.Tool, 1, sprites),
 
@@ -122,14 +122,14 @@ namespace CraftingSystem
                 // 원거리 / 중화기
                 Make(ItemIds.Pistol, "권총", ItemType.Finished, 1, sprites),
                 Make(ItemIds.Ak47, "AK-47 소총", ItemType.Finished, 1, sprites),
-                Make(ItemIds.PlatinumSniperRifle, "백금 저격소총", ItemType.Finished, 1, sprites),
+                Make(ItemIds.PlatinumSniperRifle, "금 저격소총", ItemType.Finished, 1, sprites),
                 Make(ItemIds.Flamethrower, "화염방사기", ItemType.Finished, 1, sprites),
                 Make(ItemIds.ChemicalSprayer, "화학 살포기", ItemType.Finished, 1, sprites),
                 Make(ItemIds.ShredderDrillLauncher, "파쇄 드릴 런처", ItemType.Finished, 1, sprites),
 
                 // 대포
                 Make(ItemIds.IronFieldCannon, "철제 야포", ItemType.Finished, 1, sprites),
-                Make(ItemIds.PlatinumRailCannon, "백금 레일 캐논", ItemType.Finished, 1, sprites),
+                Make(ItemIds.PlatinumRailCannon, "금 레일 캐논", ItemType.Finished, 1, sprites),
 
                 // 트럭 수리 / 보강
                 Make(ItemIds.EmergencyPatchBoard, "응급 덧댐 판자", ItemType.Finished, 20, sprites),
@@ -181,7 +181,7 @@ namespace CraftingSystem
             Add("bonfire_steak", "스테이크", FacilityType.Campfire, new[] { (ItemIds.Meat, 1) }, ItemIds.Steak, 1);
 
             // ── 초고온 용광로 ───────────────────────────────────
-            Add("furnace_pure_platinum", "순수 백금 제련", FacilityType.SuperheatedFurnace, new[] { (ItemIds.PlatinumOre, 1) }, ItemIds.PurePlatinum, 1);
+            Add("furnace_pure_platinum", "순수 금 제련", FacilityType.SuperheatedFurnace, new[] { (ItemIds.PlatinumOre, 1) }, ItemIds.PurePlatinum, 1);
 
             // ── 숫돌 연마대 ─────────────────────────────────────
             Add("grind_copper_blade", "구리 절삭날 연마", FacilityType.Grindstone, new[] { (ItemIds.Copper, 1) }, ItemIds.CopperBlade, 1);
@@ -197,7 +197,7 @@ namespace CraftingSystem
             Add("cut_mechanical_trigger", "기계식 트리거 가공", FacilityType.PrecisionCutter, new[] { (ItemIds.Copper, 1) }, ItemIds.MechanicalTrigger, 1);
             Add("cut_high_voltage_cable", "고전압 케이블 가공", FacilityType.PrecisionCutter, new[] { (ItemIds.Copper, 1) }, ItemIds.HighVoltageCable, 1);
             Add("cut_precision_barrel", "정밀 총열 가공", FacilityType.PrecisionCutter, new[] { (ItemIds.Iron, 1) }, ItemIds.PrecisionBarrel, 1);
-            Add("cut_platinum_gear", "백금 정밀 기어 가공", FacilityType.PrecisionCutter, new[] { (ItemIds.PurePlatinum, 1) }, ItemIds.PlatinumGear, 1);
+            Add("cut_platinum_gear", "금 정밀 기어 가공", FacilityType.PrecisionCutter, new[] { (ItemIds.PurePlatinum, 1) }, ItemIds.PlatinumGear, 1);
             Add("cut_diamond_cutting_tip", "다이아 커팅 팁 가공", FacilityType.PrecisionCutter, new[] { (ItemIds.Diamond, 1) }, ItemIds.DiamondCuttingTip, 1);
 
             // ── 화학 정제탑 ─────────────────────────────────────
@@ -227,9 +227,9 @@ namespace CraftingSystem
             // ── 트럭 조립: 도구 / 채집 ──────────────────────────
             Add("assemble_wood_pickaxe", "나무 곡괭이 조립", FacilityType.None, new[] { (ItemIds.Wood, 8) }, ItemIds.WoodPickaxe, 1);
             Add("assemble_stone_pickaxe", "돌 곡괭이 조립", FacilityType.None, new[] { (ItemIds.Wood, 10), (ItemIds.Stone, 8) }, ItemIds.StonePickaxe, 1);
-            Add("assemble_copper_pickaxe", "구리 곡괭이 조립", FacilityType.None, new[] { (ItemIds.CopperBlade, 1), (ItemIds.WoodHandle, 1) }, ItemIds.CopperPickaxe, 1);
+            Add("assemble_copper_pickaxe", "구리 곡괭이 조립", FacilityType.None, new[] { (ItemIds.CopperBlade, 1), (ItemIds.Wood, 6) }, ItemIds.CopperPickaxe, 1);   // 손잡이(절삭기 ← 철 원석 ← 구리 곡괭이)를 요구하면 순환이라 나무를 그대로 쓴다
             Add("assemble_iron_pickaxe", "철제 곡괭이 조립", FacilityType.None, new[] { (ItemIds.ReinforcedIronBlade, 1), (ItemIds.WoodHandle, 1), (ItemIds.Copper, 2) }, ItemIds.IronPickaxe, 1);
-            Add("assemble_platinum_drill", "백금 착암 드릴 조립", FacilityType.None, new[] { (ItemIds.PlatinumGear, 1), (ItemIds.ReinforcedIronBlade, 1), (ItemIds.Iron, 3) }, ItemIds.PlatinumDrill, 1);
+            Add("assemble_platinum_drill", "금 착암 드릴 조립", FacilityType.None, new[] { (ItemIds.PlatinumGear, 1), (ItemIds.ReinforcedIronBlade, 1), (ItemIds.Iron, 3) }, ItemIds.PlatinumDrill, 1);
             Add("assemble_diamond_crusher", "다이아몬드 분쇄기 조립", FacilityType.None, new[] { (ItemIds.DiamondCuttingTip, 1), (ItemIds.PlatinumDrill, 1) }, ItemIds.DiamondCrusher, 1);
             Add("assemble_copper_hand_pump", "구리 수동 펌프 조립", FacilityType.None, new[] { (ItemIds.Copper, 4), (ItemIds.WoodHandle, 1) }, ItemIds.CopperHandPump, 1);
 
@@ -243,14 +243,14 @@ namespace CraftingSystem
             // ── 트럭 조립: 원거리 / 중화기 ──────────────────────
             Add("assemble_pistol", "권총 조립", FacilityType.None, new[] { (ItemIds.PrecisionBarrel, 1), (ItemIds.MechanicalTrigger, 1) }, ItemIds.Pistol, 1);
             Add("assemble_ak47", "AK-47 소총 조립", FacilityType.None, new[] { (ItemIds.PrecisionBarrel, 1), (ItemIds.ArmorPlate, 1), (ItemIds.MechanicalTrigger, 1) }, ItemIds.Ak47, 1);
-            Add("assemble_platinum_sniper_rifle", "백금 저격소총 조립", FacilityType.None, new[] { (ItemIds.PlatinumGear, 1), (ItemIds.PrecisionBarrel, 1), (ItemIds.MechanicalTrigger, 1) }, ItemIds.PlatinumSniperRifle, 1);
+            Add("assemble_platinum_sniper_rifle", "금 저격소총 조립", FacilityType.None, new[] { (ItemIds.PlatinumGear, 1), (ItemIds.PrecisionBarrel, 1), (ItemIds.MechanicalTrigger, 1) }, ItemIds.PlatinumSniperRifle, 1);
             Add("assemble_flamethrower", "화염방사기 조립", FacilityType.None, new[] { (ItemIds.PrecisionBarrel, 1), (ItemIds.NapalmGel, 2), (ItemIds.WoodHandle, 1) }, ItemIds.Flamethrower, 1);
             Add("assemble_chemical_sprayer", "화학 살포기 조립", FacilityType.None, new[] { (ItemIds.PrecisionBarrel, 1), (ItemIds.NeurotoxinExtract, 2), (ItemIds.RefinedFuel, 1) }, ItemIds.ChemicalSprayer, 1);
             Add("assemble_shredder_drill_launcher", "파쇄 드릴 런처 조립", FacilityType.None, new[] { (ItemIds.ArmorPlate, 1), (ItemIds.PlatinumGear, 1), (ItemIds.RefinedFuel, 1) }, ItemIds.ShredderDrillLauncher, 1);
 
             // ── 트럭 조립: 대포 ─────────────────────────────────
             Add("assemble_iron_field_cannon", "철제 야포 조립", FacilityType.None, new[] { (ItemIds.ArmorPlate, 3), (ItemIds.PrecisionBarrel, 2), (ItemIds.PropellantPowder, 2) }, ItemIds.IronFieldCannon, 1);
-            Add("assemble_platinum_rail_cannon", "백금 레일 캐논 조립", FacilityType.None, new[] { (ItemIds.HighVoltageCable, 2), (ItemIds.SuperconductorCatalyst, 1), (ItemIds.PrecisionBarrel, 2) }, ItemIds.PlatinumRailCannon, 1);
+            Add("assemble_platinum_rail_cannon", "금 레일 캐논 조립", FacilityType.None, new[] { (ItemIds.HighVoltageCable, 2), (ItemIds.SuperconductorCatalyst, 1), (ItemIds.PrecisionBarrel, 2) }, ItemIds.PlatinumRailCannon, 1);
 
             // ── 트럭 조립: 수리 / 보강 ──────────────────────────
             Add("assemble_emergency_patch_board", "응급 덧댐 판자 조립", FacilityType.None, new[] { (ItemIds.Wood, 10), (ItemIds.Stone, 5) }, ItemIds.EmergencyPatchBoard, 1);

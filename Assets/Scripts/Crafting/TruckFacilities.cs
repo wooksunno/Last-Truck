@@ -141,12 +141,14 @@ namespace CraftingSystem
     public struct ProcessSlotView
     {
         public RecipeData recipe;     // null이면 빈 칸
-        public float remaining;       // 남은 시간(초)
+        public float remaining;       // 지금 가공 중인 1개의 남은 시간(초)
         public float total;           // 한 개 가공 시간(초)
-        public bool ready;            // 가공이 끝나 받을 수 있음
+        public int queued;            // 아직 가공할 개수 (지금 가공 중인 것 포함). 같은 재료를 골라 칸을 누를 때마다 1씩 늘어난다
+        public int readyCount;        // 다 만들어져 받을 수 있는 개수
+        public bool ready => readyCount > 0;   // 받을 결과물이 있음
 
         public bool IsEmpty => recipe == null;
-        public bool IsBusy => recipe != null && !ready;
+        public bool IsBusy => recipe != null && queued > 0;
     }
 
     /// <summary>
@@ -193,44 +195,79 @@ namespace CraftingSystem
             return n;
         }
 
-        /// <summary>빈 칸에 가공을 시작한다.</summary>
+        /// <summary>한 칸에 쌓아 둘 수 있는 최대 개수 (가공 대기 + 완성품).</summary>
+        public const int MaxPerSlot = 99;
+
+        /// <summary>
+        /// 칸에 재료 1개를 넣는다. 빈 칸이면 가공을 시작하고, 같은 재료가 들어 있는 칸이면 대기 개수를 1 늘린다
+        /// (앞의 것이 끝나면 이어서 가공). 다른 재료가 들어 있거나 가득 차 있으면 false.
+        /// </summary>
         public bool Place(int facility, int index, RecipeData recipe, float seconds)
         {
             if (!InRange(facility) || recipe == null || index < 0 || index >= _counts[facility]) return false;
-            if (!_slots[facility][index].IsEmpty) return false;
 
-            float s = Mathf.Max(0.05f, seconds);
-            _slots[facility][index] = new ProcessSlotView { recipe = recipe, remaining = s, total = s, ready = false };
+            ProcessSlotView s = _slots[facility][index];
+            float sec = Mathf.Max(0.05f, seconds);
+            if (s.IsEmpty)
+            {
+                _slots[facility][index] = new ProcessSlotView { recipe = recipe, remaining = sec, total = sec, queued = 1 };
+            }
+            else
+            {
+                if (s.recipe != recipe || s.queued + s.readyCount >= MaxPerSlot) return false;
+                if (s.queued == 0) { s.remaining = sec; s.total = sec; }   // 완성품만 남아 있던 칸이면 새로 타이머 시작
+                s.queued++;
+                _slots[facility][index] = s;
+            }
             Revision++;
             return true;
         }
 
-        /// <summary>가공 중인 칸을 비운다 (재료 환불은 호출한 쪽에서). 가공 중이 아니면 false.</summary>
-        public bool Cancel(int facility, int index, out RecipeData recipe)
+        /// <summary>
+        /// 가공을 멈추고 아직 안 만든 재료 개수를 돌려준다 (재료 환불은 호출한 쪽에서). 완성품은 칸에 남는다. 가공 중이 아니면 false.
+        /// </summary>
+        public bool Cancel(int facility, int index, out RecipeData recipe, out int count)
         {
-            recipe = null;
+            recipe = null; count = 0;
             if (!InRange(facility) || index < 0 || index >= TruckFacilities.MaxSlots) return false;
             ProcessSlotView s = _slots[facility][index];
             if (!s.IsBusy) return false;
 
             recipe = s.recipe;
-            _slots[facility][index] = default;
+            count = s.queued;
+            s.queued = 0;
+            s.remaining = 0f;
+            _slots[facility][index] = s.readyCount > 0 ? s : default;
             Revision++;
             return true;
         }
 
-        /// <summary>끝난 칸의 결과물을 받으려고 비운다 (결과물 지급은 호출한 쪽에서).</summary>
-        public bool Claim(int facility, int index, out RecipeData recipe)
+        /// <summary>완성품을 모두 꺼낸다 (결과물 지급은 호출한 쪽에서). 남은 가공은 계속된다. 완성품이 없으면 false.</summary>
+        public bool Claim(int facility, int index, out RecipeData recipe, out int count)
         {
-            recipe = null;
+            recipe = null; count = 0;
             if (!InRange(facility) || index < 0 || index >= TruckFacilities.MaxSlots) return false;
             ProcessSlotView s = _slots[facility][index];
             if (!s.ready) return false;
 
             recipe = s.recipe;
-            _slots[facility][index] = default;
+            count = s.readyCount;
+            s.readyCount = 0;
+            _slots[facility][index] = s.queued > 0 ? s : default;
             Revision++;
             return true;
+        }
+
+        /// <summary>가방이 가득 차서 못 받은 완성품을 칸에 되돌려 둔다.</summary>
+        public void ReturnReady(int facility, int index, RecipeData recipe, int count)
+        {
+            if (!InRange(facility) || index < 0 || index >= TruckFacilities.MaxSlots || recipe == null || count <= 0) return;
+            ProcessSlotView s = _slots[facility][index];
+            if (s.IsEmpty) s = new ProcessSlotView { recipe = recipe };
+            else if (s.recipe != recipe) return;
+            s.readyCount += count;
+            _slots[facility][index] = s;
+            Revision++;
         }
 
         /// <summary>칸을 1개 늘린다 (비용 지불은 호출한 쪽에서).</summary>
@@ -254,8 +291,10 @@ namespace CraftingSystem
                     s.remaining -= dt;
                     if (s.remaining <= 0f)
                     {
-                        s.remaining = 0f;
-                        s.ready = true;
+                        // 1개 완성 → 대기 중인 게 더 있으면 이어서 가공
+                        s.readyCount++;
+                        s.queued--;
+                        s.remaining = s.queued > 0 ? s.total : 0f;
                         Revision++;
                     }
                     _slots[f][i] = s;

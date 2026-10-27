@@ -29,7 +29,7 @@ namespace LastTruck.Networking.EditorTools
         public const string GameStatePrefabPath = LobbyEditorUI.Root + "/Prefabs/NetworkGameState.prefab";
         public const string MonsterPrefabDir = LobbyEditorUI.Root + "/Prefabs/Monsters";
         public const string MonsterPrefabPath = MonsterPrefabDir + "/Monster_Network.prefab";
-        private const string DefaultMonsterSourcePath = "Assets/LastTruck/Monster/Prefab/Base mesh MonsterMutant7 skin2.prefab";
+        private const string DefaultMonsterSourcePath = "Assets/LastTruck/Monster/Prefab/Zombie.prefab";
 
         #endregion
 

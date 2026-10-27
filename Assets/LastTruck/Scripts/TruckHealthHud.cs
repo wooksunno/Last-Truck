@@ -90,9 +90,7 @@ namespace LastTruck
             frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one;
             frt.offsetMin = new Vector2(2f, 2f); frt.offsetMax = new Vector2(-2f, -2f);
             _fill = fill.GetComponent<Image>();
-            _fill.type = Image.Type.Filled;
-            _fill.fillMethod = Image.FillMethod.Horizontal;
-            _fill.fillOrigin = 0;
+            // 스프라이트 없는 Image는 Filled/fillAmount가 무시되어 항상 꽉 차 보인다 → 오른쪽 앵커로 길이를 조절한다
             _fill.raycastTarget = false;
 
             var lbl = new GameObject("Label", typeof(RectTransform), typeof(Text));
@@ -129,7 +127,7 @@ namespace LastTruck
             if (!Mathf.Approximately(cur, _shown))
             {
                 _shown = cur;
-                _fill.fillAmount = ratio;
+                _fill.rectTransform.anchorMax = new Vector2(ratio, 1f);
                 _fill.color = ratio > 0.5f
                     ? Color.Lerp(new Color(0.95f, 0.8f, 0.2f), new Color(0.35f, 0.8f, 0.3f), (ratio - 0.5f) * 2f)
                     : Color.Lerp(new Color(0.9f, 0.22f, 0.18f), new Color(0.95f, 0.8f, 0.2f), ratio * 2f);

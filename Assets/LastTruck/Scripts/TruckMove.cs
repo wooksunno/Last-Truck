@@ -41,6 +41,18 @@ namespace LastTruck
         [Tooltip("이 속도(m/s)에서 조향각이 highSpeedSteerAngle까지 줄어든다")]
         public float highSpeedForSteer = 18f;
 
+        [Header("회전 보조 (아케이드)")]
+        [Tooltip("A/D를 누르면 바퀴 조향과 별개로 차체를 직접 돌려 준다. 무거운 트럭이 잘 안 돌던 문제 보완.")]
+        public bool turnAssist = true;
+        [Tooltip("달리는 중 A/D를 끝까지 눌렀을 때 목표 회전 속도 (도/초).")]
+        public float assistYawRate = 60f;
+        [Tooltip("거의 멈춰 있을 때 목표 회전 속도 배율 (0이면 멈춰서는 안 돈다).")]
+        [Range(0f, 1f)] public float standstillTurnFactor = 0.4f;
+        [Tooltip("이 속도(m/s) 이상이면 회전 보조를 100% 쓴다.")]
+        public float assistFullSpeed = 4f;
+        [Tooltip("목표 회전 속도로 얼마나 빨리 맞추는지 (클수록 즉각적).")]
+        public float assistResponse = 5f;
+
         [Header("물리")]
         public Vector3 _centerOfMass = new Vector3(0, -0.8f, 0);
         public float downForce = 150.0f;
@@ -270,6 +282,35 @@ namespace LastTruck
                     wheel.wheelCollider.steerAngle = Mathf.MoveTowards(current, targetSteerAngle, rate * Time.fixedDeltaTime);
                 }
             }
+
+            ApplyTurnAssist(speed);
+        }
+
+        /// <summary>
+        /// A/D를 누르는 동안 차체의 좌우 회전 속도를 목표값 쪽으로 끌어 준다 (바퀴가 땅에 닿아 있을 때만).
+        /// 후진 중에는 실제 차처럼 반대로 돈다. 키를 떼면 아무것도 하지 않아 물리 그대로 펴진다.
+        /// </summary>
+        private void ApplyTurnAssist(float speed)
+        {
+            if (!turnAssist || carRb == null || Mathf.Abs(steerInput) < 0.05f) return;
+
+            int grounded = 0;
+            foreach (var wheel in wheels)
+                if (wheel.wheelCollider != null && wheel.wheelCollider.isGrounded) grounded++;
+            if (grounded < 2) return;
+
+            // 앞으로 가는지 뒤로 가는지 (거의 멈춰 있으면 누르고 있는 전/후진 키 기준)
+            float forwardSpeed = Vector3.Dot(carRb.linearVelocity, transform.forward);
+            float dir = Mathf.Abs(forwardSpeed) > 0.5f ? Mathf.Sign(forwardSpeed) : (moveInput < -0.05f ? -1f : 1f);
+
+            float speedFactor = Mathf.Lerp(standstillTurnFactor, 1f, assistFullSpeed > 0f ? Mathf.Clamp01(speed / assistFullSpeed) : 1f);
+            float targetYaw = Mathf.Clamp(steerInput, -1f, 1f) * assistYawRate * Mathf.Deg2Rad * speedFactor * dir;
+
+            float currentYaw = Vector3.Dot(carRb.angularVelocity, transform.up);
+            float delta = targetYaw - currentYaw;
+            // 목표보다 이미 더 빨리 돌고 있으면(같은 방향) 억지로 늦추지 않는다
+            if (Mathf.Sign(delta) != Mathf.Sign(targetYaw) && Mathf.Abs(currentYaw) > Mathf.Abs(targetYaw)) return;
+            carRb.AddTorque(transform.up * (delta * assistResponse), ForceMode.Acceleration);
         }
 
         private void Brake()

@@ -30,7 +30,10 @@ namespace CraftingSystem
             public ItemData input, output;
             public float progress;            // 가공 중일 때 0~1
             public string timerText;          // 가공 중 남은 시간
-            public Action onClick;            // 빈 칸: 넣기 / 가공 중: 빼기 / 완료: 받기
+            public int queued;                // 아직 가공할 개수 (지금 가공 중인 것 포함)
+            public int readyCount;            // 받을 수 있는 완성품 개수
+            public bool sameSelected;         // 왼쪽에서 고른 재료가 이 칸의 재료와 같음 → 누르면 1개 더 넣기
+            public Action onClick;            // 빈 칸: 넣기 / 같은 재료: 1개 더 / 완료: 받기 / 그 밖의 가공 중: 빼기
         }
 
         public class CostLine { public ItemData item; public int need, have; }
@@ -335,7 +338,15 @@ namespace CraftingSystem
             else if (s.state == 1)
             {
                 ItemIcon(icon, s.input, 0.7f);
-                Txt(label, "눌러서 빼기", 13, FontStyle.Normal, Dim, TextAnchor.MiddleCenter);
+                string hint = s.sameSelected ? "눌러서 1개 더" : (s.readyCount > 0 ? "눌러서 받기" : "눌러서 빼기");
+                Txt(label, hint, 13, s.sameSelected ? FontStyle.Bold : FontStyle.Normal, s.sameSelected ? Amber : Dim, TextAnchor.MiddleCenter);
+
+                // 남은 개수 / 완성 개수 표시
+                var badge = Mk("Count", card);
+                badge.anchorMin = badge.anchorMax = new Vector2(1, 1); badge.pivot = new Vector2(1, 1);
+                badge.anchoredPosition = new Vector2(-8, -6); badge.sizeDelta = new Vector2(90, 22);
+                string countText = "x" + s.queued + (s.readyCount > 0 ? "  완료 " + s.readyCount : "");
+                Txt(badge, countText, 14, FontStyle.Bold, s.readyCount > 0 ? Green : Cream, TextAnchor.MiddleRight);
 
                 var timer = Mk("Timer", card);
                 timer.anchorMin = new Vector2(0, 0); timer.anchorMax = new Vector2(1, 0); timer.pivot = new Vector2(0.5f, 0);
@@ -355,7 +366,7 @@ namespace CraftingSystem
             else
             {
                 ItemIcon(icon, s.output);
-                Txt(label, "받기!", 18, FontStyle.Bold, Color.white, TextAnchor.MiddleCenter);
+                Txt(label, s.readyCount > 1 ? "받기! x" + s.readyCount : "받기!", 18, FontStyle.Bold, Color.white, TextAnchor.MiddleCenter);
                 refs.slots.Add(new SlotRef());
             }
         }

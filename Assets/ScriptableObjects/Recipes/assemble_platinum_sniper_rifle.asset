@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: assemble_platinum_sniper_rifle
   m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
   recipeID: assemble_platinum_sniper_rifle
-  displayName: "\uBC31\uAE08 \uC800\uACA9\uC18C\uCD1D \uC870\uB9BD"
+  displayName: "\uAE08 \uC800\uACA9\uC18C\uCD1D \uC870\uB9BD"
   requiredFacility: 0
   inputs:
   - item: {fileID: 11400000, guid: 6bdf6c9d006460340a6224f0b9e97755, type: 2}

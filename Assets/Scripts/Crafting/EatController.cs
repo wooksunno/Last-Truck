@@ -20,6 +20,7 @@ namespace CraftingSystem
         private static readonly Dictionary<string, Edible> Edibles = new Dictionary<string, Edible>
         {
             { ItemIds.Steak, new Edible { holdSeconds = 2f, healAmount = 2f } },
+            { ItemIds.Herb, new Edible { holdSeconds = 1.2f, healAmount = 5f } },   // 약초: 날것으로 먹을 수 있다 (스테이크보다 빨리 먹지만 조금 회복)
         };
 
         [SerializeField] private Camera targetCamera;

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: furnace_pure_platinum
   m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
   recipeID: furnace_pure_platinum
-  displayName: "\uC21C\uC218 \uBC31\uAE08 \uC81C\uB828"
+  displayName: "\uC21C\uC218 \uAE08 \uC81C\uB828"
   requiredFacility: 6
   inputs:
   - item: {fileID: 11400000, guid: f0f3d6f05f0ee724dbe89f20b1262d58, type: 2}

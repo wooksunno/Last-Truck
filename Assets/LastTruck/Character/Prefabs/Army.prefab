@@ -228,6 +228,10 @@ MonoBehaviour:
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
+  jumpKey: 32
+  jumpVelocity: 4.7
+  jumpStateName: Jumping Up
+  sprintMultiplier: 1.6
 --- !u!114 &2659377635263646763
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -245,6 +249,8 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 16
   interactKey: 101
+  gatherPunchInterval: 0.6
+  gatherPickaxeInterval: 0.7
 --- !u!114 &8789647681218253868
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -393,6 +399,34 @@ MonoBehaviour:
     scale: 1.05
     isGun: 1
     casing: 0
+  - itemId: wood_pickaxe
+    prefab: {fileID: 919132149155446097, guid: f7c8076711decc247be4ddb2fd8ac72d, type: 3}
+    localPosition: {x: 0, y: 0, z: 0}
+    localEuler: {x: 0, y: 0, z: 0}
+    scale: 3.6
+    isGun: 0
+    casing: 0
+  - itemId: stone_pickaxe
+    prefab: {fileID: 919132149155446097, guid: 0526252e6b5169b41bb8ca415ad11b64, type: 3}
+    localPosition: {x: 0, y: 0, z: 0}
+    localEuler: {x: 0, y: 0, z: 0}
+    scale: 3.6
+    isGun: 0
+    casing: 0
+  - itemId: copper_pickaxe
+    prefab: {fileID: 6211525589844241325, guid: 44071f8e3c8541c43bf2dbf8739314c4, type: 3}
+    localPosition: {x: 0, y: 0, z: 0}
+    localEuler: {x: 0, y: 0, z: 0}
+    scale: 1.25
+    isGun: 0
+    casing: 0
+  - itemId: iron_pickaxe
+    prefab: {fileID: 8749389399153971726, guid: 463f936baa504e749adacd930c5852ef, type: 3}
+    localPosition: {x: 0, y: 0, z: 0}
+    localEuler: {x: 0, y: 0, z: 0}
+    scale: 1.25
+    isGun: 0
+    casing: 0
   muzzleFlashVfxPrefab: {fileID: 6980259576133684760, guid: 1f58a1dea6bbd9347843e4935585e6a2, type: 3}
   muzzleFlashScale: 0.3
   casingPistolPrefab: {fileID: 723937835086123482, guid: 262ae9658db111440bff8b4fcf8ffe87, type: 3}
@@ -403,6 +437,10 @@ MonoBehaviour:
   bulletHitVfxScale: 1
   explosionVfxPrefab: {fileID: 5162910912013668194, guid: cf82839c411151342a7b2337bda9fb34, type: 3}
   explosionVfxScale: 0.9
+  gatherImpactDelay: 0.25
+  pickaxeImpactDelay: 0.4
+  rockShakeAmplitudeScale: 0.4
+  rockShakeFrequencyScale: 2.2
   chargingMoveSpeedMultiplier: 0.5
   meleeAutoFaceRange: 6
   attackRecoveryBase: 0.15

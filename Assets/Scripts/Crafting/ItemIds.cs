@@ -65,6 +65,7 @@ namespace CraftingSystem
         public const string PlatinumDrill = "platinum_drill"; // 백금 착암 드릴
         public const string DiamondCrusher = "diamond_crusher"; // 다이아몬드 분쇄기
         public const string CopperHandPump = "copper_hand_pump"; // 구리 수동 펌프
+        public const string OilPumpjack = "oil_pumpjack"; // 석유 펌프잭 (기름 웅덩이에 설치)
 
         // 근접 무기
         public const string WoodSpear = "wood_spear";

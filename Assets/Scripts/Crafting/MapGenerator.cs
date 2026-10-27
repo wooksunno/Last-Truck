@@ -130,7 +130,7 @@ namespace CraftingSystem
                 rareBonusItemId: ItemIds.Platinum, rareBonusChance: 0.05f),
 
             // 백금: 철보다 채굴지 수가 훨씬 적고(더 희귀) 더 깊이 파야 한다.
-            new ZoneDef(ItemIds.Platinum, "백금 매장지", Color.yellow, count: 4, radius: 6f, amount: 3,
+            new ZoneDef(ItemIds.Platinum, "금 매장지", Color.yellow, count: 4, radius: 6f, amount: 3,
                 pitFlatRadius: 2.5f, pitOuterRadius: 14f, pitDepth: 5f,
                 minHits: 3, maxHits: 4, minRegenSeconds: 420f, maxRegenSeconds: 900f, requiredTier: 4, gatherHoldSeconds: 3.5f,
                 minNodesPerZone: 3, maxNodesPerZone: 6),

@@ -21,7 +21,7 @@ namespace LastTruck
         [Header("점프 (싱글플레이. 멀티플레이는 NetworkPlayerMovement)")]
         [SerializeField] private KeyCode jumpKey = KeyCode.Space;
         [Tooltip("점프할 때 위로 주는 속도 (m/s).")]
-        [SerializeField] private float jumpVelocity = 6.5f;
+        [SerializeField] private float jumpVelocity = 4.7f;
         [Tooltip("점프할 때 재생할 애니메이터 상태 이름.")]
         [SerializeField] private string jumpStateName = "Jumping Up";
 
@@ -102,8 +102,45 @@ namespace LastTruck
             _knockVelocity = velocity;
         }
 
-        /// <summary>이동 속도 배율 (능력/상태 효과). 멀티플레이 이동에도 반영된다.</summary>
-        public float SpeedMultiplier => _speedMultiplier;
+        /// <summary>이동 속도 배율 (능력/상태 효과 × 짐 무게). 멀티플레이 이동에도 반영된다.</summary>
+        public float SpeedMultiplier => _speedMultiplier * LoadMultiplier;
+
+        [Header("짐 무게")]
+        [Tooltip("인벤토리 아이템이 이 개수 이하면 느려지지 않는다.")]
+        [SerializeField] private int loadFreeItems = 10;
+        [Tooltip("인벤토리가 가득 찼을 때의 이동 속도 배율 (너무 느려지지 않게 0.8 정도).")]
+        [Range(0.5f, 1f)] [SerializeField] private float fullLoadSpeedMultiplier = 0.8f;
+
+        private CraftingSystem.PlayerInventory _loadInventory;
+        private bool _loadInventorySearched;
+
+        /// <summary>
+        /// 들고 있는 아이템 개수에 따른 속도 배율. loadFreeItems개까지는 1, 인벤토리가 가득 차면 fullLoadSpeedMultiplier.
+        /// (가득 = 칸 수 × 재료 한 칸 최대 개수)
+        /// </summary>
+        public float LoadMultiplier
+        {
+            get
+            {
+                if (!_loadInventorySearched)
+                {
+                    _loadInventory = GetComponent<CraftingSystem.PlayerInventory>();
+                    _loadInventorySearched = true;
+                }
+                if (_loadInventory == null)
+                    return 1f;
+
+                int total = 0;
+                var slots = _loadInventory.Slots;
+                for (int i = 0; i < slots.Count; i++)
+                    if (!slots[i].IsEmpty) total += slots[i].count;
+
+                int perSlot = _loadInventory.Inventory.RawStackLimit > 0 ? _loadInventory.Inventory.RawStackLimit : 20;
+                int capacity = Mathf.Max(loadFreeItems + 1, _loadInventory.MaxSlots * perSlot);
+                float load = Mathf.Clamp01((total - loadFreeItems) / (float)(capacity - loadFreeItems));
+                return Mathf.Lerp(1f, fullLoadSpeedMultiplier, load);
+            }
+        }
 
         private LastTruck.Networking.NetworkPlayer _networkPlayer;
 
@@ -247,6 +284,7 @@ namespace LastTruck
         [SerializeField] private float sprintMultiplier = 1.6f;
 
         private const float MaxFallSpeed = 30f;
+        private const float SprintAnimSpeed = 1.2f;
 
         private void Update()
         {
@@ -285,6 +323,11 @@ namespace LastTruck
                 bool isMoving = (hAxis != 0 || vAxis != 0);
                 anim.SetBool("isRun", isMoving);
                 anim.SetBool("isWalk", false);
+
+                // 달리기(Shift): 더 빠른 달리기 모션(Run Fast)이 있으면 그것을, 없으면 같은 달리기 모션을 빠르게 재생한다.
+                bool sprinting = isMoving && wDown;
+                anim.SetBool("isSprint", sprinting);
+                anim.speed = sprinting ? SprintAnimSpeed : 1f;
 
                 // 땅에 붙어있으면 점프/낙하 애니메이션 파라미터 해제
                 if (_grounded && !_jumping)
@@ -346,7 +389,7 @@ namespace LastTruck
             }
 
             // Shift = 달리기 (이전에는 Shift가 0.3배 느린 걷기였다). 활/화염방사 중 감속 등은 _speedMultiplier로 그대로 적용된다
-            float currentSpeed = speed * (wDown ? sprintMultiplier : 1f) * _speedMultiplier;
+            float currentSpeed = speed * (wDown ? sprintMultiplier : 1f) * SpeedMultiplier;
 
             Vector3 targetVelocity = moveVec * currentSpeed;
 
@@ -354,6 +397,13 @@ namespace LastTruck
 
             // 점프 직후 잠깐은 땅에 붙이지 않는다 (붙이면 바로 다시 땅으로 끌려 내려옴)
             if (_jumping && _grounded && Time.time - _jumpStartTime > 0.15f) _jumping = false;
+
+            // 착지하면 점프 모션을 바로 끝낸다 (점프 클립이 실제 체공 시간보다 길어서 땅에 닿은 뒤에도 남아 있었다)
+            if (_jumpAnimActive && _grounded && Time.time - _jumpStartTime > 0.15f)
+            {
+                _jumpAnimActive = false;
+                if (anim != null && HasAnimParam(JumpLandHash)) anim.SetTrigger(JumpLandHash);
+            }
 
             if (_jumpRequested)
             {
@@ -439,11 +489,24 @@ namespace LastTruck
             }
         }
 
+        private static readonly int JumpLandHash = Animator.StringToHash("jumpLand");
+        private bool _jumpAnimActive;
+
+        private bool HasAnimParam(int hash)
+        {
+            foreach (AnimatorControllerParameter p in anim.parameters)
+                if (p.nameHash == hash) return true;
+            return false;
+        }
+
         private void PlayJumpAnimation()
         {
             if (anim == null || string.IsNullOrEmpty(jumpStateName)) return;
             int hash = Animator.StringToHash(jumpStateName);
-            if (anim.HasState(0, hash)) anim.CrossFadeInFixedTime(hash, 0.05f, 0);
+            if (!anim.HasState(0, hash)) return;
+            if (HasAnimParam(JumpLandHash)) anim.ResetTrigger(JumpLandHash);
+            anim.CrossFadeInFixedTime(hash, 0.05f, 0);
+            _jumpAnimActive = true;
         }
 
         // 캡슐 아래쪽 구의 중심 (월드 좌표)

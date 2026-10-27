@@ -76,11 +76,8 @@ public void Configure(string name, ItemData item, int amount, float seconds, int
 
         private void GatherNow(PlayerInventory player)
         {
-            if (!player.AddItem(outputItem, outputAmount))
-            {
-                Debug.LogWarning($"[ResourceNode] 인벤토리 공간이 부족하여 {outputItem.itemName}을(를) 채집하지 못했습니다.");
-                return;
-            }
+            // 가방에 안 들어가는 만큼은 발밑에 떨어진다
+            player.AddOrDrop(outputItem, outputAmount);
 
             Debug.Log($"[ResourceNode] {displayName}에서 {outputItem.itemName} x{outputAmount} 채집.");
         }

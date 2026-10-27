@@ -35,7 +35,7 @@ namespace LastTruck.Networking
 
         [Header("점프")]
         [Tooltip("점프할 때 위로 주는 속도 (m/s). NetworkCharacterController의 중력과 함께 점프 높이를 정한다.")]
-        [SerializeField] private float jumpImpulse = 9f;
+        [SerializeField] private float jumpImpulse = 6.5f;
         [Tooltip("점프할 때 재생할 애니메이터 상태 이름 (없으면 애니메이션 없이 점프만).")]
         [SerializeField] private string jumpStateName = "Jumping Up";
 
@@ -54,6 +54,8 @@ namespace LastTruck.Networking
 
         private static readonly int IsRunHash = Animator.StringToHash("isRun");
         private static readonly int IsWalkHash = Animator.StringToHash("isWalk");
+        private static readonly int IsSprintHash = Animator.StringToHash("isSprint");
+        private const float SprintAnimSpeed = 1.2f;
 
         #endregion
 
@@ -228,16 +230,47 @@ namespace LastTruck.Networking
                 if (!first) PlayJumpAnimation();
             }
 
+            // 착지하면 점프 모션을 바로 끝낸다 (점프 클립이 실제 체공 시간보다 길어서 땅에 닿은 뒤에도 남아 있었다)
+            if (_jumpAnimStart >= 0f && Time.time - _jumpAnimStart > 0.2f)
+            {
+                bool onGround = _controller != null && _controller.Grounded ||
+                                Physics.Raycast(transform.position + Vector3.up * 0.2f, Vector3.down, 0.45f, ~0, QueryTriggerInteraction.Ignore);
+                if (onGround || Time.time - _jumpAnimStart > 3f)
+                {
+                    _jumpAnimStart = -1f;
+                    if (HasAnimatorParam(JumpLandHash)) _animator.SetTrigger(JumpLandHash);
+                }
+            }
+
             bool alive = (_health == null || !_health.IsDead) && !NetworkTruck.IsSeated(Object.InputAuthority);
-            _animator.SetBool(IsRunHash, alive && HorizontalSpeed > runAnimationThreshold);
+            bool moving = alive && HorizontalSpeed > runAnimationThreshold;
+            _animator.SetBool(IsRunHash, moving);
             _animator.SetBool(IsWalkHash, false);   // Shift는 이제 느린 걷기가 아니라 달리기라 걷기 애니메이션은 쓰지 않는다
+
+            // 달리기(Shift): IsWalking은 이제 "달리는 중"이다. 더 빠른 달리기 모션이 있으면 그것을, 없으면 같은 모션을 빠르게 재생한다.
+            bool sprinting = moving && IsWalking;
+            _animator.SetBool(IsSprintHash, sprinting);
+            _animator.speed = sprinting ? SprintAnimSpeed : 1f;
+        }
+
+        private static readonly int JumpLandHash = Animator.StringToHash("jumpLand");
+        private float _jumpAnimStart = -1f;
+
+        private bool HasAnimatorParam(int hash)
+        {
+            foreach (AnimatorControllerParameter p in _animator.parameters)
+                if (p.nameHash == hash) return true;
+            return false;
         }
 
         private void PlayJumpAnimation()
         {
             if (string.IsNullOrEmpty(jumpStateName)) return;
             int hash = Animator.StringToHash(jumpStateName);
-            if (_animator.HasState(0, hash)) _animator.CrossFadeInFixedTime(hash, 0.05f, 0);
+            if (!_animator.HasState(0, hash)) return;
+            if (HasAnimatorParam(JumpLandHash)) _animator.ResetTrigger(JumpLandHash);
+            _animator.CrossFadeInFixedTime(hash, 0.05f, 0);
+            _jumpAnimStart = Time.time;
         }
 
         #endregion

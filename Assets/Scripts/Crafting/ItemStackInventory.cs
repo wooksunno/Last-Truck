@@ -66,6 +66,22 @@ namespace CraftingSystem
         public bool KeepSlotPositions { get; set; }
 
         /// <summary>
+        /// 0보다 크면 원재료(나무/돌/광석 등 ItemType.Raw)는 한 칸에 이 개수까지만 들어간다.
+        /// 플레이어 인벤토리만 20으로 제한하고, 트럭 보관함은 아이템의 maxStack을 그대로 쓴다.
+        /// </summary>
+        public int RawStackLimit { get; set; }
+
+        /// <summary>이 인벤토리에서 해당 아이템이 한 칸에 들어갈 수 있는 최대 개수.</summary>
+        public int StackLimitFor(ItemData item)
+        {
+            if (item == null) return 1;
+            int max = Mathf.Max(1, item.maxStack);
+            if (RawStackLimit > 0 && item.itemType == ItemType.Raw)
+                max = Mathf.Min(max, RawStackLimit);
+            return max;
+        }
+
+        /// <summary>
         /// from 칸을 to 칸으로 옮긴다. 목적지가 비어 있으면 이동, 같은 아이템이면 합치기(넘치면 남김), 다른 아이템이면 서로 교환.
         /// 범위를 벗어나거나 같은 칸이면 false.
         /// </summary>
@@ -89,7 +105,7 @@ namespace CraftingSystem
             }
             else if (ItemMatching.IsSameItem(a.item, b.item))
             {
-                int space = Mathf.Max(1, b.item.maxStack) - b.count;
+                int space = StackLimitFor(b.item) - b.count;
                 int move = Mathf.Min(space, a.count);
                 if (move <= 0) return false;
                 b.count += move;
@@ -185,7 +201,7 @@ namespace CraftingSystem
                 return false;
 
             int remaining = amount;
-            int maxStack = Mathf.Max(1, item.maxStack);
+            int maxStack = StackLimitFor(item);
 
             for (int i = 0; i < slots.Count && remaining > 0; i++)
             {

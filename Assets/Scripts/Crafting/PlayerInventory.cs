@@ -7,6 +7,8 @@ namespace CraftingSystem
     public class PlayerInventory : MonoBehaviour
     {
         [SerializeField] private int maxSlots = 4;
+        [Tooltip("나무/돌/광석 같은 원재료는 한 칸에 이 개수까지만 들고 다닐 수 있다 (트럭 보관함은 제한 없음).")]
+        [SerializeField] private int rawStackLimit = 20;
         [SerializeField] private bool grantStarterItems = true;
         [SerializeField] private ItemStackInventory inventory = new ItemStackInventory();
 
@@ -38,6 +40,7 @@ namespace CraftingSystem
         private void Awake()
         {
             inventory.MaxSlots = maxSlots;
+            inventory.RawStackLimit = rawStackLimit;
             inventory.KeepSlotPositions = true;   // 1~4번 칸 위치를 고정한다 (아이템을 써도 칸이 밀리지 않고, 칸끼리 교환 가능)
             inventory.Changed += OnInventoryChanged;
         }
@@ -89,6 +92,42 @@ namespace CraftingSystem
         }
 
         /// <summary>칸의 아이템을 바닥에 버린다 (E로 다시 주울 수 있다). count가 칸의 수량 이상이면 전부.</summary>
+        /// <summary>이 아이템이 가방에 몇 개 더 들어가는지.</summary>
+        public int SpaceFor(ItemData item)
+        {
+            if (item == null) return 0;
+            int maxStack = inventory.StackLimitFor(item);
+            int room = 0;
+            foreach (InventorySlot s in Slots)
+            {
+                if (s == null || s.IsEmpty) room += maxStack;
+                else if (ItemMatching.IsSameItem(s.item, item)) room += Mathf.Max(0, maxStack - s.count);
+            }
+            room += Mathf.Max(0, MaxSlots - Slots.Count) * maxStack;
+            return room;
+        }
+
+        /// <summary>
+        /// 채집처럼 "얻은 아이템"을 넣는다. 가방에 들어가는 만큼 넣고, 넘친 만큼은 발밑에 떨어뜨린다(나중에 E로 주울 수 있다).
+        /// 떨어뜨린 개수를 돌려준다.
+        /// </summary>
+        public int AddOrDrop(ItemData item, int amount)
+        {
+            if (item == null || amount <= 0) return 0;
+
+            int take = Mathf.Min(SpaceFor(item), amount);
+            if (take > 0 && !inventory.AddItem(item, take))
+                take = 0;
+
+            int overflow = amount - take;
+            if (overflow > 0)
+            {
+                DroppedItem.SpawnOrMerge(transform, item, overflow);
+                LastTruck.HudToast.Show($"인벤토리가 가득 차서 {item.itemName} {overflow}개를 바닥에 떨어뜨렸어요");
+            }
+            return overflow;
+        }
+
         public bool DropSlot(int slotIndex, int count)
         {
             if (slotIndex < 0 || slotIndex >= Slots.Count)

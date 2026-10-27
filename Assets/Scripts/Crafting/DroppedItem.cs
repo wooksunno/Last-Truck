@@ -23,6 +23,27 @@ namespace CraftingSystem
         public Color InteractLabelColor => new Color(1f, 0.88f, 0.55f);
         public int InteractPriority => 3;
 
+        /// <summary>
+        /// 근처(2m)에 같은 아이템이 이미 떨어져 있으면 거기에 개수를 합치고, 없으면 새로 떨어뜨린다.
+        /// (가방이 꽉 찬 채로 계속 채집해도 바닥이 아이템으로 어지럽지 않게)
+        /// </summary>
+        public static DroppedItem SpawnOrMerge(Transform player, ItemData item, int count)
+        {
+            if (player == null || item == null || count <= 0)
+                return null;
+
+            foreach (Collider col in Physics.OverlapSphere(player.position, 3f, 1 << InteractLayer, QueryTriggerInteraction.Collide))
+            {
+                if (col.TryGetComponent<DroppedItem>(out var existing) && !existing._picked
+                    && existing._item != null && ItemMatching.IsSameItem(existing._item, item))
+                {
+                    existing._count += count;
+                    return existing;
+                }
+            }
+            return Spawn(player, item, count);
+        }
+
         /// <summary>player 앞쪽 바닥에 아이템을 떨어뜨린다.</summary>
         public static DroppedItem Spawn(Transform player, ItemData item, int count)
         {
@@ -109,15 +130,7 @@ namespace CraftingSystem
             if (inv == null) return;
 
             // 들어가는 만큼만 줍고 나머지는 남겨 둔다
-            int fit = 0;
-            int maxStack = Mathf.Max(1, _item.maxStack);
-            foreach (InventorySlot s in inv.Slots)
-            {
-                if (s == null || s.IsEmpty) fit += maxStack;
-                else if (ItemMatching.IsSameItem(s.item, _item)) fit += Mathf.Max(0, maxStack - s.count);
-            }
-            fit += Mathf.Max(0, inv.MaxSlots - inv.Slots.Count) * maxStack;
-            int take = Mathf.Min(fit, _count);
+            int take = Mathf.Min(inv.SpaceFor(_item), _count);
             if (take <= 0)
             {
                 HudToast.Show("인벤토리가 가득 찼습니다.");

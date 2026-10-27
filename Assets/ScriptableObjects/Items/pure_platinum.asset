@@ -13,8 +13,9 @@ MonoBehaviour:
   m_Name: pure_platinum
   m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.ItemData
   itemID: pure_platinum
-  itemName: "\uC21C\uC218 \uBC31\uAE08"
+  itemName: "\uC21C\uC218 \uAE08"
   itemType: 1
+  isWeapon: 0
   maxStack: 99
   icon: {fileID: 21300000, guid: 6cd0d932fddd2fe44b13906f315cdd6c, type: 3}
   toolTier: 0
