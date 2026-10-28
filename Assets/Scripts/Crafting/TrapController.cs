@@ -28,11 +28,20 @@ namespace CraftingSystem
             _interact = GetComponent<LastTruck.PlayerInteract>();
         }
 
+        // 나무 가시 덫: 미끼 트랩보다 약하지만 나무/돌로 싸게 만든다
+        private const int SpikeTrapDamage = 10;
+        private const float SpikeTrapRootSeconds = 1.2f;
+
+        /// <summary>손에 들고 E 꾹으로 설치하는 아이템인지 (덫 2종 + 바리케이드 2종).</summary>
+        public static bool IsPlaceable(string itemId) =>
+            itemId == ItemIds.LureTrap || itemId == ItemIds.WoodSpikeTrap ||
+            itemId == ItemIds.WoodBarricade || itemId == ItemIds.StoneWall;
+
         private void Update()
         {
             InventorySlot hand = _inventory.SelectedSlot;
             bool hasTrap = hand != null && !hand.IsEmpty && hand.item != null &&
-                           hand.item.itemID == ItemIds.LureTrap;
+                           IsPlaceable(hand.item.itemID);
 
             bool nearbyWorldInteractable = _interact != null && _interact.HasNearbyInteractable;
             bool popupOpen = GameUIController.Instance != null && GameUIController.Instance.IsPopupOpen;
@@ -72,8 +81,24 @@ namespace CraftingSystem
             if (!_inventory.RemoveItem(item, 1))
                 return;
 
+            // 바리케이드/돌 방벽: 캐릭터 앞에 세운다
+            if (item.itemID == ItemIds.WoodBarricade || item.itemID == ItemIds.StoneWall)
+            {
+                Barricade.Kind kind = item.itemID == ItemIds.StoneWall ? Barricade.Kind.Stone : Barricade.Kind.Wood;
+                Vector3 pos = Barricade.PlacementPoint(transform);
+                float yaw = transform.eulerAngles.y;
+                if (!LastTruck.Networking.NetworkGathering.TryPlaceBarricade((int)kind, pos, yaw))
+                    Barricade.Spawn(kind, pos, yaw);
+                Debug.Log($"[TrapController] {item.itemName}을(를) 설치했습니다.");
+                return;
+            }
+
+            int damage = trapDamage;
+            float rootSeconds = trapRootSeconds;
+            if (item.itemID == ItemIds.WoodSpikeTrap) { damage = SpikeTrapDamage; rootSeconds = SpikeTrapRootSeconds; }
+
             // 멀티플레이: 호스트가 덫을 만들어 모두에게 보여주고, 밟았는지 판정도 호스트가 한다 (몬스터는 호스트에서 움직이므로).
-            if (LastTruck.Networking.NetworkGathering.TryPlaceTrap(transform.position + Vector3.up * 0.02f, trapDamage, trapRootSeconds, trapTriggerRadius))
+            if (LastTruck.Networking.NetworkGathering.TryPlaceTrap(transform.position + Vector3.up * 0.02f, damage, rootSeconds, trapTriggerRadius))
             {
                 Debug.Log($"[TrapController] {item.itemName}을(를) 설치했습니다.");
                 return;
@@ -83,7 +108,7 @@ namespace CraftingSystem
             trapGO.transform.position = transform.position + Vector3.up * 0.02f;
 
             TrapPlaced placed = trapGO.AddComponent<TrapPlaced>();
-            placed.Setup(trapDamage, trapRootSeconds, trapTriggerRadius, transform);
+            placed.Setup(damage, rootSeconds, trapTriggerRadius, transform);
 
             Debug.Log($"[TrapController] {item.itemName}을(를) 설치했습니다.");
         }

@@ -42,9 +42,17 @@ public static class DesertMineralPlacer
         if (!Physics.Raycast(new Vector3(xz.x, 120f, xz.y), Vector3.down, out ground, 240f, ~0, QueryTriggerInteraction.Ignore)) return false;
         if (!IsGround(ground.collider)) return false;                              // 첫 히트가 바닥(모래 타일)이어야 함 = 위에 다른 물체 없음
         if (Vector3.Angle(ground.normal, Vector3.up) > MaxSlope) return false;
-        // 주변 2.5m에 바닥이 아닌 물체(철로, 폐허, 기름밭, 바위 등)가 있으면 피한다
-        foreach (var c in Physics.OverlapSphere(ground.point + Vector3.up * 2.2f, 2.5f, ~0, QueryTriggerInteraction.Collide))
-            if (!IsGround(c)) return false;
+        // 주변 2.5m에 바닥이 아닌 물체(철로, 폐허, 기름밭, 바위 등)가 있으면 피한다.
+        // 우리가 놓는 광맥끼리의 간격은 따로 계산하므로(무리 지어 놓기 위해) 광맥 묶음 안의 것은 무시한다.
+        foreach (var c in Physics.OverlapSphere(ground.point + Vector3.up * 2.2f, 2.5f, ~0, _ignoreRoots != null ? QueryTriggerInteraction.Ignore : QueryTriggerInteraction.Collide))
+        {
+            if (IsGround(c)) continue;
+            // 자연 배치 중에는 자갈/풀 같은 작은 장식(1.4m 미만)은 무시한다 (울타리·비계·벽 같은 큰 것만 피한다)
+            if (_ignoreRoots != null) { var cb = c.bounds; if (Mathf.Max(cb.size.x, Mathf.Max(cb.size.y, cb.size.z)) < 1.4f) continue; }
+            bool ours = false;
+            if (_ignoreRoots != null) foreach (var root in _ignoreRoots) if (root != null && c.transform.IsChildOf(root)) ours = true;
+            if (!ours) return false;
+        }
         return true;
     }
 
@@ -58,7 +66,10 @@ public static class DesertMineralPlacer
         }
     }
 
-    static GameObject MakeMineral(Transform parent, Vector3 pos, Res r, int seed)
+    static GameObject MakeMineral(Transform parent, Vector3 pos, Res r, int seed) => MakeMineral(parent, pos, r, seed, 1f, 0f, 0f);
+
+    /// <summary>sizeMul: 크기 배율(0.45~1.7). 클수록 한 번에 더 많이/여러 번 캔다. tiltX/Z: 자연스럽게 살짝 기울임.</summary>
+    static GameObject MakeMineral(Transform parent, Vector3 pos, Res r, int seed, float sizeMul, float tiltX, float tiltZ)
     {
         string prefabName = $"PP_Rock_Veins_0{1 + Mathf.Abs(seed) % 3}_{r.color}";
         var src = AssetDatabase.LoadAssetAtPath<GameObject>(Dir + prefabName + ".prefab");
@@ -71,11 +82,11 @@ public static class DesertMineralPlacer
         node.transform.position = pos;
 
         var model = (GameObject)PrefabUtility.InstantiatePrefab(src, node.transform);
-        float h = Mathf.Lerp(2.2f, 3.6f, Hash01(pos.x, pos.z, 5));
+        float h = Mathf.Lerp(2.2f, 3.6f, Hash01(pos.x, pos.z, 5)) * sizeMul;
         var mr = model.GetComponentInChildren<Renderer>();
         float native = mr != null ? Mathf.Max(0.1f, mr.bounds.size.y) : 1f;
         model.transform.localScale = Vector3.one * (h / native);
-        model.transform.localRotation = Quaternion.Euler(0f, Hash01(pos.x, pos.z, 9) * 360f, 0f);
+        model.transform.localRotation = Quaternion.Euler(tiltX, Hash01(pos.x, pos.z, 9) * 360f, tiltZ);
         model.transform.localPosition = new Vector3(0f, -0.15f, 0f);   // 모래에 살짝 묻힌다
         foreach (var t in model.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = 0;
         if (r.id == "copper_ore") OreCrystalConverter.ApplyCopperMaterial(model.transform);
@@ -87,8 +98,13 @@ public static class DesertMineralPlacer
         sc.radius = Mathf.Max(b.extents.x, b.extents.z) + 1.2f;
         sc.center = new Vector3(0f, h * 0.35f, 0f);
 
+        // 크기에 따라 채집량/횟수: 작은 돌은 조금, 큰 바위는 많이
+        float k = Mathf.Clamp(sizeMul, 0.45f, 1.7f);
+        int amount = Mathf.Max(1, Mathf.RoundToInt(r.amount * Mathf.Lerp(0.5f, 1.5f, Mathf.InverseLerp(0.45f, 1.7f, k))));
+        int minHits = Mathf.Max(1, Mathf.RoundToInt(r.minHits * Mathf.Min(1f, k)));
+        int maxHits = Mathf.Max(minHits, Mathf.RoundToInt(r.maxHits * Mathf.Max(0.6f, k)));
         var srn = node.AddComponent<SpecialResourceNode>();
-        srn.Configure(r.label, ItemCatalog.GetOrCreate().GetItem(r.id), r.amount, r.tier, r.minHits, r.maxHits, r.minRegen, r.maxRegen, "", r.hold);
+        srn.Configure(r.label, ItemCatalog.GetOrCreate().GetItem(r.id), amount, r.tier, minHits, maxHits, r.minRegen, r.maxRegen, "", r.hold);
         EditorUtility.SetDirty(srn);
         return node;
     }
@@ -287,12 +303,8 @@ public static class DesertMineralPlacer
                 if (taken.Count > before) placedHere++;
             }
         }
-        Scatter(DesertArea, DesertCount, desertGroup, 31, false);
-
-        UnityEditor.SceneManagement.EditorSceneManager.MarkAllScenesDirty();
-        var keys = new List<string>(counts.Keys); keys.Sort();
-        foreach (var k in keys) sb.AppendLine("placed " + k + " = " + counts[k]);
-        sb.AppendLine(RebalanceQuarryByDepth());   // 채석장: 깊을수록 광물이 많게
+        // 사막 + 채석장: 시작 지점 숲 밀도 기준의 자연스러운 무리 배치 (채석장은 깊을수록 많게)
+        sb.AppendLine(NaturalLayout());
         return sb.ToString();
     }
 
@@ -375,8 +387,122 @@ public static class DesertMineralPlacer
         return sb.ToString();
     }
 
-    [MenuItem("Tools/Last Truck/Quarry: Rebalance Minerals By Depth")]
-    static void MenuDepth() { Debug.Log("[DesertMineralPlacer]\n" + RebalanceQuarryByDepth()); }
+    // ───────────── 자연스러운 배치 (시작 지점 숲의 나무 밀도 기준) ─────────────
+    // 시작 지점(플레이어 스폰) 주변 숲: 1000m²당 나무 약 1.6그루, 가장 가까운 이웃 중앙값 약 11m, 무리 지어 자람.
+    // 격자 대신 무작위 무리(1~4개)로 놓고, 무리 안에서 큰 바위 하나 + 작은 바위들로 크기를 섞는다.
+    public static float ForestDensity = 1.6f;        // 1000m²당 개수
+    public static float DesertDensityMul = 1.0f;     // 사막 = 숲과 비슷
+    public static float PlateauDensityMul = 0.12f;    // 채석장 맨 위 평지 = 드문드문
+    public static float PitShallowMul = 1.0f, PitDeepMul = 3.0f;   // 구덩이: 얕은 곳 1배 → 바닥 3배 (깊을수록 많이)
+    public static float ClusterSpacing = 10f;         // 무리 중심끼리 최소 간격
+    static readonly int[] ClusterSizes = { 1, 1, 1, 1, 2, 2, 2, 3, 3, 4 };   // 평균 2개
+    static Transform[] _ignoreRoots;
+
+    struct Cell { public Vector3 p; public float w; public int region; public float t; }   // region 0 사막, 1 평지, 2 구덩이
+
+    public static string NaturalLayout()
+    {
+        var desert = GameObject.Find("Map/08_Desert");
+        var quarry = GameObject.Find("Map/09_Quarry");
+        if (desert == null || quarry == null) return "08_Desert / 09_Quarry not found";
+
+        Transform Group(GameObject owner)
+        {
+            var g = owner.transform.Find("DesertMinerals");
+            if (g == null) { var go = new GameObject("DesertMinerals"); Undo.RegisterCreatedObjectUndo(go, "Desert mineral"); go.transform.SetParent(owner.transform, false); g = go.transform; }
+            for (int i = g.childCount - 1; i >= 0; i--) Undo.DestroyObjectImmediate(g.GetChild(i).gameObject);
+            return g;
+        }
+        var desertGroup = Group(desert); var quarryGroup = Group(quarry);
+        _ignoreRoots = new[] { desertGroup, quarryGroup };
+        Physics.SyncTransforms();
+
+        // 다른 채집 노드(동굴/기름 등)와는 겹치지 않게
+        var placed = new List<Vector4>();   // xyz + 반경
+        foreach (var n in Object.FindObjectsByType<SpecialResourceNode>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            placed.Add(new Vector4(n.transform.position.x, n.transform.position.y, n.transform.position.z, 2f));
+
+        // 4m 간격으로 놓을 수 있는 바닥을 조사하고, 지역/깊이별 밀도를 매긴다
+        var cells = new List<Cell>();
+        float expected = 0f;
+        void Survey(Rect area, int region)
+        {
+            for (float x = area.xMin; x <= area.xMax; x += 4f)
+                for (float z = area.yMin; z <= area.yMax; z += 4f)
+                {
+                    if (!TryGroundAt(new Vector2(x, z), out RaycastHit g)) continue;   // 평지/구덩이는 아래에서 높이로 나눈다
+                    int reg = region;
+                    float t = 0f, mul;
+                    if (region == 0) mul = DesertDensityMul;
+                    else if (g.point.y > -3f) { reg = 1; mul = PlateauDensityMul; }
+                    else { reg = 2; t = Mathf.Clamp01((1.5f - g.point.y) / PitBottomDepth); mul = Mathf.Lerp(PitShallowMul, PitDeepMul, t); }
+                    float w = ForestDensity * mul;
+                    cells.Add(new Cell { p = g.point, w = w, region = reg, t = t });
+                    expected += w * 16f / 1000f;
+                }
+        }
+        Survey(DesertArea, 0);
+        Survey(QuarryArea, 1);
+        if (cells.Count == 0) return "no ground cells";
+
+        float total = 0f; var cum = new float[cells.Count];
+        for (int i = 0; i < cells.Count; i++) { total += cells[i].w; cum[i] = total; }
+
+        var rng = new System.Random(20261028);
+        float Rand(float a, float b) => a + (float)rng.NextDouble() * (b - a);
+        var centers = new List<Vector3>();
+        int targetNodes = Mathf.RoundToInt(expected), made = 0;
+        var counts = new SortedDictionary<string, int>();
+
+        for (int attempt = 0; attempt < targetNodes * 30 && made < targetNodes; attempt++)
+        {
+            // 밀도에 비례해서 무리 중심을 뽑는다 (격자 대신 칸 안에서 무작위 위치)
+            float pick = Rand(0f, total);
+            int idx = System.Array.BinarySearch(cum, pick); if (idx < 0) idx = ~idx; idx = Mathf.Clamp(idx, 0, cells.Count - 1);
+            Cell cell = cells[idx];
+            Vector2 c2 = new Vector2(cell.p.x + Rand(-2f, 2f), cell.p.z + Rand(-2f, 2f));
+            bool farFromCenters = true;
+            foreach (var c in centers) if (new Vector2(c.x - c2.x, c.z - c2.y).sqrMagnitude < ClusterSpacing * ClusterSpacing && Mathf.Abs(c.y - cell.p.y) < 6f) { farFromCenters = false; break; }
+            if (!farFromCenters) continue;
+
+            // 무리: 같은 광맥 종류. 중심에 큰 바위, 주변에 작은 바위
+            Res r = cell.region == 0 ? Pick((float)rng.NextDouble()) : cell.region == 1 ? Copper : PickByDepth(cell.t, (float)rng.NextDouble());
+            Transform parent = cell.region == 0 ? desertGroup : quarryGroup;
+            int size = ClusterSizes[rng.Next(ClusterSizes.Length)];
+            int inCluster = 0;
+            for (int m = 0; m < size * 4 && inCluster < size; m++)
+            {
+                Vector2 p2 = inCluster == 0 ? c2 : c2 + Rand(3.5f, 7f) * new Vector2(Mathf.Cos(Rand(0f, 6.283f)), Mathf.Sin(Rand(0f, 6.283f)));
+                if (!TryGroundAt(p2, out RaycastHit g)) continue;
+                if (Mathf.Abs(g.point.y - cell.p.y) > 2f) continue;   // 같은 층에만
+                float sizeMul = inCluster == 0 ? Rand(1.0f, 1.7f) : Rand(0.45f, 0.95f);
+                float radius = 1.1f * sizeMul + 0.6f;
+                bool free = true;
+                foreach (var q in placed)
+                {
+                    float min = Mathf.Max(2f, radius + q.w);
+                    if (new Vector2(q.x - g.point.x, q.z - g.point.z).sqrMagnitude < min * min && Mathf.Abs(q.y - g.point.y) < 4f) { free = false; break; }
+                }
+                if (!free) continue;
+                int seed = Mathf.RoundToInt(g.point.x * 13f + g.point.z * 7f);
+                if (MakeMineral(parent, g.point, r, seed, sizeMul, Rand(-8f, 8f), Rand(-8f, 8f)) == null) continue;
+                placed.Add(new Vector4(g.point.x, g.point.y, g.point.z, radius));
+                inCluster++; made++;
+                string region = cell.region == 0 ? "desert" : cell.region == 1 ? "quarry plateau" : cell.t < 0.3f ? "quarry pit 1 shallow" : cell.t < 0.6f ? "quarry pit 2 middle" : "quarry pit 3 deep";
+                string key = region + " " + r.id; counts[key] = counts.TryGetValue(key, out int cc) ? cc + 1 : 1;
+            }
+            if (inCluster > 0) centers.Add(new Vector3(c2.x, cell.p.y, c2.y));
+        }
+        _ignoreRoots = null;
+        UnityEditor.SceneManagement.EditorSceneManager.MarkAllScenesDirty();
+
+        var sb = new StringBuilder($"natural layout: target≈{targetNodes} placed={made} clusters={centers.Count}\n");
+        foreach (var kv in counts) sb.AppendLine("  " + kv.Key + " = " + kv.Value);
+        return sb.ToString();
+    }
+
+    [MenuItem("Tools/Last Truck/Desert+Quarry: Natural Mineral Layout")]
+    static void MenuNatural() { Debug.Log("[DesertMineralPlacer]\n" + NaturalLayout()); }
 
     [MenuItem("Tools/Last Truck/Desert: Remove Slabs+Trees, Place Minerals")]
     static void Menu() { Debug.Log("[DesertMineralPlacer]\n" + Run()); }

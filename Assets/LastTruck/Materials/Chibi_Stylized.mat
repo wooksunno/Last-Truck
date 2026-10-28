@@ -32,11 +32,14 @@ Material:
     - _AmbientStrength: 0.9
     - _HitFlash: 0
     - _MidTone: 0.35
+    - _NightMinBrightness: 0.45
+    - _OutlineNightGlow: 0.12
     - _OutlineWidth: 0.012
     - _ReflectRoughness: 0.45
     - _ReflectStrength: 0.35
     - _RimDay: 0.35
-    - _RimNight: 0.8
+    - _RimNight: 0.45
+    - _RimNightWiden: 0
     - _RimSoftness: 0.12
     - _RimThreshold: 0.7
     - _ShadeSoftness: 0.07
@@ -49,7 +52,9 @@ Material:
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _FlashColor: {r: 1, g: 1, b: 1, a: 1}
     - _OutlineColor: {r: 0.12, g: 0.08, b: 0.14, a: 1}
+    - _OutlineNightColor: {r: 0.42, g: 0.62, b: 0.95, a: 1}
     - _RimColor: {r: 0.75, g: 0.88, b: 1, a: 1}
+    - _RimNightColor: {r: 0.55, g: 0.78, b: 1, a: 1}
     - _ShadeColor: {r: 0.7, g: 0.66, b: 0.88, a: 1}
     - _SpecColor: {r: 1, g: 0.97, b: 0.9, a: 1}
   m_BuildTextureStacks: []

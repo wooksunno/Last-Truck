@@ -39,6 +39,8 @@ namespace CraftingSystem
 
         private void Awake()
         {
+            // 횃불을 손에 들면 빛나게 하는 컴포넌트 (씬/프리팹마다 따로 붙이지 않도록 여기서 자동으로 붙인다)
+            if (GetComponent<HeldTorch>() == null) gameObject.AddComponent<HeldTorch>();
             inventory.MaxSlots = maxSlots;
             inventory.RawStackLimit = rawStackLimit;
             inventory.KeepSlotPositions = true;   // 1~4번 칸 위치를 고정한다 (아이템을 써도 칸이 밀리지 않고, 칸끼리 교환 가능)

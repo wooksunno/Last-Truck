@@ -304,6 +304,37 @@ namespace LastTruck.Networking
 
         #endregion
 
+        #region 바리케이드 / 돌 방벽 (TrapController → Barricade)
+
+        // 몬스터 길찾기(NavMesh)는 호스트에서 돌므로 호스트 화면에도 반드시 있어야 한다. 모두에게 같은 자리에 세운다.
+
+        /// <summary>멀티플레이면 바리케이드 설치를 호스트에 요청하고 true (아이템은 이미 소모됨). 싱글이면 false.</summary>
+        public static bool TryPlaceBarricade(int kind, Vector3 position, float yaw)
+        {
+            if (!GameLauncher.IsOnlineSession || !IsReady) return false;
+            Instance.RPC_RequestBarricade(kind, position, yaw);
+            return true;
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_RequestBarricade(int kind, Vector3 position, float yaw, RpcInfo info = default)
+        {
+            PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
+            NetworkPlayer owner = NetworkPlayer.Find(source);
+            // 너무 먼 위치면 설치자 바로 앞에 세운다 (아이템은 이미 소모됐으므로 버리지 않는다)
+            if (owner != null && Vector3.Distance(owner.transform.position, position) > maxGatherDistance)
+                position = owner.transform.position + owner.transform.forward * 1.8f;
+            RPC_SpawnBarricade(Mathf.Clamp(kind, 0, 1), position, yaw);
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_SpawnBarricade(int kind, Vector3 position, float yaw)
+        {
+            Barricade.Spawn((Barricade.Kind)kind, position, yaw);
+        }
+
+        #endregion
+
         #region 석유 펌프잭 (OilWellSite / OilPumpjack)
 
         // 펌프잭은 호스트가 설치/수거/회수를 정하고 모두에게 알린다. 유정은 "위치"로 찾는다.

@@ -11,7 +11,7 @@ namespace CraftingSystem
     /// <summary>
     /// 플레이어 인벤토리(우하단) + 트럭/시설 팝업 UI.
     /// </summary>
-    public class GameUIController : MonoBehaviour
+    public partial class GameUIController : MonoBehaviour
     {
         public static GameUIController Instance { get; private set; }
 
@@ -239,7 +239,7 @@ private int _withdrawMax;
             _activePlayer = player;
             _selectedRecipe = null;
             _craftingPanelOpen = false;
-            _truckProcessingPanelOpen = false;
+            _truckProcessingPanelOpen = false; _truckUpgradeOpen = false;
             ShowPopup($"{facility.InteractLabel} 가공", BuildFacilityContent);
         }
 
@@ -251,7 +251,7 @@ public void OpenPouchPanel(PouchInventory pouch, PlayerInventory player)
             _activePlayer = player;
             _selectedRecipe = null;
             _craftingPanelOpen = false;
-            _truckProcessingPanelOpen = false;
+            _truckProcessingPanelOpen = false; _truckUpgradeOpen = false;
             _truckCodexOpen = false;
             _codexSelectedItem = null;
             _withdrawItem = null;
@@ -268,7 +268,7 @@ public void OpenPouchPanel(PouchInventory pouch, PlayerInventory player)
             _truckCodexOpen = false;
             _codexSelectedItem = null;
             _craftingPanelOpen = false;
-            _truckProcessingPanelOpen = false;
+            _truckProcessingPanelOpen = false; _truckUpgradeOpen = false;
             _withdrawItem = null;
             ShowPopup("트럭 거점", BuildTruckContent);
         }
@@ -289,7 +289,7 @@ public void OpenPouchPanel(PouchInventory pouch, PlayerInventory player)
             _truckCodexOpen = false;
             _codexSelectedItem = null;
             _craftingPanelOpen = true;
-            _truckProcessingPanelOpen = false;
+            _truckProcessingPanelOpen = false; _truckUpgradeOpen = false;
             _selectedRecipe = null;
             ShowPopup("제작", BuildTruckContent);
         }
@@ -318,7 +318,7 @@ public void OpenPouchPanel(PouchInventory pouch, PlayerInventory player)
             _truckCodexOpen = false;
             _codexSelectedItem = null;
             _craftingPanelOpen = false;
-            _truckProcessingPanelOpen = true;
+            _truckProcessingPanelOpen = true; _truckUpgradeOpen = false;
             _selectedRecipe = null;
             ShowPopup("트럭 거점", BuildTruckContent);
         }
@@ -337,7 +337,7 @@ public void OpenPouchPanel(PouchInventory pouch, PlayerInventory player)
             _activePlayer = playerInventory;
             _activeFacility = null;
             _craftingPanelOpen = false;
-            _truckProcessingPanelOpen = false;
+            _truckProcessingPanelOpen = false; _truckUpgradeOpen = false;
             _truckCodexOpen = true;
             _codexSelectedItem = null;
             _codexFromCraft = false;
@@ -362,7 +362,7 @@ public void OpenPouchPanel(PouchInventory pouch, PlayerInventory player)
             _codexSelectedItem = null;
             _truckCodexOpen = false;
             _craftingPanelOpen = false;
-            _truckProcessingPanelOpen = false;
+            _truckProcessingPanelOpen = false; _truckUpgradeOpen = false;
             _withdrawItem = null;
             _activePouch = null;
             _codexFromCraft = false;
@@ -419,18 +419,20 @@ private void ShowPopup(string title, System.Action builder)
         }
 
         // ---------- 팝업 오른쪽 책갈피 탭 (트럭 거점 / 제작 / 가공 / 도감) ----------
-        private static readonly string[] TruckTabLabels = { "보관함", "제작", "가공", "도감" };
+        private static readonly string[] TruckTabLabels = { "보관함", "제작", "가공", "도감", "강화" };
         private static readonly Color[] TruckTabColors =
         {
             new Color(0.50f, 0.74f, 0.96f), new Color(0.96f, 0.78f, 0.40f),
             new Color(0.96f, 0.55f, 0.50f), new Color(0.70f, 0.62f, 0.96f),
+            new Color(0.52f, 0.86f, 0.62f),
         };
         private GameObject _truckTabs;
-        private readonly RectTransform[] _truckTabRoots = new RectTransform[4];
-        private readonly Image[] _truckTabBgs = new Image[4];
+        private readonly RectTransform[] _truckTabRoots = new RectTransform[5];
+        private readonly Image[] _truckTabBgs = new Image[5];
 
         private int CurrentTruckTab()
         {
+            if (_truckUpgradeOpen) return 4;
             if (_truckCodexOpen) return 3;
             if (_truckProcessingPanelOpen) return 2;
             if (_craftingPanelOpen) return 1;
@@ -443,7 +445,7 @@ private void ShowPopup(string title, System.Action builder)
             {
                 case 0:
                     _craftingPanelOpen = false;
-                    _truckProcessingPanelOpen = false;
+                    _truckProcessingPanelOpen = false; _truckUpgradeOpen = false;
                     _truckCodexOpen = false;
                     _selectedRecipe = null;
                     _codexSelectedItem = null;
@@ -462,6 +464,7 @@ private void ShowPopup(string title, System.Action builder)
                     OpenTruckProcessingPanel();
                     break;
                 case 3: OpenJournal(); break;
+                case 4: OpenTruckUpgradePanel(); break;
             }
         }
 
@@ -523,7 +526,7 @@ private void ShowPopup(string title, System.Action builder)
                 holder.sizeDelta = new Vector2(1f, 1f);
                 _truckTabs = holder.gameObject;
 
-                for (int i = 0; i < 4; i++)
+                for (int i = 0; i < TruckTabLabels.Length; i++)
                 {
                     int idx = i;
                     RectTransform root = CraftUI.Mk("Tab_" + TruckTabLabels[i], holder);
@@ -559,7 +562,7 @@ private void ShowPopup(string title, System.Action builder)
                 return;
 
             int current = CurrentTruckTab();
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < TruckTabLabels.Length; i++)
             {
                 bool sel = i == current;
                 float w = sel ? 116f : 92f;
@@ -588,7 +591,7 @@ private void ShowPopup(string title, System.Action builder)
         private Vector2 PopupSizeForState()
         {
             if (_truckCodexOpen) return new Vector2(1400f, 860f);
-            if (_craftingPanelOpen || _truckProcessingPanelOpen) return new Vector2(1200f, 780f);
+            if (_craftingPanelOpen || _truckProcessingPanelOpen || _truckUpgradeOpen) return new Vector2(1200f, 780f);
             if (_activeFacility != null) return new Vector2(1060f, 700f);
             if (_activeTruck != null) return new Vector2(1100f, 780f);
             return new Vector2(560f, 640f);
@@ -1263,6 +1266,12 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             if (_activeTruck == null)
                 return;
 
+            if (_truckUpgradeOpen)
+            {
+                BuildTruckUpgradePanel();
+                return;
+            }
+
             if (_truckCodexOpen)
             {
                 BuildTruckCodex();
@@ -1630,7 +1639,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             CreateSmallActionButton(tabRow, "← 뒤로", new Color(0.3f, 0.3f, 0.35f), () =>
             {
                 
-            _truckProcessingPanelOpen = false;
+            _truckProcessingPanelOpen = false; _truckUpgradeOpen = false;
             _craftingPanelOpen = false;
                 _selectedRecipe = null;
                 ShowPopup("트럭 거점", BuildTruckContent);

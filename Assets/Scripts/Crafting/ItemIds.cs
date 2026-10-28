@@ -93,6 +93,14 @@ namespace CraftingSystem
         public const string TruckCompositeArmor = "truck_composite_armor"; // 트럭 복합 장갑
         public const string SpikeBumper = "spike_bumper"; // 강철가시 범퍼
         public const string GrinderWheel = "grinder_wheel"; // 초진동 회전 분쇄 휠
+        public const string TunedEngine = "tuned_engine"; // 개조 엔진 (트럭 파츠: 엔진)
+        public const string MiniTurret = "mini_turret"; // 미니 포탑 (트럭 파츠: 지붕)
+
+        // 포탑 탄환 (자원 1개 → 5발)
+        public const string WoodRound = "wood_round"; // 나무탄
+        public const string StoneRound = "stone_round"; // 돌탄
+        public const string CopperRound = "copper_round"; // 구리탄
+        public const string IronRound = "iron_round"; // 철탄
 
         // 생존/유틸/함정
         public const string LeatherGloves = "leather_gloves"; // 가죽 장갑
@@ -102,6 +110,12 @@ namespace CraftingSystem
         public const string ChemicalGasGrenade = "chemical_gas_grenade"; // 화학 독가스 수류탄
         public const string FragGrenade = "frag_grenade"; // 일반 수류탄
         public const string LureTrap = "lure_trap"; // 유인 미끼 트랩
+        // 나무/돌 소비처 (나무·돌을 계속 쓰게 만드는 아이템)
+        public const string ThrowingStone = "throwing_stone"; // 투척용 돌멩이
+        public const string WoodSpikeTrap = "wood_spike_trap"; // 나무 가시 덫
+        public const string Torch = "torch"; // 횃불 (손에 들면 주변을 밝힌다)
+        public const string WoodBarricade = "wood_barricade"; // 나무 바리케이드 (몬스터 길막)
+        public const string StoneWall = "stone_wall"; // 돌 방벽 (몬스터 길막, 더 오래 감)
 
         // 맵 특산물 구역 전용 자원 (기존 유지)
         public const string Platinum = PlatinumOre;

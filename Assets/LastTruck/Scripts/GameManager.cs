@@ -31,6 +31,25 @@ public class GameManager : MonoBehaviour
     /// <summary>외부(연출 스크립트 등)에서 낮 진행률을 계산할 때 참조할 수 있도록 공개.</summary>
     public float DayDurationSeconds => dayDurationSeconds;
 
+    [Header("해질녘 (낮 → 밤을 천천히)")]
+    [Tooltip("낮이 끝나기 이 시간(초) 전부터 해가 기울기 시작해 낮이 끝나는 순간 완전한 밤이 된다.")]
+    [SerializeField] private float duskSeconds = 90f;
+
+    /// <summary>
+    /// 해질녘 진행률 (0 = 한낮, 1 = 밤). 낮 남은 시간에서 계산하므로 멀티플레이 클라이언트도 호스트와 같다.
+    /// 조명/하늘/그림자 연출(AtmosphereController, DayNightController)이 이 값을 따라간다.
+    /// </summary>
+    public float DuskProgress
+    {
+        get
+        {
+            if (_waitingForNetworkStart || (IsNetworkMirror && !_mirrorStarted)) return 0f;
+            if (CurrentPhase == GamePhase.Night) return 1f;
+            float dusk = Mathf.Min(duskSeconds, dayDurationSeconds * 0.5f);
+            return dusk <= 0f ? 0f : Mathf.Clamp01(1f - DayTimeRemaining / dusk);
+        }
+    }
+
     [Header("밤 설정 (Inspector 조절)")]
     [Tooltip("사이클(밤 회차)당 기본 몬스터 총 스폰 쿼터.")]
     [SerializeField] private int baseNightMonsterQuota = 10;

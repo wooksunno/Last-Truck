@@ -28,7 +28,10 @@ Shader "LastTruck/StylizedCharacter"
         _RimThreshold ("Rim Threshold", Range(0,1)) = 0.70
         _RimSoftness ("Rim Softness", Range(0.001,0.5)) = 0.12
         _RimDay ("Rim Strength (Day)", Range(0,3)) = 0.35
-        _RimNight ("Rim Strength (Night)", Range(0,3)) = 0.8
+        _RimNight ("Rim Strength (Night)", Range(0,3)) = 0.45
+        _RimNightColor ("Rim Color (Night)", Color) = (0.55, 0.78, 1, 1)
+        _RimNightWiden ("Rim Widen (Night)", Range(0,0.4)) = 0
+        _NightMinBrightness ("Min Brightness (Night)", Range(0,1)) = 0.45
 
         [Header(Reflection)]
         _ReflectStrength ("Reflection Strength", Range(0,2)) = 0.35
@@ -42,6 +45,8 @@ Shader "LastTruck/StylizedCharacter"
         [Header(Outline)]
         _OutlineColor ("Outline Color", Color) = (0.12, 0.08, 0.14, 1)
         _OutlineWidth ("Outline Width", Range(0,0.05)) = 0.012
+        _OutlineNightColor ("Outline Color (Night)", Color) = (0.42, 0.62, 0.95, 1)
+        _OutlineNightGlow ("Outline Glow (Night)", Range(0,1)) = 0.12
     }
 
     HLSLINCLUDE
@@ -66,6 +71,9 @@ Shader "LastTruck/StylizedCharacter"
         half _RimSoftness;
         half _RimDay;
         half _RimNight;
+        half4 _RimNightColor;
+        half _RimNightWiden;
+        half _NightMinBrightness;
         half _ReflectStrength;
         half _ReflectRoughness;
         half4 _EmissionColor;
@@ -73,10 +81,13 @@ Shader "LastTruck/StylizedCharacter"
         half _HitFlash;
         half4 _OutlineColor;
         half _OutlineWidth;
+        half4 _OutlineNightColor;
+        half _OutlineNightGlow;
     CBUFFER_END
 
     // AtmosphereController가 매 프레임 설정하는 전역값(낮 0 ~ 밤 1)
     float _GameNightFactor;
+    float _GameWeatherFog;   // 날씨 안개 (0 맑음 ~ 1 짙은 안개)
     ENDHLSL
 
     SubShader
@@ -86,7 +97,8 @@ Shader "LastTruck/StylizedCharacter"
         Pass
         {
             Name "ForwardLit"
-            Tags { "LightMode"="UniversalForward" }
+            // UniversalForwardOnly: 포워드/디퍼드 렌더링 모두에서 이 패스로 그린다 (디퍼드에서는 UniversalForward 불투명 패스가 그려지지 않음)
+            Tags { "LightMode"="UniversalForwardOnly" }
             Cull Back
             ZWrite On
 
@@ -175,11 +187,16 @@ Shader "LastTruck/StylizedCharacter"
 
                 half nov = saturate(dot(N, V));
                 half rimBase = 1.0h - nov;
-                half rimMask = smoothstep(_RimThreshold - _RimSoftness, _RimThreshold + _RimSoftness, rimBase);
-                half rimStrength = lerp(_RimDay, _RimNight, saturate(_GameNightFactor));
+                half night = saturate(_GameNightFactor);
+                // 밤에는 림 폭을 넓혀 실루엣 전체가 달빛에 테두리지듯 보이게 한다
+                half rimTh = _RimThreshold - _RimNightWiden * night;
+                half rimMask = smoothstep(rimTh - _RimSoftness, rimTh + _RimSoftness, rimBase);
+                // 안개가 끼면 달빛 림도 옅어진다
+                half rimStrength = lerp(_RimDay, _RimNight, night) * (1.0h - 0.5h * saturate(_GameWeatherFog) * night);
+                half3 rimColor = lerp(_RimColor.rgb, _RimNightColor.rgb, night);
                 // 낮에는 빛이 닿는 쪽에서 림이 강하고, 밤에는 사방에서 윤곽을 잡아 준다
                 half rimLightFacing = saturate(dot(N, mainLight.direction) * 0.5h + 0.6h);
-                half3 rim = _RimColor.rgb * rimMask * rimStrength * lerp(rimLightFacing, 1.0h, saturate(_GameNightFactor));
+                half3 rim = rimColor * rimMask * rimStrength * lerp(rimLightFacing, 1.0h, saturate(_GameNightFactor));
 
                 // 추가 라이트(보조 태양/횃불/트럭 헤드라이트 등): 톤 램프 + 림에 색을 더한다
                 half3 extra = 0;
@@ -220,7 +237,9 @@ Shader "LastTruck/StylizedCharacter"
                 half3 ambient = SampleSH(N) * _AmbientStrength;
                 half3 color = ramp * lightNorm * 1.15h + albedo * ambient * 0.6h + spec;
                 // 어두운 곳에서도 톤이 죽지 않게 최소 밝기 보정
-                color = max(color, albedo * _ShadeColor.rgb * 0.14h);
+                // 밤에는 바닥 밝기를 올려 캐릭터가 어둠에 묻히지 않게 한다 (달빛 색조)
+                half floorK = lerp(0.14h, _NightMinBrightness, night);
+                color = max(color, albedo * lerp(_ShadeColor.rgb, _RimNightColor.rgb * 0.8h + 0.2h, night) * floorK);
 
                 // 환경 반사(스카이/큐브맵) + 프레넬
                 half3 reflVec = reflect(-V, N);
@@ -229,7 +248,7 @@ Shader "LastTruck/StylizedCharacter"
                 half reflBoost = lerp(1.0h, 1.8h, saturate(_GameNightFactor));
                 color += env * fres * _ReflectStrength * reflBoost;
 
-                color += rim + extraRim * _RimColor.rgb * rimStrength * 0.6h;
+                color += rim + extraRim * rimColor * rimStrength * 0.6h;
                 color += _EmissionColor.rgb;
                 color = lerp(color, _FlashColor.rgb, _HitFlash);
 
@@ -271,8 +290,10 @@ Shader "LastTruck/StylizedCharacter"
 
             half4 fragOutline(V i) : SV_Target
             {
-                half3 c = _OutlineColor.rgb;
-                c = MixFog(c, i.fogFactor);
+                // 밤에는 아웃라인이 은은한 달빛 테두리로 빛나서 어두운 바닥에서도 캐릭터 윤곽이 보인다
+                half3 c = lerp(_OutlineColor.rgb, _OutlineNightColor.rgb, saturate(_GameNightFactor) * _OutlineNightGlow);
+                // 밤 안개에 테두리가 완전히 묻히지 않게 일부만 안개를 섞는다
+                c = lerp(MixFog(c, i.fogFactor), c, 0.5h * saturate(_GameNightFactor) * _OutlineNightGlow);
                 return half4(c, 1);
             }
             ENDHLSL
@@ -352,6 +373,33 @@ Shader "LastTruck/StylizedCharacter"
             struct V { float4 positionCS : SV_POSITION; half3 normalWS : TEXCOORD0; };
             V vertDN(A input) { V o; o.positionCS = TransformObjectToHClip(input.positionOS.xyz); o.normalWS = TransformObjectToWorldNormal(input.normalOS); return o; }
             half4 fragDN(V i) : SV_Target { return half4(NormalizeNormalPerPixel(i.normalWS), 0); }
+            ENDHLSL
+        }
+
+        // 디퍼드: 포워드 전용 물체의 노멀은 이 패스로 그린다 (SSAO/화면 공간 반사광이 캐릭터 노멀을 읽음)
+        Pass
+        {
+            Name "DepthNormalsOnly"
+            Tags { "LightMode"="DepthNormalsOnly" }
+            ZWrite On Cull Back
+
+            HLSLPROGRAM
+            #pragma vertex vertDN
+            #pragma fragment fragDN
+            #pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT
+            struct A { float4 positionOS : POSITION; float3 normalOS : NORMAL; };
+            struct V { float4 positionCS : SV_POSITION; half3 normalWS : TEXCOORD0; };
+            V vertDN(A input) { V o; o.positionCS = TransformObjectToHClip(input.positionOS.xyz); o.normalWS = TransformObjectToWorldNormal(input.normalOS); return o; }
+            half4 fragDN(V i) : SV_Target
+            {
+                float3 n = NormalizeNormalPerPixel(i.normalWS);
+            #if defined(_GBUFFER_NORMALS_OCT)
+                float2 oct = PackNormalOctQuadEncode(n) * 0.5 + 0.5;
+                return half4(PackFloat2To888(oct), 0);
+            #else
+                return half4(n, 0);
+            #endif
+            }
             ENDHLSL
         }
     }
