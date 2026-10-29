@@ -667,6 +667,15 @@ namespace Combat
                     throwSpeed = 14f, effectColor = new Color(0.55f, 0.5f, 0.45f),
                 }
             },
+            {
+                // 투척용 돌멩이: 돌로 싸게 만드는 초반 원거리 공격. 폭발 없이 맞은 곳 근처 한 대상 정도만 맞는다.
+                ItemIds.ThrowingStone, new WeaponStats
+                {
+                    behavior = WeaponBehavior.Throw, damage = 12, range = 16f, cooldown = 0.7f,
+                    blastRadius = 1.0f, gasDuration = 0f, gasTickInterval = 0f, gasTickDamage = 0,
+                    throwSpeed = 17f, effectColor = new Color(0.62f, 0.6f, 0.56f),
+                }
+            },
         };
 
         private void Awake()

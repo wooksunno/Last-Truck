@@ -14,7 +14,7 @@ Shader "Custom/TruckRoofClip"
         Pass
         {
             Name "ForwardLit"
-            Tags { "LightMode"="UniversalForward" }
+            Tags { "LightMode"="UniversalForwardOnly" }   // 디퍼드에서도 그려지게
             Cull Back
             ZWrite On
 

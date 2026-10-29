@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 93e36d5c2d27c5349a62769ba85115a0, type: 3}
+  m_Name: tuned_engine
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.ItemData
+  itemID: tuned_engine
+  itemName: "\uAC1C\uC870 \uC5D4\uC9C4"
+  itemType: 2
+  isWeapon: 0
+  maxStack: 1
+  icon: {fileID: 21300000, guid: 755e73b054b24dcbb1aa99d0f8582a33, type: 3}
+  toolTier: 0

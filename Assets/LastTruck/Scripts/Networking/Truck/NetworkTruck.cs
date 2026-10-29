@@ -51,6 +51,13 @@ namespace LastTruck.Networking
         [Networked] public NetworkBool HasPose { get; set; }
         [Networked, OnChangedRender(nameof(OnLightsRender))] public NetworkBool LightsOn { get; set; }
 
+        // 트럭 파츠(자리별 아이템 번호+1, 0 = 없음) / 강화 레벨 / 포탑 방향. 호스트가 TruckUpgradeState 값을 그대로 쓴다.
+        public const int TurretSeat = 1;
+        [Networked, Capacity(CraftingSystem.TruckUpgradeRules.SlotCount)] private NetworkArray<int> PartItems => default;
+        [Networked, Capacity(CraftingSystem.TruckUpgradeRules.StatCount)] private NetworkArray<int> UpgradeLevels => default;
+        [Networked] private int UpgradeRevision { get; set; }
+        [Networked] public float TurretYaw { get; set; }
+
         #endregion
 
         #region 정적 조회
@@ -135,6 +142,7 @@ namespace LastTruck.Networking
             {
                 for (int i = 0; i < SeatCount; i++) Seats.Set(i, PlayerRef.None);
                 LightsOn = false;
+                _upgradeDirty = true;
 
                 // 호스트: 물리 스텝 사이도 매 프레임 부드러운 위치를 쓰도록 보간을 켠다 (보내는 위치가 덜 튄다).
                 if (_rigidbody != null) _rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
@@ -165,6 +173,7 @@ namespace LastTruck.Networking
 
             ValidateSeats();
             ApplyDriverInput();
+            WriteUpgrades();
 
             TruckPosition = _truck.transform.position;
             TruckRotation = _truck.transform.rotation;
@@ -232,7 +241,12 @@ namespace LastTruck.Networking
             if (HorizontalDistance(character.transform.position, _truck.transform.position) > boardDistance) return;
 
             int seat = -1;
-            if (Seats[DriverSeat] == PlayerRef.None)
+            // 밤에는 운전석이 쓸모없으니, 포탑이 있으면 포탑 사수 자리부터 채운다
+            if (GameManager.IsNight && HasTurret && Seats[TurretSeat] == PlayerRef.None)
+            {
+                seat = TurretSeat;
+            }
+            else if (Seats[DriverSeat] == PlayerRef.None)
             {
                 seat = DriverSeat;
             }
@@ -312,6 +326,191 @@ namespace LastTruck.Networking
 
         #endregion
 
+        #region 트럭 파츠 / 강화 / 포탑
+
+        private CraftingSystem.TruckUpgradeState _upgrades;
+        private CraftingSystem.TruckUpgradeState _subscribedUpgrades;
+        private bool _upgradeDirty = true;
+        private int _appliedUpgradeRevision = -1;
+
+        private CraftingSystem.TruckUpgradeState Upgrades
+        {
+            get
+            {
+                if (_upgrades == null && FindTruck()) _upgrades = _truck.GetComponent<CraftingSystem.TruckUpgradeState>();
+                return _upgrades;
+            }
+        }
+
+        private bool HasTurret => Upgrades != null && Upgrades.HasTurret;
+
+        private static CraftingSystem.TruckInventory FindTruckInventory() => FindFirstObjectByType<CraftingSystem.TruckInventory>();
+
+        /// <summary>호스트: 파츠/강화가 바뀌었으면 네트워크 값으로 쓴다.</summary>
+        private void WriteUpgrades()
+        {
+            var state = Upgrades;
+            if (state == null) return;
+            if (_subscribedUpgrades != state)
+            {
+                if (_subscribedUpgrades != null) _subscribedUpgrades.Changed -= MarkUpgradeDirty;
+                _subscribedUpgrades = state;
+                state.Changed += MarkUpgradeDirty;
+                _upgradeDirty = true;
+            }
+            if (!_upgradeDirty) return;
+            _upgradeDirty = false;
+
+            var catalog = CraftingSystem.ItemCatalog.GetOrCreate();
+            string[] parts = state.PartsCopy();
+            for (int i = 0; i < parts.Length; i++)
+            {
+                var item = string.IsNullOrEmpty(parts[i]) ? null : catalog.GetItem(parts[i]);
+                PartItems.Set(i, item != null ? ItemIndexLookup.IndexOf(item) + 1 : 0);
+            }
+            int[] levels = state.LevelsCopy();
+            for (int i = 0; i < levels.Length; i++) UpgradeLevels.Set(i, levels[i]);
+            UpgradeRevision++;
+        }
+
+        private void MarkUpgradeDirty() => _upgradeDirty = true;
+
+        /// <summary>클라이언트: 호스트가 쓴 파츠/강화 값을 트럭에 넣는다.</summary>
+        private void ReadUpgrades()
+        {
+            if (HasStateAuthority || UpgradeRevision == 0 || UpgradeRevision == _appliedUpgradeRevision || Upgrades == null) return;
+            _appliedUpgradeRevision = UpgradeRevision;
+            var parts = new string[CraftingSystem.TruckUpgradeRules.SlotCount];
+            for (int i = 0; i < parts.Length; i++)
+            {
+                var item = ItemIndexLookup.ItemAt(PartItems[i] - 1);
+                parts[i] = item != null ? item.itemID : null;
+            }
+            var levels = new int[CraftingSystem.TruckUpgradeRules.StatCount];
+            for (int i = 0; i < levels.Length; i++) levels[i] = UpgradeLevels[i];
+            Upgrades.SetState(parts, levels);
+        }
+
+        /// <summary>내가 바로 바꿔도 되는가 (싱글 또는 호스트). 아니면 호스트에게 요청한다.</summary>
+        private static bool ApplyLocally => !GameLauncher.IsOnlineSession || !IsReady || Instance.HasStateAuthority;
+
+        private static void Toast(string message)
+        {
+            if (!string.IsNullOrEmpty(message)) HudToast.Show(message);
+        }
+
+        /// <summary>트럭 보관함의 파츠를 장착 (UI에서 부른다).</summary>
+        public static void InstallPart(CraftingSystem.ItemData part)
+        {
+            if (part == null) return;
+            if (ApplyLocally)
+            {
+                var state = CraftingSystem.TruckUpgradeState.Instance;
+                if (state == null) return;
+                state.TryInstall(part, FindTruckInventory(), out string msg);
+                Toast(msg);
+                return;
+            }
+            int index = ItemIndexLookup.IndexOf(part);
+            if (index >= 0) Instance.RPC_InstallPart(index);
+        }
+
+        public static void RemovePart(CraftingSystem.TruckPartSlot slot)
+        {
+            if (ApplyLocally)
+            {
+                var state = CraftingSystem.TruckUpgradeState.Instance;
+                if (state == null) return;
+                state.TryRemove(slot, FindTruckInventory(), out string msg);
+                Toast(msg);
+                return;
+            }
+            Instance.RPC_RemovePart((int)slot);
+        }
+
+        public static void Upgrade(CraftingSystem.TruckStat stat)
+        {
+            if (ApplyLocally)
+            {
+                var state = CraftingSystem.TruckUpgradeState.Instance;
+                if (state == null) return;
+                state.TryUpgrade(stat, FindTruckInventory(), out string msg);
+                Toast(msg);
+                return;
+            }
+            Instance.RPC_Upgrade((int)stat);
+        }
+
+        public static void SendTurretAim(float yaw) { if (IsReady) Instance.RPC_TurretAim(yaw); }
+        public static void SendTurretFire(Vector3 aimPoint) { if (IsReady) Instance.RPC_TurretFire(aimPoint); }
+        public static void SendTurretCraftAmmo() { if (IsReady) Instance.RPC_TurretCraftAmmo(); }
+
+        /// <summary>호스트: 포탑 발사 연출을 모두에게.</summary>
+        public static void BroadcastTurretShot(Vector3 from, Vector3 to)
+        {
+            if (IsReady) Instance.RPC_TurretShot(from, to);
+            else if (CraftingSystem.TruckTurret.Instance != null) CraftingSystem.TruckTurret.Instance.ShowShot(from, to);
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_InstallPart(int itemIndex, RpcInfo info = default)
+        {
+            if (Upgrades == null) return;
+            Upgrades.TryInstall(ItemIndexLookup.ItemAt(itemIndex), FindTruckInventory(), out string msg);
+            RPC_Toast(SourceOf(info), msg ?? "");
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_RemovePart(int slot, RpcInfo info = default)
+        {
+            if (Upgrades == null || slot < 0 || slot >= CraftingSystem.TruckUpgradeRules.SlotCount) return;
+            Upgrades.TryRemove((CraftingSystem.TruckPartSlot)slot, FindTruckInventory(), out string msg);
+            RPC_Toast(SourceOf(info), msg ?? "");
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_Upgrade(int stat, RpcInfo info = default)
+        {
+            if (Upgrades == null || stat < 0 || stat >= CraftingSystem.TruckUpgradeRules.StatCount) return;
+            Upgrades.TryUpgrade((CraftingSystem.TruckStat)stat, FindTruckInventory(), out string msg);
+            RPC_Toast(SourceOf(info), msg ?? "");
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_TurretAim(float yaw, RpcInfo info = default)
+        {
+            if (Seats[TurretSeat] == SourceOf(info)) TurretYaw = yaw;
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_TurretFire(Vector3 aimPoint, RpcInfo info = default)
+        {
+            PlayerRef source = SourceOf(info);
+            if (Seats[TurretSeat] != source || CraftingSystem.TruckTurret.Instance == null) return;
+            if (!CraftingSystem.TruckTurret.Instance.HostFire(aimPoint, out string msg) && !string.IsNullOrEmpty(msg))
+                RPC_Toast(source, msg);
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_TurretCraftAmmo(RpcInfo info = default)
+        {
+            PlayerRef source = SourceOf(info);
+            if (Seats[TurretSeat] != source || CraftingSystem.TruckTurret.Instance == null) return;
+            CraftingSystem.TruckTurret.Instance.HostCraftAmmo(out string msg);
+            RPC_Toast(source, msg ?? "");
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_TurretShot(Vector3 from, Vector3 to)
+        {
+            if (CraftingSystem.TruckTurret.Instance != null) CraftingSystem.TruckTurret.Instance.ShowShot(from, to);
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_Toast([RpcTarget] PlayerRef target, string message) => Toast(message);
+
+        #endregion
+
         #region 요청 RPC (클라이언트 → 호스트)
 
         /// <summary>트럭 상호작용(E)에서 부른다 (TruckInteractable).</summary>
@@ -376,6 +575,7 @@ namespace LastTruck.Networking
         public override void Render()
         {
             if (!FindTruck()) return;
+            ReadUpgrades();
 
             // 클라이언트: 트럭 물리를 끄고 호스트 위치를 따라간다 (스냅샷 보간으로 부드럽게).
             if (!HasStateAuthority && HasPose)
@@ -458,6 +658,14 @@ namespace LastTruck.Networking
                 _localSeat = seat;
                 _localSeatChangedTime = Time.time;
                 OnLocalSeatChanged(previous, seat);
+            }
+
+            // 동승석 1번 = 포탑 사수 (포탑이 있을 때)
+            var turret = CraftingSystem.TruckTurret.Instance;
+            if (turret != null)
+            {
+                if (seat == TurretSeat && HasTurret) turret.LocalGunnerUpdate();
+                else if (turret.LocalGunning) turret.StopLocalGunner();
             }
 
             if (seat < 0 || Time.time - _localSeatChangedTime < exitCooldown) return;

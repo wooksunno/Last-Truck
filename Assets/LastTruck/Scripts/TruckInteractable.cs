@@ -16,6 +16,16 @@ namespace LastTruck
         private GameObject driverPlayer;
         private float driveStartTime;
         private CraftingSystem.TruckRepair _repair;
+        private bool isGunning;   // 싱글플레이: 트럭 안에서 포탑을 잡고 있다 (T로 운전 ↔ 포탑, 포탑 중엔 트럭이 선다)
+
+        private bool HasTurret
+        {
+            get
+            {
+                var state = GetComponent<CraftingSystem.TruckUpgradeState>();
+                return state != null && state.HasTurret;
+            }
+        }
 
         // 수리 아이템을 들고 있고 트럭이 손상된 경우에만 E키를 꾹 눌러야 한다(그 외엔 즉시 탑승).
         public float RequiredHoldSeconds
@@ -40,11 +50,25 @@ namespace LastTruck
 
         private void Update()
         {
+            if (isDriving && isGunning && !HasTurret) SetGunning(false);   // 포탑을 떼어냈다
+
+            if (isDriving && isGunning)
+            {
+                var turret = GetComponent<CraftingSystem.TruckTurret>();
+                if (turret != null) turret.LocalGunnerUpdate();
+            }
+
             if (isDriving && Time.time >= driveStartTime + exitCooldown)
             {
-                // 운전 중에 밤이 되면 트럭을 세우고 내리게 한다
-                if (GameManager.IsNight)
+                // 운전 중에 밤이 되면 트럭을 세운다: 포탑이 있으면 포탑으로, 없으면 내리게 한다
+                if (GameManager.IsNight && !isGunning)
                 {
+                    if (HasTurret)
+                    {
+                        HudToast.Show("밤이 되어 트럭이 멈췄습니다. 포탑으로 버티세요!");
+                        SetGunning(true);
+                        return;
+                    }
                     HudToast.Show("밤이 되어 트럭에서 내렸습니다. 밤에는 트럭을 운전할 수 없습니다.");
                     GetOut_Truck();
                     return;
@@ -53,6 +77,11 @@ namespace LastTruck
                 if (Input.GetKeyDown(KeyCode.E))
                 {
                     GetOut_Truck();
+                }
+                else if (Input.GetKeyDown(KeyCode.T) && HasTurret)
+                {
+                    if (isGunning && GameManager.IsNight) HudToast.Show("밤에는 운전할 수 없습니다.");
+                    else SetGunning(!isGunning);
                 }
             }
         }
@@ -63,8 +92,8 @@ public void Interact(GameObject player)
             if (_repair != null && _repair.TryRepair(player))
                 return;
 
-            // 밤에는 운전할 수 없다 (낮에 이동하고 밤에는 트럭 거점에서 버틴다)
-            if (GameManager.IsNight && !isDriving)
+            // 밤에는 운전할 수 없다 (낮에 이동하고 밤에는 트럭 거점에서 버틴다). 포탑이 있으면 사수로는 탈 수 있다.
+            if (GameManager.IsNight && !isDriving && (!HasTurret || LastTruck.Networking.GameLauncher.IsOnlineSession))
             {
                 HudToast.Show("밤에는 트럭을 운전할 수 없습니다. 날이 밝을 때까지 버티세요.");
                 return;
@@ -81,7 +110,18 @@ public void Interact(GameObject player)
             if (!isDriving)
             {
                 GetIn_Truck(player);
+                if (GameManager.IsNight && HasTurret) SetGunning(true);
             }
+        }
+
+        /// <summary>싱글플레이: 운전 ↔ 포탑 사수. 포탑을 잡는 동안 트럭은 멈춘다.</summary>
+        private void SetGunning(bool on)
+        {
+            isGunning = on;
+            if (truckController != null) truckController.isDriving = !on;
+            var turret = GetComponent<CraftingSystem.TruckTurret>();
+            if (turret != null && !on) turret.StopLocalGunner();
+            if (on) HudToast.Show("포탑 사수   마우스: 조준   좌클릭: 발사   R: 탄환 만들기   T: 운전석으로");
         }
 
         private void GetIn_Truck(GameObject player)
@@ -127,6 +167,7 @@ public void Interact(GameObject player)
         private void GetOut_Truck()
         {
             if (driverPlayer == null) { return; }
+            if (isGunning) SetGunning(false);
             isDriving = false;
             gameObject.tag = "Untagged";
 
