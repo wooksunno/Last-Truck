@@ -25,6 +25,11 @@ namespace CraftingSystem
         [Tooltip("채집 도구 등급. 0 = 도구 아님. 값이 클수록 상위 등급 자원도 채집 가능.")]
         public int toolTier = 0;
 
+        [Tooltip("도구/무기 내구도 (채집·공격 1회마다 1씩 닳고, 0이 되면 부서져 사라진다). 0 = 닳지 않음.")]
+        public int maxDurability = 0;
+
+        public bool HasDurability => maxDurability > 0;
+
         public static ItemData CreateRuntime(
             string id,
             string displayName,

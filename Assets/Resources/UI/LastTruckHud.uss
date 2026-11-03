@@ -1,0 +1,31 @@
+/* Last Truck HUD (UI Toolkit). 판 모양은 코드에서 Kenney 스프라이트를 입히고, 여기서는 배치/글자/막대 색만 정한다. */
+.lt-root { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+
+.lt-text {
+    color: rgb(255, 244, 220);
+    -unity-font-style: bold;
+    font-size: 20px;
+    -unity-text-outline-width: 1.2px;
+    -unity-text-outline-color: rgba(38, 22, 8, 0.95);
+}
+
+.lt-status-plate { position: absolute; right: 36px; top: 276px; width: 290px; padding: 18px 22px 16px 22px; }
+.lt-truck-plate  { position: absolute; top: 10px; left: 50%; translate: -50% 0; width: 480px; padding: 16px 28px 14px 28px; }
+
+.lt-row   { flex-direction: row; align-items: center; height: 30px; margin: 2px 0; }
+.lt-tag   { width: 54px; font-size: 20px; -unity-text-align: middle-left; }
+.lt-track {
+    flex-grow: 1; height: 24px; justify-content: center; overflow: hidden;
+    background-color: rgba(28, 16, 8, 0.92);
+    border-radius: 12px; border-width: 2px; border-color: rgba(255, 236, 190, 0.45);
+}
+.lt-fill  { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; border-radius: 10px; }
+.lt-fill-hp    { background-color: rgb(236, 84, 74); }
+.lt-fill-sp    { background-color: rgb(244, 200, 64); }
+.lt-fill-tired { background-color: rgb(140, 128, 116); }
+.lt-fill-truck { background-color: rgb(92, 204, 86); }
+.lt-shine { position: absolute; left: 6px; right: 6px; top: 2px; height: 5px; border-radius: 3px; background-color: rgba(255, 255, 255, 0.28); }
+.lt-value { position: absolute; left: 0; right: 0; top: 0; bottom: 0; -unity-text-align: middle-center; font-size: 15px; }
+
+.lt-toast { position: absolute; bottom: 190px; left: 50%; translate: -50% 0; min-width: 380px; padding: 18px 36px; align-items: center; }
+.lt-toast-text { font-size: 24px; color: rgb(255, 214, 120); -unity-text-align: middle-center; white-space: normal; }

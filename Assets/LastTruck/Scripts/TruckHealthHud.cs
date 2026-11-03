@@ -107,6 +107,13 @@ namespace LastTruck
 
         private void Update()
         {
+            // UI Toolkit HUD(LastTruckHud)가 트럭 내구도 판을 대신 그린다. 이 uGUI 막대는 HUD를 못 쓸 때만 쓴다.
+            if (LastTruckHud.IsReady)
+            {
+                _group.alpha = 0f;
+                return;
+            }
+
             if (_truck == null)
             {
                 _group.alpha = 0f;

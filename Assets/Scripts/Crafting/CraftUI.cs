@@ -97,6 +97,7 @@ namespace CraftingSystem
         {
             var rt = Mk(name, parent);
             var img = Img(rt, Round, interactable ? color : BtnOff, true, true);
+            LastTruck.UiSkinUtil.SkinButton(img, color, interactable);   // UI 스킨이 있으면 Kenney 단추 모양
             var b = rt.gameObject.AddComponent<Button>(); b.targetGraphic = img;
             var cb = b.colors; cb.highlightedColor = CardHover; cb.pressedColor = new Color(0.8f, 0.78f, 0.75f, 1f); cb.disabledColor = Color.white; b.colors = cb;
             b.interactable = interactable;
@@ -120,6 +121,21 @@ namespace CraftingSystem
             var cb = b.colors; cb.highlightedColor = CardHover; cb.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f); b.colors = cb;
             if (onClick != null) b.onClick.AddListener(onClick);
             var lt = Mk("Label", rt); Stretch(lt, 4, 0, 4, 2);
+
+            // 분류 이름이면 글자 대신 그 분류의 대표 아이템 그림 (없으면 글자)
+            Sprite categoryIcon = TruckCodexView.CategoryIconByName(label);
+            if (categoryIcon != null)
+            {
+                var icon = Mk("CategoryIcon", rt);
+                icon.anchorMin = icon.anchorMax = new Vector2(0.5f, 0.5f);
+                icon.pivot = new Vector2(0.5f, 0.5f);
+                icon.anchoredPosition = new Vector2(0f, 1f);
+                icon.sizeDelta = new Vector2(selected ? 40f : 34f, selected ? 40f : 34f);
+                var im = Img(icon, categoryIcon, selected ? Color.white : new Color(1f, 1f, 1f, 0.8f), false);
+                im.preserveAspect = true;
+                return b;
+            }
+
             Txt(lt, label, selected ? 19 : 17, FontStyle.Bold, selected ? new Color(0.18f, 0.12f, 0.06f, 1f) : Cream, TextAnchor.MiddleCenter);
             return b;
         }

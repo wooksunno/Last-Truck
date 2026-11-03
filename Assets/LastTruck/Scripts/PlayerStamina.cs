@@ -110,6 +110,14 @@ namespace LastTruck
             Tick(canMove && moving && Input.GetKey(KeyCode.LeftShift), dt);
         }
 
+        /// <summary>음식/각성제로 스태미나를 즉시 채운다. 지쳐서 못 달리는 상태도 풀린다.</summary>
+        public void Restore(float amount)
+        {
+            Current = Mathf.Min(maxStamina, Current + Mathf.Max(0f, amount));
+            if (Exhausted && Current >= maxStamina * resumeRatio)
+                Exhausted = false;
+        }
+
         private void Tick(bool wantSprint, float dt)
         {
             if (wantSprint && !Exhausted && Current > 0f)
@@ -136,6 +144,14 @@ namespace LastTruck
 
         private void UpdateBar()
         {
+            // UI Toolkit HUD(LastTruckHud)가 스태미나 줄을 대신 그린다. 예전 uGUI 막대는 HUD를 못 쓸 때만 쓴다.
+            if (LastTruckHud.IsReady)
+            {
+                if (_bar != null && _bar.transform.parent != null && _bar.transform.parent.gameObject.activeSelf)
+                    _bar.transform.parent.gameObject.SetActive(false);
+                return;
+            }
+
             if (_bar == null)
             {
                 if (Time.unscaledTime < _nextFindBar) return;

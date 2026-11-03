@@ -57,7 +57,7 @@ namespace CraftingSystem
         private CraftingCategory _craftingCategory = CraftingCategory.Tools;
         private ItemData _withdrawItem;
         // 보관함 정렬/분류: 열 때마다 초기화되지 않도록 기억해 둔다
-        private int _storageCategory = -1;   // -1 = 전체, 0~6 = TruckCodexView.CategoryNames 순서
+        private int _storageCategory = -1;   // -1 = 전체, 0~7 = TruckCodexView.CategoryNames 순서
         private int _storageSort;            // 0 = 종류순, 1 = 이름순, 2 = 수량순
         private static readonly string[] StorageSortLabels = { "종류순", "이름순", "수량 많은 순" };
         private PouchInventory _activePouch;
@@ -156,9 +156,30 @@ private int _withdrawMax;
                 RectTransform keyText = CraftUI.Mk("Text", key);
                 CraftUI.Stretch(keyText);
                 CraftUI.Txt(keyText, "Tab", 20, FontStyle.Bold, new Color(0.18f, 0.12f, 0.06f), TextAnchor.MiddleCenter);
+
+                // UI 스킨이 있으면 나무 판 + 단추 모양으로 (금색 링은 숨긴다)
+                var skin = LastTruck.LastTruckUiSkin.Get();
+                if (skin != null && LastTruck.UiSkinUtil.SetSliced(pill.GetComponent<Image>(), skin.panelBrownDark, new Color(0.62f, 0.52f, 0.46f, 1f), 1.7f))
+                {
+                    Transform ringT = pill.Find("Border");
+                    if (ringT != null) ringT.gameObject.SetActive(false);
+                    LastTruck.UiSkinUtil.SkinButton(key.GetComponent<Image>(), new Color(0.78f, 0.56f, 0.2f));
+                }
                 RectTransform label = CraftUI.Mk("Label", pill);
                 CraftUI.Stretch(label, 88f, 0f, 10f, 0f);
-                CraftUI.Txt(label, "트럭 거점 열기", 22, FontStyle.Bold, CraftUI.Cream, TextAnchor.MiddleLeft);
+                UnityEngine.UI.Image hintIcon = LastTruck.UiIcons.Make(label, "truck", new Vector2(44f, 44f));
+                if (hintIcon != null)
+                {
+                    // 글자 대신 트럭 그림 (Tab 키 + 트럭)
+                    var hrt = (RectTransform)hintIcon.transform;
+                    hrt.anchorMin = hrt.anchorMax = new Vector2(0f, 0.5f); hrt.pivot = new Vector2(0f, 0.5f);
+                    hrt.anchoredPosition = new Vector2(2f, 0f);
+                    pill.sizeDelta = new Vector2(190f, 56f);
+                }
+                else
+                {
+                    CraftUI.Txt(label, "트럭 거점 열기", 22, FontStyle.Bold, CraftUI.Cream, TextAnchor.MiddleLeft);
+                }
                 _truckHint = pill.gameObject;
             }
 
@@ -420,6 +441,8 @@ private void ShowPopup(string title, System.Action builder)
 
         // ---------- 팝업 오른쪽 책갈피 탭 (트럭 거점 / 제작 / 가공 / 도감) ----------
         private static readonly string[] TruckTabLabels = { "보관함", "제작", "가공", "도감", "강화" };
+        // 책갈피/원형 메뉴에 쓰는 그림 이름 (Resources/UI/Icons)
+        public static readonly string[] TabIconNames = { "crate", "hammer", "gear", "book", "upgrade" };
         private static readonly Color[] TruckTabColors =
         {
             new Color(0.50f, 0.74f, 0.96f), new Color(0.96f, 0.78f, 0.40f),
@@ -437,6 +460,14 @@ private void ShowPopup(string title, System.Action builder)
             if (_truckProcessingPanelOpen) return 2;
             if (_craftingPanelOpen) return 1;
             return 0;
+        }
+
+        /// <summary>원형 메뉴에서 고른 창(0 보관함 / 1 제작 / 2 가공 / 3 도감 / 4 강화)을 바로 연다.</summary>
+        public void OpenTruckAt(TruckStation truck, PlayerInventory player, int tabIndex)
+        {
+            OpenTruckPanel(truck, player);
+            if (tabIndex > 0)
+                OnTruckTab(tabIndex);
         }
 
         private void OnTruckTab(int index)
@@ -553,6 +584,17 @@ private void ShowPopup(string title, System.Action builder)
                     CraftUI.Stretch(label, 4f, 0f, 14f, 0f);
                     Text t = CraftUI.Txt(label, TruckTabLabels[i], 22, FontStyle.Bold, Color.white, TextAnchor.MiddleCenter);
                     t.name = "Label";
+
+                    // 글자 대신 그림 (그림 파일이 없으면 글자 그대로)
+                    UnityEngine.UI.Image tabIcon = LastTruck.UiIcons.Make(root, TabIconNames[i], new Vector2(48f, 48f));
+                    if (tabIcon != null)
+                    {
+                        var irt = (RectTransform)tabIcon.transform;
+                        irt.anchorMin = irt.anchorMax = new Vector2(0.44f, 0.5f);
+                        irt.anchoredPosition = Vector2.zero;
+                        tabIcon.name = "TabIcon";
+                        t.text = "";
+                    }
                     _truckTabRoots[i] = root;
                 }
             }
@@ -572,15 +614,19 @@ private void ShowPopup(string title, System.Action builder)
                 _truckTabBgs[i].color = sel ? c : new Color(c.r * 0.5f, c.g * 0.5f, c.b * 0.5f, 0.95f);
                 Text label = _truckTabRoots[i].Find("Label").GetComponent<Text>();
                 label.color = sel ? new Color(0.18f, 0.12f, 0.06f) : CraftUI.Cream;
+                Transform iconT = _truckTabRoots[i].Find("TabIcon");
+                UnityEngine.UI.Image tabIcon = iconT != null ? iconT.GetComponent<UnityEngine.UI.Image>() : null;
+                if (tabIcon != null) tabIcon.color = sel ? Color.white : new Color(1f, 1f, 1f, 0.8f);
 
                 // 가공 탭(2번)은 설비를 하나도 제작하지 않았으면 잠긴 모습(회색)으로 보인다
                 if (i == 2 && !TruckFacilities.AnyBuilt(ActiveTruckInventory))
                 {
                     _truckTabBgs[i].color = new Color(0.30f, 0.30f, 0.32f, 0.9f);
                     label.color = new Color(0.62f, 0.62f, 0.66f);
-                    label.text = TruckTabLabels[2];
+                    if (tabIcon != null) tabIcon.color = new Color(0.55f, 0.55f, 0.6f, 0.8f);
+                    else label.text = TruckTabLabels[2];
                 }
-                else if (i == 2)
+                else if (i == 2 && tabIcon == null)
                 {
                     label.text = TruckTabLabels[2];
                 }
@@ -692,12 +738,12 @@ private void ShowPopup(string title, System.Action builder)
             if (_activeTruck != null && !empty)
             {
                 // 멀티플레이: 호스트에게 요청 (모든 플레이어의 트럭 창에 반영된다)
-                LastTruck.Networking.TruckInventorySync.Deposit(_activeTruck.TruckInventory, playerInventory, slot.item, slot.count);
+                LastTruck.Networking.TruckInventorySync.Deposit(_activeTruck.TruckInventory, playerInventory, slot.item, slot.count, slot.CurrentDurability);
                 ShowPopup("트럭 거점", BuildTruckContent);
             }
             else if (_activePouch != null && !empty)
             {
-                TransferItem(playerInventory.Inventory, _activePouch.Inventory, slot.item, slot.count);
+                TransferItem(playerInventory.Inventory, _activePouch.Inventory, slot.item, slot.count, slot.CurrentDurability);
                 ShowPopup("가죽 파우치", BuildPouchContent);
             }
             else
@@ -736,23 +782,36 @@ private void ShowPopup(string title, System.Action builder)
                 {
                     if (_activeTruck != null)
                     {
-                        // 멀티플레이: 호스트에게 요청 (모든 플레이어의 트럭 창에 반영된다)
-                        LastTruck.Networking.TruckInventorySync.Deposit(_activeTruck.TruckInventory, playerInventory, captured.item, captured.count);
+                        // 멀티플레이: 호스트에게 요청 (모든 플레이어의 트럭 창에 반영된다). 도구/무기는 닳은 정도도 같이 넘긴다.
+                        LastTruck.Networking.TruckInventorySync.Deposit(_activeTruck.TruckInventory, playerInventory, captured.item, captured.count, captured.CurrentDurability);
                         ShowPopup("트럭 거점", BuildTruckContent);
                     }
                     else if (_activePouch != null)
                     {
-                        TransferItem(playerInventory.Inventory, _activePouch.Inventory, captured.item, captured.count);
+                        TransferItem(playerInventory.Inventory, _activePouch.Inventory, captured.item, captured.count, captured.CurrentDurability);
                         ShowPopup("가죽 파우치", BuildPouchContent);
                     }
-                }, isSelected);
+                }, isSelected, slot.DurabilityRatio);
             }
         }
 
-        private static void TransferItem(ItemStackInventory source, ItemStackInventory destination, ItemData item, int count)
+        private static void TransferItem(ItemStackInventory source, ItemStackInventory destination, ItemData item, int count, int durability = 0)
         {
             if (source == null || destination == null || item == null || count <= 0)
                 return;
+
+            // 도구/무기는 닳은 정도를 그대로 가진 "그" 도구를 옮긴다
+            if (item.HasDurability && durability > 0)
+            {
+                if (!source.RemoveDurable(item, durability))
+                    return;
+                if (!destination.AddItem(item, 1, durability))
+                {
+                    source.AddItem(item, 1, durability);   // 목적지가 꽉 찼다 → 되돌린다
+                    Debug.LogWarning("공간이 부족하여 아이템을 이동할 수 없습니다.");
+                }
+                return;
+            }
 
             if (destination.AddItem(item, count))
                 source.RemoveItem(item, count);
@@ -919,7 +978,7 @@ private void BuildPouchContent()
                 {
                     if (captured.item != null && captured.item.maxStack <= 1 && _activePlayer != null)
                     {
-                        TransferItem(_activePouch.Inventory, _activePlayer.Inventory, captured.item, captured.count);
+                        TransferItem(_activePouch.Inventory, _activePlayer.Inventory, captured.item, captured.count, captured.CurrentDurability);
                         ShowPopup("가죽 파우치", BuildPouchContent);
                         return;
                     }
@@ -927,7 +986,7 @@ private void BuildPouchContent()
                     _withdrawItem = captured.item;
                     _withdrawMax = captured.count;
                     ShowPopup("가죽 파우치", BuildPouchContent);
-                });
+                }, false, slot.DurabilityRatio);
             }
         }
 
@@ -1328,7 +1387,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                         {
                             PlayerInventory receiver = _activePlayer != null ? _activePlayer : playerInventory;
                             if (receiver != null)
-                                LastTruck.Networking.TruckInventorySync.Withdraw(truckInv, receiver, captured.item, captured.count);
+                                LastTruck.Networking.TruckInventorySync.Withdraw(truckInv, receiver, captured.item, captured.count, captured.CurrentDurability);
                             ShowPopup("트럭 거점", BuildTruckContent);
                             return;
                         }
@@ -1336,7 +1395,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                         _withdrawItem = captured.item;
                         _withdrawMax = captured.count;
                         ShowPopup("트럭 거점", BuildTruckContent);
-                    });
+                    }, false, slot.DurabilityRatio);
                 }
             }
 
@@ -1410,24 +1469,101 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 }
             }
 
-            RectTransform catRow = CreateToolbarRow(parent, "StorageCategories");
-            CreateToolbarChip(catRow, "전체 " + total, _storageCategory < 0, new Color(0.85f, 0.85f, 0.88f), 110f,
+            // 분류 칩에 쓸 대표 아이템 그림 (글자 대신)
+            ItemCatalog catalog = ItemCatalog.GetOrCreate();
+            string[] categoryItemIds = TruckCodexView.CategoryIconItems;
+            Sprite[] categoryIcons = new Sprite[names.Length];
+            bool useIcons = LastTruck.UiIcons.Get("grid") != null;
+            for (int i = 0; i < names.Length && i < categoryItemIds.Length; i++)
+            {
+                ItemData rep = catalog.GetItem(categoryItemIds[i]);
+                categoryIcons[i] = rep != null ? rep.icon : null;
+                if (categoryIcons[i] == null) useIcons = false;
+            }
+
+            if (!useIcons)
+            {
+                // 그림이 없으면 예전 글자 칩 (분류 줄 + 정렬 줄)
+                RectTransform catRow = CreateToolbarRow(parent, "StorageCategories");
+                CreateToolbarChip(catRow, "전체 " + total, _storageCategory < 0, new Color(0.85f, 0.85f, 0.88f), 110f,
+                    () => { _storageCategory = -1; ShowPopup("트럭 거점", BuildTruckContent); });
+                for (int i = 0; i < names.Length; i++)
+                {
+                    int idx = i;
+                    float w = Mathf.Max(96f, names[i].Length * 17f + 56f);
+                    CreateToolbarChip(catRow, names[i] + " " + counts[i], _storageCategory == i, colors[i], w,
+                        () => { _storageCategory = idx; ShowPopup("트럭 거점", BuildTruckContent); });
+                }
+
+                RectTransform sortRow = CreateToolbarRow(parent, "StorageSort");
+                CreateToolbarLabel(sortRow, "정렬", 60f);
+                for (int i = 0; i < StorageSortLabels.Length; i++)
+                {
+                    int idx = i;
+                    CreateToolbarChip(sortRow, StorageSortLabels[i], _storageSort == i, new Color(0.95f, 0.78f, 0.35f), 120f,
+                        () => { _storageSort = idx; ShowPopup("트럭 거점", BuildTruckContent); });
+                }
+                return;
+            }
+
+            // 그림 칩: [전체] [분류 8개: 대표 아이템 + 개수] ........ [정렬 3개: 종류/이름/수량]
+            RectTransform row = CreateToolbarRow(parent, "StorageToolbar");
+            CreateToolbarIconChip(row, LastTruck.UiIcons.Get("grid"), total.ToString(), _storageCategory < 0, new Color(0.85f, 0.85f, 0.88f), 92f,
                 () => { _storageCategory = -1; ShowPopup("트럭 거점", BuildTruckContent); });
             for (int i = 0; i < names.Length; i++)
             {
                 int idx = i;
-                float w = Mathf.Max(96f, names[i].Length * 17f + 56f);
-                CreateToolbarChip(catRow, names[i] + " " + counts[i], _storageCategory == i, colors[i], w,
+                CreateToolbarIconChip(row, categoryIcons[i], counts[i].ToString(), _storageCategory == i, colors[i], 84f,
                     () => { _storageCategory = idx; ShowPopup("트럭 거점", BuildTruckContent); });
             }
 
-            RectTransform sortRow = CreateToolbarRow(parent, "StorageSort");
-            CreateToolbarLabel(sortRow, "정렬", 60f);
-            for (int i = 0; i < StorageSortLabels.Length; i++)
+            var spacer = new GameObject("Spacer", typeof(RectTransform), typeof(LayoutElement));
+            spacer.transform.SetParent(row, false);
+            spacer.GetComponent<LayoutElement>().preferredWidth = 24f;
+
+            string[] sortIcons = { "grid", "sortname", "sortcount" };
+            for (int i = 0; i < sortIcons.Length; i++)
             {
                 int idx = i;
-                CreateToolbarChip(sortRow, StorageSortLabels[i], _storageSort == i, new Color(0.95f, 0.78f, 0.35f), 120f,
+                CreateToolbarIconChip(row, LastTruck.UiIcons.Get(sortIcons[i]), null, _storageSort == i, new Color(0.95f, 0.78f, 0.35f), 60f,
                     () => { _storageSort = idx; ShowPopup("트럭 거점", BuildTruckContent); });
+            }
+        }
+
+        /// <summary>그림 + (선택) 숫자만 있는 칩. 글자 없이 분류/정렬을 고른다.</summary>
+        private void CreateToolbarIconChip(RectTransform row, Sprite icon, string countText, bool selected, Color accent, float width,
+            UnityEngine.Events.UnityAction onClick)
+        {
+            Color bg = selected ? new Color(accent.r, accent.g, accent.b, 0.95f) : new Color(0.15f, 0.16f, 0.2f, 0.95f);
+            Button b = CreateButton(row, "Chip", "", new Vector2(0, 0.5f), new Vector2(0, 0.5f),
+                new Vector2(0, 0.5f), Vector2.zero, new Vector2(width, 40f), bg, onClick);
+            LastTruck.UiSkinUtil.SkinChip(b.GetComponent<Image>(), selected, accent);
+
+            Text t = b.GetComponentInChildren<Text>();
+            bool hasCount = !string.IsNullOrEmpty(countText);
+            if (t != null)
+            {
+                t.text = hasCount ? countText : "";
+                t.fontSize = 16;
+                t.fontStyle = FontStyle.Bold;
+                t.alignment = TextAnchor.MiddleRight;
+                t.color = selected ? new Color(0.15f, 0.12f, 0.09f) : new Color(1f, 0.95f, 0.82f);
+                t.rectTransform.offsetMin = new Vector2(0f, 0f);
+                t.rectTransform.offsetMax = new Vector2(-8f, 0f);
+            }
+
+            if (icon != null)
+            {
+                var go = new GameObject("Icon", typeof(RectTransform), typeof(Image));
+                go.transform.SetParent(b.transform, false);
+                var rt = (RectTransform)go.transform;
+                if (hasCount) { rt.anchorMin = rt.anchorMax = new Vector2(0f, 0.5f); rt.pivot = new Vector2(0f, 0.5f); rt.anchoredPosition = new Vector2(8f, 0f); }
+                else { rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f); rt.pivot = new Vector2(0.5f, 0.5f); rt.anchoredPosition = Vector2.zero; }
+                rt.sizeDelta = new Vector2(30f, 30f);
+                var img = go.GetComponent<Image>();
+                img.sprite = icon;
+                img.preserveAspect = true;
+                img.raycastTarget = false;
             }
         }
 
@@ -1463,6 +1599,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             Color bg = selected ? new Color(accent.r, accent.g, accent.b, 0.95f) : new Color(0.15f, 0.16f, 0.2f, 0.95f);
             Button b = CreateButton(row, "Chip_" + label, label, new Vector2(0, 0.5f), new Vector2(0, 0.5f),
                 new Vector2(0, 0.5f), Vector2.zero, new Vector2(width, 38f), bg, onClick);
+            bool skinned = LastTruck.UiSkinUtil.SkinChip(b.GetComponent<Image>(), selected, accent);
             Text t = b.GetComponentInChildren<Text>();
             if (t != null)
             {
@@ -1470,7 +1607,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 t.fontStyle = selected ? FontStyle.Bold : FontStyle.Normal;
                 t.color = selected ? new Color(0.15f, 0.12f, 0.09f) : new Color(0.9f, 0.88f, 0.82f);
             }
-            if (!selected)
+            if (!selected && !skinned)
             {
                 // 선택 안 된 칩은 분류 색을 가는 띠로만 보여준다
                 Outline o = b.gameObject.AddComponent<Outline>();
@@ -2911,6 +3048,12 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                     authoredJournalButton.onClick.RemoveAllListeners();
                     authoredJournalButton.onClick.AddListener(OpenJournal);
                 }
+
+                // UI 스킨(Kenney 나무 판 / 빨간 닫기 단추)이 있으면 입힌다. 없으면 예전 모양 그대로.
+                LastTruck.UiSkinUtil.SkinWindow(_popupRoot);
+                LastTruck.UiSkinUtil.SkinCloseButton(_closeButton);
+                if (authoredJournalButton != null)
+                    LastTruck.UiSkinUtil.SkinButton(authoredJournalButton.GetComponent<Image>(), new Color(0.72f, 0.52f, 0.2f));
                 return;
             }
 
@@ -3152,7 +3295,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
         private static readonly Color SlotHighlightOutline = new Color(1f, 0.85f, 0.2f, 1f);
 
         private void CreateInventorySlotView(Transform parent, ItemData item, int count, float size,
-            UnityEngine.Events.UnityAction onClick = null, bool isSelected = false)
+            UnityEngine.Events.UnityAction onClick = null, bool isSelected = false, float durability01 = 1f)
         {
             var go = new GameObject(item != null ? $"Slot_{item.itemID}" : "Slot_Empty",
                 typeof(RectTransform), typeof(Image), typeof(LayoutElement));
@@ -3165,6 +3308,8 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             Image slotBg = go.GetComponent<Image>();
             slotBg.color = isSelected ? SlotSelectedColor : SlotNormalColor;
             ApplyRounded(slotBg);
+            if (LastTruck.UiSkinUtil.SkinSlotBackground(slotBg))
+                slotBg.color = isSelected ? LastTruck.UiSkinUtil.SlotSelected : LastTruck.UiSkinUtil.SlotFilled;
             LayoutElement le = go.GetComponent<LayoutElement>();
             le.preferredWidth = size;
             le.preferredHeight = size + extra;
@@ -3213,6 +3358,31 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             nameText.alignment = TextAnchor.MiddleCenter;
             nameText.color = Color.white;
             nameText.text = item != null ? $"{item.itemName}\nx{count}" : "(빈 칸)";
+
+            // 도구 내구도 막대 (아이콘 아래쪽)
+            if (item != null && item.HasDurability)
+            {
+                float r = Mathf.Clamp01(durability01);
+                var back = new GameObject("DurabilityBar", typeof(RectTransform), typeof(Image));
+                back.transform.SetParent(go.transform, false);
+                RectTransform brt = (RectTransform)back.transform;
+                brt.anchorMin = new Vector2(0.12f, 0f); brt.anchorMax = new Vector2(0.88f, 0f);
+                brt.pivot = new Vector2(0.5f, 0f);
+                brt.anchoredPosition = new Vector2(0f, big ? 38f : 28f);
+                brt.sizeDelta = new Vector2(0f, 6f);
+                back.GetComponent<Image>().color = new Color(0.06f, 0.05f, 0.04f, 0.9f);
+                back.GetComponent<Image>().raycastTarget = false;
+
+                var fill = new GameObject("Fill", typeof(RectTransform), typeof(Image));
+                fill.transform.SetParent(back.transform, false);
+                RectTransform frt = (RectTransform)fill.transform;
+                frt.anchorMin = Vector2.zero; frt.anchorMax = new Vector2(r, 1f);
+                frt.offsetMin = new Vector2(1f, 1f); frt.offsetMax = new Vector2(-1f, -1f);
+                Image fi = fill.GetComponent<Image>();
+                fi.raycastTarget = false;
+                fi.color = r > 0.5f ? Color.Lerp(new Color(0.95f, 0.8f, 0.25f), new Color(0.45f, 0.85f, 0.35f), (r - 0.5f) * 2f)
+                                    : Color.Lerp(new Color(0.9f, 0.25f, 0.2f), new Color(0.95f, 0.8f, 0.25f), r * 2f);
+            }
         }
 
         private void CreateActionButton(RectTransform parent, string label, Color color, UnityEngine.Events.UnityAction onClick)

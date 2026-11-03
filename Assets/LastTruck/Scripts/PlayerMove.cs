@@ -22,6 +22,10 @@ namespace LastTruck
         [SerializeField] private KeyCode jumpKey = KeyCode.Space;
         [Tooltip("점프할 때 위로 주는 속도 (m/s).")]
         [SerializeField] private float jumpVelocity = 4.7f;
+        [Tooltip("올라갈 때 중력 배수. 클수록 점프가 짧고 묵직해진다 (점프 높이는 그대로 유지된다)")]
+        [SerializeField] private float jumpRiseGravity = 2.6f;
+        [Tooltip("내려올 때 중력 배수. 올라갈 때보다 크게 해서 둥둥 뜨는 느낌을 없앤다")]
+        [SerializeField] private float jumpFallGravity = 3.6f;
         [Tooltip("점프할 때 재생할 애니메이터 상태 이름.")]
         [SerializeField] private string jumpStateName = "Jumping Up";
 
@@ -284,7 +288,14 @@ namespace LastTruck
         [SerializeField] private float sprintMultiplier = 1.6f;
 
         private const float MaxFallSpeed = 30f;
-        private const float SprintAnimSpeed = 1.2f;
+        private float _airFallSpeed;   // 공중에서 가장 빨랐던 낙하 속도 (착지 연출용)
+        private SprintGate _sprintGate;   // Shift 연타 때 모션이 뒤집히지 않게 거르는 필터
+        private float _nextDustTime;
+        private float _sprintBlend;      // 0~1: 걷기 ↔ 달리기 속도가 서서히 바뀐다 (입력이 즉시 바뀌어도 속도는 부드럽게)
+        private const float SprintBlendPerSecond = 6f;
+
+        // 중력을 jumpRiseGravity배로 올려도 점프 높이가 같도록 이륙 속도를 √배수만큼 키운다
+        private float LaunchVelocity => jumpVelocity * Mathf.Sqrt(Mathf.Max(1f, jumpRiseGravity));
 
         private void Update()
         {
@@ -325,9 +336,17 @@ namespace LastTruck
                 anim.SetBool("isWalk", false);
 
                 // 달리기(Shift): 더 빠른 달리기 모션(Run Fast)이 있으면 그것을, 없으면 같은 달리기 모션을 빠르게 재생한다.
-                bool sprinting = isMoving && wDown;
+                // Shift를 눌렀다 뗐다 연타해도 달리기 모션이 끊겨 뒤틀리지 않게 상태를 잠깐 유지하고, 재생 속도도 부드럽게 바꾼다.
+                bool sprinting = _sprintGate.Update(isMoving && wDown) && isMoving;
                 anim.SetBool("isSprint", sprinting);
-                anim.speed = sprinting ? SprintAnimSpeed : 1f;
+                anim.speed = _sprintGate.StepAnimSpeed(sprinting, Time.deltaTime);
+
+                // 달리는 동안 발밑에 먼지가 인다
+                if (sprinting && _grounded && Time.time >= _nextDustTime)
+                {
+                    _nextDustTime = Time.time + 0.18f;
+                    MovementDust.SprintPuff(transform.position, transform.forward);
+                }
 
                 // 땅에 붙어있으면 점프/낙하 애니메이션 파라미터 해제
                 if (_grounded && !_jumping)
@@ -389,11 +408,33 @@ namespace LastTruck
             }
 
             // Shift = 달리기 (이전에는 Shift가 0.3배 느린 걷기였다). 활/화염방사 중 감속 등은 _speedMultiplier로 그대로 적용된다
-            float currentSpeed = speed * (wDown ? sprintMultiplier : 1f) * SpeedMultiplier;
+            _sprintBlend = Mathf.MoveTowards(_sprintBlend, wDown ? 1f : 0f, SprintBlendPerSecond * Time.fixedDeltaTime);
+            float currentSpeed = speed * Mathf.Lerp(1f, sprintMultiplier, _sprintBlend) * SpeedMultiplier;
 
             Vector3 targetVelocity = moveVec * currentSpeed;
 
+            bool wasGrounded = _grounded;
             CheckGround();
+
+            // 착지 카메라 연출: 공중에서 가장 빨랐던 낙하 속도를 기억했다가 땅에 닿는 순간 알린다
+#if UNITY_6000_0_OR_NEWER
+            float vyNow = rigidbody.linearVelocity.y;
+#else
+            float vyNow = rigidbody.velocity.y;
+#endif
+            if (_grounded)
+            {
+                if (!wasGrounded && _airFallSpeed > 3.5f)
+                {
+                    CameraEffects.NotifyLanded(_airFallSpeed);
+                    MovementDust.Landing(transform.position, _airFallSpeed);
+                }
+                _airFallSpeed = 0f;
+            }
+            else
+            {
+                _airFallSpeed = Mathf.Max(_airFallSpeed, -vyNow);
+            }
 
             // 점프 직후 잠깐은 땅에 붙이지 않는다 (붙이면 바로 다시 땅으로 끌려 내려옴)
             if (_jumping && _grounded && Time.time - _jumpStartTime > 0.15f) _jumping = false;
@@ -412,7 +453,7 @@ namespace LastTruck
                 {
                     _jumping = true;
                     _jumpStartTime = Time.time;
-                    targetVelocity.y = jumpVelocity;
+                    targetVelocity.y = LaunchVelocity;
                     rigidbody.useGravity = true;
                     PlayJumpAnimation();
 
@@ -455,7 +496,11 @@ namespace LastTruck
 #endif
                 // 점프 중에도 위로 가는 속도는 점프 속도를 넘지 못하게 한다.
                 // (벽 모서리에 끼면 충돌 해소가 위로 밀어내는 속도를 매 프레임 더해서 하늘로 날아가던 문제)
-                targetVelocity.y = _jumping ? Mathf.Clamp(currentY, -MaxFallSpeed, jumpVelocity) : Mathf.Clamp(currentY, -MaxFallSpeed, 0f);
+                // 중력을 더 세게: 기본 중력(useGravity)에 배수만큼 더 얹는다. 올라갈 때보다 내려올 때 더 세게 끌어당긴다
+                float gScale = currentY > 0f ? jumpRiseGravity : jumpFallGravity;
+                currentY += Physics.gravity.y * (gScale - 1f) * Time.fixedDeltaTime;
+
+                targetVelocity.y = _jumping ? Mathf.Clamp(currentY, -MaxFallSpeed, LaunchVelocity) : Mathf.Clamp(currentY, -MaxFallSpeed, 0f);
 
                 // 공중에서 아래로 떨어지는 중(Y 속도가 음수)일 때 낙하 애니메이션 파라미터 켜기
                 if (anim != null && !(_grounded))

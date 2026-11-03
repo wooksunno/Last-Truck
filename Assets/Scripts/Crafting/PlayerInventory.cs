@@ -141,10 +141,11 @@ namespace CraftingSystem
 
             ItemData item = slot.item;
             int amount = Mathf.Clamp(count, 1, slot.count);
+            int durability = slot.durability;   // RemoveFromSlot이 칸을 비우기 전에 기억해 둔다
             if (!RemoveFromSlot(slotIndex, amount))
                 return false;
 
-            DroppedItem.Spawn(transform, item, amount);
+            DroppedItem.Spawn(transform, item, amount, durability);
             return true;
         }
 
@@ -164,12 +165,71 @@ namespace CraftingSystem
 
             slot.count -= amount;
             if (slot.count <= 0)
-            {
-                slot.item = null;
-                slot.count = 0;
-            }
+                slot.Clear();
             inventory.NotifyChanged();
             return true;
+        }
+
+        /// <summary>
+        /// 손에 든 도구를 한 번 쓴 만큼 닳게 한다 (채집 1회 = 1). 내구도가 없는 아이템이면 아무 일도 없다.
+        /// 0이 되면 도구가 부서져 사라진다. 부서졌으면 true.
+        /// </summary>
+        public bool WearSelectedTool(int amount = 1)
+        {
+            InventorySlot slot = SelectedSlot;
+            if (slot == null || slot.IsEmpty || !slot.item.HasDurability || amount <= 0)
+                return false;
+
+            int before = slot.CurrentDurability;
+            int left = before - amount;
+            if (left <= 0)
+            {
+                string toolName = slot.item.itemName;
+                slot.Clear();
+                inventory.NotifyChanged();
+                LastTruck.HudToast.Show($"{toolName}이(가) 부서졌어요!");
+                return true;
+            }
+
+            slot.durability = left;
+            inventory.NotifyChanged();
+
+            // 20% 아래로 처음 내려가는 순간 한 번만 알려 준다
+            float warn = slot.item.maxDurability * 0.2f;
+            if (before > warn && left <= warn)
+                LastTruck.HudToast.Show($"{slot.item.itemName}이(가) 곧 부서져요 (남은 {left})");
+            return false;
+        }
+
+        /// <summary>
+        /// 가방에서 가장 많이 닳은 도구 하나의 내구도를 최대치의 비율만큼 채운다 (수리 키트). 고칠 도구가 없으면 false.
+        /// </summary>
+        public bool RepairWorstTool(float fractionOfMax, out ItemData repaired)
+        {
+            repaired = null;
+            InventorySlot worst = null;
+            float worstRatio = 1f;
+            foreach (InventorySlot s in Slots)
+            {
+                if (s == null || s.IsEmpty || !s.item.HasDurability) continue;
+                float r = s.DurabilityRatio;
+                if (r < worstRatio) { worstRatio = r; worst = s; }
+            }
+            if (worst == null) return false;
+
+            repaired = worst.item;
+            worst.durability = Mathf.Min(worst.item.maxDurability, worst.CurrentDurability + Mathf.Max(1, Mathf.RoundToInt(worst.item.maxDurability * fractionOfMax)));
+            inventory.NotifyChanged();
+            return true;
+        }
+
+        /// <summary>고칠 수 있는(조금이라도 닳은) 도구가 가방에 있는가.</summary>
+        public bool HasDamagedTool()
+        {
+            foreach (InventorySlot s in Slots)
+                if (s != null && !s.IsEmpty && s.item.HasDurability && s.DurabilityRatio < 0.999f)
+                    return true;
+            return false;
         }
 
         public void SelectSlot(int slotIndex)

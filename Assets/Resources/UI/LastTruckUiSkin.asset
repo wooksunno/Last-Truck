@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ef981da21c2d1284ca449a9878eb8ce3, type: 3}
+  m_Name: LastTruckUiSkin
+  m_EditorClassIdentifier: Assembly-CSharp::LastTruck.LastTruckUiSkin
+  panelBrown: {fileID: 21300000, guid: 8ed88d1496db7ed49950ceb1dd82c21e, type: 3}
+  panelBrownDark: {fileID: 21300000, guid: 9dbfc67cd0e00654e90f0ee79c045214, type: 3}
+  panelGrey: {fileID: 21300000, guid: 838023823f7a25b4880d0aed43479769, type: 3}
+  panelGreyDark: {fileID: 21300000, guid: 4e3a01106460ed248aaab56b2a75ae34, type: 3}
+  panelGreyBolts: {fileID: 21300000, guid: 83ce308324465584ab0bb257f0b4c5dd, type: 3}
+  panelGreyBoltsDark: {fileID: 21300000, guid: 433ae7afa544fe848bbd1ef9fdc94fdd, type: 3}
+  buttonBrown: {fileID: 21300000, guid: 85007572a3282ce4a9ccd38942a5d11a, type: 3}
+  buttonGrey: {fileID: 21300000, guid: 917a77762d1fec0409f672d259a709cf, type: 3}
+  buttonRed: {fileID: 21300000, guid: 03913c70d0bbfef489d6a66f74b03b64, type: 3}
+  buttonBrownClose: {fileID: 21300000, guid: 501b61722f3d08a408aebb546369c1a8, type: 3}
+  buttonRedClose: {fileID: 21300000, guid: af2f032e7387f7f4986f598fc8d348d1, type: 3}
+  hexBrown: {fileID: 21300000, guid: 1e93bd105488f99418feea5a37a9bcd2, type: 3}
+  hexBrownDark: {fileID: 21300000, guid: 1db976973d7de7048b784618439d1169, type: 3}
+  roundBrown: {fileID: 21300000, guid: 0d6b65c051b06ca45ac3718063910bcc, type: 3}
+  roundBrownDark: {fileID: 21300000, guid: ecb87792ad81b274c831c6070c75e63f, type: 3}
+  roundGreyDark: {fileID: 21300000, guid: 99f974579513d574e86b2d8559c38a95, type: 3}
+  bannerModern: {fileID: 21300000, guid: 1ce55d5862bf7a24a866bcd727715cb4, type: 3}
+  minimapRingBrown: {fileID: 21300000, guid: 6e2ba488c0b670c478458b2db3cd8c1a, type: 3}
+  font: {fileID: 12800000, guid: 22a428bbf4b419f49a2110a1106d6b32, type: 3}

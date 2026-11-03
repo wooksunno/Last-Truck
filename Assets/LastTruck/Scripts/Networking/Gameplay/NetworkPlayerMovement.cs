@@ -35,7 +35,9 @@ namespace LastTruck.Networking
 
         [Header("점프")]
         [Tooltip("점프할 때 위로 주는 속도 (m/s). NetworkCharacterController의 중력과 함께 점프 높이를 정한다.")]
-        [SerializeField] private float jumpImpulse = 6.5f;
+        [SerializeField] private float jumpImpulse = 7.4f;
+        [Tooltip("중력 (m/s², 음수). 클수록 점프가 짧고 묵직하다. 싱글플레이 점프와 비슷한 느낌으로 맞춰 두었다.")]
+        [SerializeField] private float jumpGravity = -28f;
         [Tooltip("점프할 때 재생할 애니메이터 상태 이름 (없으면 애니메이션 없이 점프만).")]
         [SerializeField] private string jumpStateName = "Jumping Up";
 
@@ -55,7 +57,8 @@ namespace LastTruck.Networking
         private static readonly int IsRunHash = Animator.StringToHash("isRun");
         private static readonly int IsWalkHash = Animator.StringToHash("isWalk");
         private static readonly int IsSprintHash = Animator.StringToHash("isSprint");
-        private const float SprintAnimSpeed = 1.2f;
+        private SprintGate _sprintGate;
+        private float _nextDustTime;
 
         #endregion
 
@@ -105,7 +108,7 @@ namespace LastTruck.Networking
         public override void Spawned()
         {
             if (_animator != null) _animator.applyRootMotion = false;
-            if (_controller != null) _controller.jumpImpulse = jumpImpulse;
+            if (_controller != null) { _controller.jumpImpulse = jumpImpulse; _controller.gravity = jumpGravity; }
             _shownJumpCount = JumpCount; // 늦게 보이기 시작한 사람이 지난 점프를 다시 재생하지 않게
         }
 
@@ -219,8 +222,35 @@ namespace LastTruck.Networking
 
         #region 애니메이션
 
+        private bool _wasGroundedForCamera = true;
+        private float _airFallSpeedForCamera;
+
+        /// <summary>내 캐릭터가 공중에서 땅에 닿는 순간 카메라 착지 연출(CameraEffects)에 알린다 (내 화면에서만).</summary>
+        private void TrackLandingForCamera()
+        {
+            if (_controller == null || Object == null || !Object.IsValid || !Object.HasInputAuthority) return;
+
+            bool grounded = _controller.Grounded;
+            if (grounded)
+            {
+                if (!_wasGroundedForCamera && _airFallSpeedForCamera > 3.5f)
+                {
+                    LastTruck.CameraEffects.NotifyLanded(_airFallSpeedForCamera);
+                    LastTruck.MovementDust.Landing(transform.position, _airFallSpeedForCamera);
+                }
+                _airFallSpeedForCamera = 0f;
+            }
+            else
+            {
+                _airFallSpeedForCamera = Mathf.Max(_airFallSpeedForCamera, -_controller.Velocity.y);
+            }
+            _wasGroundedForCamera = grounded;
+        }
+
         public override void Render()
         {
+            TrackLandingForCamera();
+
             if (_animator == null) return;
 
             if (_shownJumpCount != JumpCount)
@@ -248,9 +278,17 @@ namespace LastTruck.Networking
             _animator.SetBool(IsWalkHash, false);   // Shift는 이제 느린 걷기가 아니라 달리기라 걷기 애니메이션은 쓰지 않는다
 
             // 달리기(Shift): IsWalking은 이제 "달리는 중"이다. 더 빠른 달리기 모션이 있으면 그것을, 없으면 같은 모션을 빠르게 재생한다.
-            bool sprinting = moving && IsWalking;
+            // Shift 연타에도 모션이 뒤집히지 않게 상태를 잠깐 유지하고, 재생 속도도 부드럽게 바꾼다.
+            bool sprinting = _sprintGate.Update(moving && IsWalking) && moving;
             _animator.SetBool(IsSprintHash, sprinting);
-            _animator.speed = sprinting ? SprintAnimSpeed : 1f;
+            _animator.speed = _sprintGate.StepAnimSpeed(sprinting, Time.deltaTime);
+
+            // 달리는 동안 발밑에 먼지가 인다 (다른 사람 캐릭터도 같이 보인다)
+            if (sprinting && _controller != null && _controller.Grounded && Time.time >= _nextDustTime)
+            {
+                _nextDustTime = Time.time + 0.18f;
+                MovementDust.SprintPuff(transform.position, transform.forward);
+            }
         }
 
         private static readonly int JumpLandHash = Animator.StringToHash("jumpLand");

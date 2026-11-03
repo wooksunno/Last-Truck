@@ -15,12 +15,25 @@ namespace CraftingSystem
         {
             public float holdSeconds;
             public float healAmount;
+            public float staminaAmount;     // 스태미나 회복량 (0 = 없음)
+            public float repairFraction;    // 가방 속 가장 닳은 도구를 최대 내구도의 이 비율만큼 수리 (0 = 없음)
         }
 
         private static readonly Dictionary<string, Edible> Edibles = new Dictionary<string, Edible>
         {
-            { ItemIds.Steak, new Edible { holdSeconds = 2f, healAmount = 2f } },
-            { ItemIds.Herb, new Edible { holdSeconds = 1.2f, healAmount = 5f } },   // 약초: 날것으로 먹을 수 있다 (스테이크보다 빨리 먹지만 조금 회복)
+            // 음식
+            { ItemIds.Herb, new Edible { holdSeconds = 1.2f, healAmount = 5f } },   // 약초: 날것으로 먹을 수 있다 (빨리 먹지만 조금 회복)
+            { ItemIds.GrilledFood, new Edible { holdSeconds = 1.6f, healAmount = 8f } },
+            { ItemIds.Jerky, new Edible { holdSeconds = 1.2f, healAmount = 6f, staminaAmount = 30f } },   // 전투용 육포: 질기지만 힘이 난다
+            { ItemIds.Steak, new Edible { holdSeconds = 2f, healAmount = 12f } },
+            { ItemIds.HerbPorridge, new Edible { holdSeconds = 2f, healAmount = 18f } },
+            { ItemIds.HeartyStew, new Edible { holdSeconds = 2.6f, healAmount = 32f, staminaAmount = 40f } },
+            // 소모품
+            { ItemIds.HerbBandage, new Edible { holdSeconds = 0.9f, healAmount = 12f } },
+            { ItemIds.CombatStimulant, new Edible { holdSeconds = 1f, healAmount = 4f, staminaAmount = 100f } },
+            { ItemIds.VitalityTonic, new Edible { holdSeconds = 1.8f, healAmount = 60f, staminaAmount = 100f } },
+            // 도구 수리 (왼쪽 클릭 꾹: 가장 닳은 도구를 고친다)
+            { ItemIds.ToolRepairKit, new Edible { holdSeconds = 1.5f, repairFraction = 0.5f } },
         };
 
         [SerializeField] private Camera targetCamera;
@@ -77,8 +90,8 @@ private void Update()
             bool hasEdible = hand != null && !hand.IsEmpty && hand.item != null &&
                              Edibles.TryGetValue(hand.item.itemID, out edible);
 
-            // 체력이 가득 차 있으면 먹어도 아무 효과가 없다(시작도, 소모도 되지 않는다).
-            bool canEat = hasEdible && !IsHealthFull();
+            // 얻을 게 없으면(체력도 스태미나도 가득, 고칠 도구도 없음) 먹어도 아무 효과가 없다(시작도, 소모도 되지 않는다).
+            bool canEat = hasEdible && HasUseFor(edible);
 
             if (Input.GetMouseButtonDown(0))
                 _pressVetoed = !canEat || IsPressBlocked();
@@ -120,6 +133,15 @@ private bool IsHealthFull()
             return _stats != null && _stats.currentHealth >= _stats.MaxHealth;
         }
 
+        private bool HasUseFor(Edible e)
+        {
+            if (e.healAmount > 0f && !IsHealthFull()) return true;
+            if (e.staminaAmount > 0f && LastTruck.PlayerStamina.Instance != null &&
+                LastTruck.PlayerStamina.Instance.Current < LastTruck.PlayerStamina.Instance.Max - 0.5f) return true;
+            if (e.repairFraction > 0f && _inventory.HasDamagedTool()) return true;
+            return false;
+        }
+
 
         private bool IsPressBlocked()
         {
@@ -147,7 +169,21 @@ private bool IsHealthFull()
 
         private void Eat(ItemData item, Edible edible)
         {
+            // 수리는 소모하기 전에 고칠 도구를 정한다 (키트 자신은 내구도가 없으므로 상관없다)
+            ItemData repaired = null;
+            if (edible.repairFraction > 0f && !_inventory.RepairWorstTool(edible.repairFraction, out repaired))
+                return;
+
             if (!_inventory.RemoveItem(item, 1))
+                return;
+
+            if (repaired != null)
+                LastTruck.HudToast.Show($"{repaired.itemName}을(를) 수리했어요");
+
+            if (edible.staminaAmount > 0f && LastTruck.PlayerStamina.Instance != null)
+                LastTruck.PlayerStamina.Instance.Restore(edible.staminaAmount);
+
+            if (edible.healAmount <= 0f)
                 return;
 
             if (_stats == null)

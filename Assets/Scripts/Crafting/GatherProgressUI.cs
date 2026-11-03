@@ -43,6 +43,7 @@ public void Initialize(LastTruck.PlayerInteract playerInteract, EatController ea
                     _subText = authoredSubText;
                     _fillImage.fillAmount = 0f;
                     _root.SetActive(false);
+                    LastTruck.UiSkinUtil.SkinWindow(_labelRoot);   // UI 스킨이 있으면 이름표를 나무 판 모양으로
                     _labelRoot.SetActive(false);
                 }
                 else

@@ -74,6 +74,10 @@ namespace CraftingSystem
         {
             GameUIController ui = GameUIController.Instance;
 
+            // 트럭 원형 메뉴가 열려 있는 동안은 그쪽이 Tab/Esc/클릭을 처리한다
+            if (LastTruck.TruckRadialMenu.IsOpen)
+                return;
+
             if (Input.GetKeyDown(KeyCode.Escape) && ui != null)
             {
                 ui.ClosePopup();
@@ -95,7 +99,8 @@ namespace CraftingSystem
 
                 if (nearTruck && _truck != null)
                 {
-                    _truck.OnInteract(playerInventory);
+                    // 트럭 원형 메뉴(보관함/제작/가공/도감/강화). 메뉴를 못 쓰면 예전처럼 트럭 창이 바로 열린다.
+                    LastTruck.TruckRadialMenu.Open(_truck, playerInventory);
                     return;
                 }
             }

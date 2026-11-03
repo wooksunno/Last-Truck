@@ -84,13 +84,15 @@ namespace CraftingSystem
         // ───── 파츠 ─────
         public static bool TryGetSlot(string itemId, out TruckPartSlot slot)
         {
+            if (TryGetTurret(itemId, out _)) { slot = TruckPartSlot.Roof; return true; }
             switch (itemId)
             {
-                case ItemIds.TunedEngine: slot = TruckPartSlot.Engine; return true;
+                case ItemIds.TunedEngine:
+                case ItemIds.TurboEngine: slot = TruckPartSlot.Engine; return true;
                 case ItemIds.SpikeBumper:
                 case ItemIds.GrinderWheel: slot = TruckPartSlot.Front; return true;
-                case ItemIds.TruckCompositeArmor: slot = TruckPartSlot.Armor; return true;
-                case ItemIds.MiniTurret: slot = TruckPartSlot.Roof; return true;
+                case ItemIds.TruckCompositeArmor:
+                case ItemIds.AlloyArmor: slot = TruckPartSlot.Armor; return true;
             }
             slot = TruckPartSlot.Engine;
             return false;
@@ -100,20 +102,79 @@ namespace CraftingSystem
 
         public static string PartEffect(string itemId)
         {
+            if (TryGetTurret(itemId, out Turret turret))
+                return turret.effect + "  (동승석 1번이 포탑 사수 · 마우스 조준 · 좌클릭 발사 · R 탄환 만들기)";
             switch (itemId)
             {
                 case ItemIds.TunedEngine: return "이동속도·가속 +25%";
+                case ItemIds.TurboEngine: return "이동속도·가속 +50%";
                 case ItemIds.SpikeBumper: return "좀비를 밀쳐내고 들이받으면 트럭 공격력만큼 피해 (로드킬)";
                 case ItemIds.GrinderWheel: return "더 세게 밀치고 들이받는 피해 2배";
                 case ItemIds.TruckCompositeArmor: return "최대 내구도 +25%, 받는 피해 -25%";
-                case ItemIds.MiniTurret: return "동승석 1번이 포탑 사수 (마우스 조준 · 좌클릭 발사 · R 탄환 만들기)";
+                case ItemIds.AlloyArmor: return "최대 내구도 +50%, 받는 피해 -40%";
             }
             return "";
         }
 
-        public const float EngineBoost = 1.25f;
-        public const float ArmorDurabilityBonus = 0.25f;
-        public const float ArmorDamageTaken = 0.75f;
+        /// <summary>엔진 파츠에 따른 이동속도·가속 배율 (파츠가 없으면 1).</summary>
+        public static float EngineBoostOf(string enginePart)
+        {
+            switch (enginePart)
+            {
+                case ItemIds.TunedEngine: return 1.25f;
+                case ItemIds.TurboEngine: return 1.5f;
+                default: return 1f;
+            }
+        }
+
+        /// <summary>장갑 파츠에 따른 최대 내구도 증가율과 받는 피해 배율 (파츠가 없으면 0 / 1).</summary>
+        public static void ArmorOf(string armorPart, out float durabilityBonus, out float damageTaken)
+        {
+            switch (armorPart)
+            {
+                case ItemIds.TruckCompositeArmor: durabilityBonus = 0.25f; damageTaken = 0.75f; return;
+                case ItemIds.AlloyArmor: durabilityBonus = 0.5f; damageTaken = 0.6f; return;
+                default: durabilityBonus = 0f; damageTaken = 1f; return;
+            }
+        }
+
+        // ───── 포탑 종류 ─────
+        /// <summary>포탑 한 종류. attack/rate/range/area는 "포탑 레벨 강화 수치"에 곱하는 배율이다.</summary>
+        public struct Turret
+        {
+            public string id;
+            public float attack, rate, range, area;
+            public int ammoPerShot;      // 한 발에 쓰는 탄환 수
+            public bool pierce;          // true면 일직선 위의 모든 적을 뚫고 맞힌다
+            public string effect;
+        }
+
+        public static readonly Turret[] Turrets =
+        {
+            new Turret { id = ItemIds.MiniTurret, attack = 1f, rate = 1f, range = 1f, area = 1f, ammoPerShot = 1,
+                         effect = "기본형 - 균형 잡힌 사격" },
+            new Turret { id = ItemIds.GatlingTurret, attack = 0.4f, rate = 2.4f, range = 0.8f, area = 0.7f, ammoPerShot = 1,
+                         effect = "기관포 - 약하지만 아주 빠른 연사 (탄환을 많이 쓴다)" },
+            new Turret { id = ItemIds.SniperTurret, attack = 3f, rate = 0.45f, range = 1.9f, area = 0.35f, ammoPerShot = 2,
+                         effect = "저격 - 느리지만 아주 강하고 멀리 나간다 (한 발에 탄환 2개)" },
+            new Turret { id = ItemIds.MortarTurret, attack = 1.4f, rate = 0.55f, range = 1.25f, area = 1.8f, ammoPerShot = 2,
+                         effect = "박격포 - 넓은 범위를 터뜨린다 (한 발에 탄환 2개)" },
+            new Turret { id = ItemIds.FlameTurret, attack = 0.5f, rate = 2.2f, range = 0.4f, area = 1.5f, ammoPerShot = 1,
+                         effect = "화염 - 사거리는 짧지만 가까운 무리를 불바다로" },
+            new Turret { id = ItemIds.RailTurret, attack = 2f, rate = 1.3f, range = 1.6f, area = 0.6f, ammoPerShot = 1, pierce = true,
+                         effect = "레일 - 일직선에 있는 적을 전부 관통 (최종)" },
+        };
+
+        public static bool TryGetTurret(string itemId, out Turret turret)
+        {
+            if (!string.IsNullOrEmpty(itemId))
+            {
+                for (int i = 0; i < Turrets.Length; i++)
+                    if (Turrets[i].id == itemId) { turret = Turrets[i]; return true; }
+            }
+            turret = Turrets[0];
+            return false;
+        }
 
         /// <summary>전면 파츠에 따른 들이받기 피해 배율 / 밀치는 거리(m). 파츠가 없으면 조금 밀치기만 한다.</summary>
         public static void FrontRam(string frontPart, out float damageMul, out float pushMeters)
@@ -161,9 +222,32 @@ namespace CraftingSystem
 
         public string PartAt(TruckPartSlot slot) => _parts[(int)slot];
         public int LevelOf(TruckStat stat) => _levels[(int)stat];
-        public bool HasTurret => _parts[(int)TruckPartSlot.Roof] == ItemIds.MiniTurret;
+        public bool HasTurret => TruckUpgradeRules.TryGetTurret(_parts[(int)TruckPartSlot.Roof], out _);
 
-        public float StatValue(TruckStat stat) => TruckUpgradeRules.Value(stat, LevelOf(stat));
+        /// <summary>지금 끼워진 포탑 종류 (없으면 기본형 수치를 돌려준다. HasTurret으로 먼저 확인할 것).</summary>
+        public TruckUpgradeRules.Turret Turret
+        {
+            get { TruckUpgradeRules.TryGetTurret(_parts[(int)TruckPartSlot.Roof], out var t); return t; }
+        }
+
+        /// <summary>레벨 강화 수치에 포탑 종류 배율까지 곱한 실제 값 (포탑 스탯만 배율이 적용된다).</summary>
+        public float StatValue(TruckStat stat) => ValueAt(stat, LevelOf(stat));
+
+        /// <summary>그 레벨일 때의 실제 값 (강화 화면의 "현재 → 다음" 표시용. 끼운 포탑 종류 배율 포함).</summary>
+        public float ValueAt(TruckStat stat, int level)
+        {
+            float v = TruckUpgradeRules.Value(stat, level);
+            if (!HasTurret) return v;
+            TruckUpgradeRules.Turret t = Turret;
+            switch (stat)
+            {
+                case TruckStat.TurretAttack: return v * t.attack;
+                case TruckStat.TurretRate: return v * t.rate;
+                case TruckStat.TurretRange: return v * t.range;
+                case TruckStat.TurretArea: return v * t.area;
+            }
+            return v;
+        }
 
         /// <summary>트럭 들이받기 피해 (트럭 공격력 × 전면 파츠 배율).</summary>
         public float RamDamage
@@ -219,19 +303,19 @@ namespace CraftingSystem
         private void ApplyEffects()
         {
             CaptureBase();
-            bool armor = PartAt(TruckPartSlot.Armor) == ItemIds.TruckCompositeArmor;
-            bool engine = PartAt(TruckPartSlot.Engine) == ItemIds.TunedEngine;
+            TruckUpgradeRules.ArmorOf(PartAt(TruckPartSlot.Armor), out float armorDurability, out float armorTaken);
+            float engineBoost = TruckUpgradeRules.EngineBoostOf(PartAt(TruckPartSlot.Engine));
 
             if (_info != null)
             {
                 float mul = TruckUpgradeRules.Value(TruckStat.Durability, LevelOf(TruckStat.Durability)) / TruckUpgradeRules.Value(TruckStat.Durability, 1);
-                _info.SetMaxDurability(_baseMaxDurability * mul * (armor ? 1f + TruckUpgradeRules.ArmorDurabilityBonus : 1f));
-                _info.DamageTakenMultiplier = armor ? TruckUpgradeRules.ArmorDamageTaken : 1f;
+                _info.SetMaxDurability(_baseMaxDurability * mul * (1f + armorDurability));
+                _info.DamageTakenMultiplier = armorTaken;
             }
             if (_move != null)
             {
                 float mul = TruckUpgradeRules.Value(TruckStat.Speed, LevelOf(TruckStat.Speed)) / TruckUpgradeRules.Value(TruckStat.Speed, 1);
-                if (engine) mul *= TruckUpgradeRules.EngineBoost;
+                mul *= engineBoost;
                 _move.maxSpeed = _baseMaxSpeed * mul;
                 _move.maxAcceleration = _baseAcceleration * mul;
             }
@@ -284,7 +368,7 @@ namespace CraftingSystem
             message = null;
             int level = LevelOf(stat);
             if (level >= TruckUpgradeRules.MaxLevel) { message = "이미 최대 레벨이에요."; return false; }
-            if (TruckUpgradeRules.IsTurretStat(stat) && !HasTurret) { message = "미니 포탑을 장착해야 포탑을 강화할 수 있어요."; return false; }
+            if (TruckUpgradeRules.IsTurretStat(stat) && !HasTurret) { message = "포탑을 장착해야 포탑을 강화할 수 있어요."; return false; }
             var cost = TruckUpgradeRules.LevelCost(level);
             if (!TruckFacilities.CanAfford(truck, cost)) { message = "트럭 보관함에 재료가 부족해요."; return false; }
             TruckFacilities.Pay(truck, cost);

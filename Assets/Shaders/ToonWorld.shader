@@ -26,6 +26,14 @@ Shader "LastTruck/ToonWorld"
         _MoonSheenSize ("Moon Sheen Size", Range(0.01,1)) = 0.3
         [Toggle] _FlatShading ("Flat Shading", Float) = 1
 
+        [Header(Stone Readability)]
+        // 갈색 땅 위의 갈색 돌처럼 색이 겹쳐 덩어리로만 보일 때: 색을 회색 쪽으로 빼고(_Desaturate), 가장자리를 밝게(_Rim) 해서 윤곽을 살린다
+        _Desaturate ("Desaturate", Range(0,1)) = 0
+        _DesaturateTint ("Desaturate Tint", Color) = (1,1,1,1)
+        _RimStrength ("Rim Light Strength", Range(0,1)) = 0
+        _RimColor ("Rim Light Color", Color) = (1,0.95,0.85,1)
+        _RimPower ("Rim Light Power", Range(0.5,6)) = 2.5
+
         [Header(Emission)]
         _EmissionMap ("Emission Map", 2D) = "white" {}
         [HDR] _EmissionColor ("Emission", Color) = (0,0,0,1)
@@ -54,6 +62,11 @@ Shader "LastTruck/ToonWorld"
         half _MoonSheen;
         half _MoonSheenSize;
         half _FlatShading;
+        half _Desaturate;
+        half4 _DesaturateTint;
+        half _RimStrength;
+        half4 _RimColor;
+        half _RimPower;
         half4 _EmissionColor;
         half _Cull;
     CBUFFER_END
@@ -133,6 +146,9 @@ Shader "LastTruck/ToonWorld"
             {
                 UNITY_SETUP_INSTANCE_ID(i);
                 half3 albedo = (SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv) * _BaseColor).rgb;
+                // 색 빼기: 밝기는 유지한 채 회색(+색조)쪽으로
+                half luma = dot(albedo, half3(0.299h, 0.587h, 0.114h));
+                albedo = lerp(albedo, luma * _DesaturateTint.rgb, _Desaturate);
 
                 half3 smoothN = normalize(i.normalWS);
                 if (!frontFace) smoothN = -smoothN;
@@ -199,6 +215,9 @@ Shader "LastTruck/ToonWorld"
                 #endif
 
                 half3 color = albedo * light;
+                // 가장자리 빛: 시선과 비스듬한 면(윤곽)을 밝혀서 배경과 색이 비슷해도 형태가 읽히게 한다 (밤엔 약하게)
+                half rim = pow(1.0h - saturate(dot(smoothN, V)), _RimPower);
+                color += _RimColor.rgb * rim * _RimStrength * lerp(1.0h, 0.5h, night) * saturate(light.r + 0.35h);
                 color += SAMPLE_TEXTURE2D(_EmissionMap, sampler_EmissionMap, i.uv).rgb * _EmissionColor.rgb;
                 color = MixFog(color, i.fogFactor);
                 return half4(color, 1);

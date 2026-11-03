@@ -171,6 +171,10 @@ namespace CraftingSystem
                 return;
             }
 
+            // 곡괭이 등 도구가 필요한 채집은 도구가 한 번 닳는다 (내구도가 0이 되면 부서진다)
+            if (tier > 0)
+                inventory.WearSelectedTool();
+
             // 멀티플레이: 호스트가 먼저 캔 사람을 정하고, 모든 화면에서 프롭을 없앤다.
             if (LastTruck.Networking.NetworkGathering.TryHandleProp(this, inventory, item))
                 return;

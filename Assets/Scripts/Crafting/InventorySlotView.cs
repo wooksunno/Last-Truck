@@ -101,6 +101,20 @@ namespace CraftingSystem
         public Button Button => button;
         public ItemData Item => _item;
 
+        /// <summary>UI 스킨(Kenney 나무 판)이 있으면 슬롯 배경을 그 모양으로 바꾼다. 색은 스프라이트에 곱해지는 값으로 다시 정한다. 링 테두리는 숨긴다.</summary>
+        public void ApplySkin()
+        {
+            if (!LastTruck.UiSkinUtil.SkinSlotBackground(background))
+                return;
+
+            bgNormal = LastTruck.UiSkinUtil.SlotNormal;
+            bgFilled = LastTruck.UiSkinUtil.SlotFilled;
+            bgSelected = LastTruck.UiSkinUtil.SlotSelected;
+            borderNormal = new Color(1f, 1f, 1f, 0f);
+            borderSelected = new Color(1f, 0.82f, 0.32f, 0.9f);   // 선택된 칸만 금색 링
+            _inited = false;
+        }
+
         public void Setup(int index, UnityEngine.Events.UnityAction<int> onClick)
         {
             _index = index;
@@ -113,9 +127,69 @@ namespace CraftingSystem
             _inited = false;
         }
 
-        /// <summary>바뀐 값만 반영한다.</summary>
-        public void Set(ItemData item, int amount, bool selected)
+        // ---- 도구 내구도 막대 (칸 아래쪽, 내구도가 있는 도구에만 보인다) ----
+        private RectTransform _durBack;
+        private Image _durFill;
+        private float _durability = -1f;
+
+        // 곧 부서질 때(20% 이하) 막대가 깜빡여서 눈에 띄게 한다
+        private void Update()
         {
+            if (_durFill == null || _durBack == null || !_durBack.gameObject.activeSelf) return;
+            if (_durability < 0f || _durability > 0.2f)
+            {
+                if (_durFill.canvasRenderer.GetAlpha() < 0.999f) _durFill.canvasRenderer.SetAlpha(1f);
+                return;
+            }
+            _durFill.canvasRenderer.SetAlpha(0.45f + 0.55f * (0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 8f)));
+        }
+
+        private void SetDurability(ItemData item, float ratio)
+        {
+            bool show = item != null && item.HasDurability;
+            if (!show)
+            {
+                if (_durBack != null && _durBack.gameObject.activeSelf) _durBack.gameObject.SetActive(false);
+                _durability = -1f;
+                return;
+            }
+
+            if (_durBack == null)
+            {
+                var back = new GameObject("DurabilityBar", typeof(RectTransform), typeof(Image));
+                back.transform.SetParent(transform, false);
+                _durBack = (RectTransform)back.transform;
+                _durBack.anchorMin = new Vector2(0.12f, 0f);
+                _durBack.anchorMax = new Vector2(0.88f, 0f);
+                _durBack.pivot = new Vector2(0.5f, 0f);
+                _durBack.anchoredPosition = new Vector2(0f, 5f);
+                _durBack.sizeDelta = new Vector2(0f, 6f);
+                var bi = back.GetComponent<Image>();
+                bi.color = new Color(0.06f, 0.05f, 0.04f, 0.9f);
+                bi.raycastTarget = false;
+
+                var fill = new GameObject("Fill", typeof(RectTransform), typeof(Image));
+                fill.transform.SetParent(back.transform, false);
+                var frt = (RectTransform)fill.transform;
+                frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one;
+                frt.offsetMin = new Vector2(1f, 1f); frt.offsetMax = new Vector2(-1f, -1f);
+                _durFill = fill.GetComponent<Image>();
+                _durFill.raycastTarget = false;
+            }
+
+            if (!_durBack.gameObject.activeSelf) _durBack.gameObject.SetActive(true);
+            ratio = Mathf.Clamp01(ratio);
+            if (Mathf.Approximately(ratio, _durability)) return;
+            _durability = ratio;
+            _durFill.rectTransform.anchorMax = new Vector2(ratio, 1f);
+            _durFill.color = ratio > 0.5f ? Color.Lerp(new Color(0.95f, 0.8f, 0.25f), new Color(0.45f, 0.85f, 0.35f), (ratio - 0.5f) * 2f)
+                                          : Color.Lerp(new Color(0.9f, 0.25f, 0.2f), new Color(0.95f, 0.8f, 0.25f), ratio * 2f);
+        }
+
+        /// <summary>바뀐 값만 반영한다. durability01: 도구 남은 내구도 비율 (내구도가 없는 아이템이면 무시).</summary>
+        public void Set(ItemData item, int amount, bool selected, float durability01 = 1f)
+        {
+            SetDurability(item, durability01);
             bool itemChanged = !_inited || item != _item;
             if (itemChanged)
             {

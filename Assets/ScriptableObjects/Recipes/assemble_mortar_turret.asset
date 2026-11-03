@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 390686697781ce44e929a2c7da880592, type: 3}
+  m_Name: assemble_mortar_turret
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
+  recipeID: assemble_mortar_turret
+  displayName: "\uBC15\uACA9\uD3EC \uD3EC\uD0D1 \uC870\uB9BD"
+  requiredFacility: 0
+  inputs:
+  - item: {fileID: 11400000, guid: 2334d3e84bfd3814a8d4f37d3f66ac64, type: 2}
+    count: 4
+  - item: {fileID: 11400000, guid: e6dbd0e496a142e4eb0f1d2cf813b3a2, type: 2}
+    count: 3
+  - item: {fileID: 11400000, guid: f01af06a4769b4e4ba9538207b8cc48f, type: 2}
+    count: 1
+  - item: {fileID: 11400000, guid: 5d85dba2be9c178428018d585a5c965e, type: 2}
+    count: 6
+  output:
+    item: {fileID: 11400000, guid: ad9a5e40872c52c46ade24779f5f22ff, type: 2}
+    count: 1
+  processingSeconds: 2

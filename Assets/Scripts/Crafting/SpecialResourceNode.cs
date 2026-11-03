@@ -258,6 +258,9 @@ namespace CraftingSystem
                     Debug.LogWarning($"[SpecialResourceNode] {displayName}: 1/2/3 키로 선택한 슬롯에 적합한 도구/장비를 들고 있어야 채집할 수 있습니다.");
                     return;
                 }
+
+                // 요구한 도구가 한 번 닳는다 (내구도가 없는 장비, 예: 가죽 장갑은 그대로)
+                inventory.WearSelectedTool();
             }
 
             // 멀티플레이: 호스트가 채집 결과(보너스/고갈)를 정한다.

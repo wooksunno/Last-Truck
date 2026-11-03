@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 390686697781ce44e929a2c7da880592, type: 3}
+  m_Name: bonfire_herb_porridge
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
+  recipeID: bonfire_herb_porridge
+  displayName: "\uC57D\uCD08 \uC8FD"
+  requiredFacility: 1
+  inputs:
+  - item: {fileID: 11400000, guid: 622772e702cf84e48a479c6a53640f72, type: 2}
+    count: 3
+  output:
+    item: {fileID: 11400000, guid: 783447befbd38af42aeb7d67abcceeab, type: 2}
+    count: 1
+  processingSeconds: 40

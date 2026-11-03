@@ -22,9 +22,14 @@ namespace CraftingSystem
         public void Bind(PlayerInventory inventory, Action<int> onSlotClicked)
         {
             _inventory = inventory;
+
+            // UI 스킨이 있으면 핫바 판과 칸을 Kenney 나무 판 모양으로 (없으면 예전 모양 그대로)
+            LastTruck.UiSkinUtil.SkinHotbarPanel(gameObject);
+
             for (int i = 0; i < slots.Count; i++)
             {
                 if (slots[i] == null) continue;
+                slots[i].ApplySkin();
                 slots[i].Setup(i, onSlotClicked != null ? new UnityEngine.Events.UnityAction<int>(onSlotClicked) : null);
                 slots[i].OnSwapRequested = (from, to) => _inventory.SwapSlots(from, to);
                 slots[i].OnDropOutRequested = from => _inventory.DropSlot(from, int.MaxValue);   // 칸 전부 버리기
@@ -49,7 +54,7 @@ namespace CraftingSystem
                 InventorySlot s = i < data.Count ? data[i] : null;
                 bool empty = s == null || s.IsEmpty;
                 if (!empty) used++;
-                slots[i].Set(empty ? null : s.item, empty ? 0 : s.count, i == _inventory.SelectedSlotIndex);
+                slots[i].Set(empty ? null : s.item, empty ? 0 : s.count, i == _inventory.SelectedSlotIndex, empty ? 1f : s.DurabilityRatio);
             }
 
             if (usedCountText != null) usedCountText.text = used + "/" + cap;

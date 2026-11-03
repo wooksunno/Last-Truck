@@ -28,6 +28,8 @@ namespace LastTruck.Networking
         /// <summary>슬롯별 아이템 번호 + 1 (0 = 빈 칸).</summary>
         [Networked, Capacity(MaxSlots)] private NetworkArray<int> SlotItems => default;
         [Networked, Capacity(MaxSlots)] private NetworkArray<int> SlotCounts => default;
+        /// <summary>슬롯별 도구/무기의 남은 내구도 (내구도가 없는 아이템은 0).</summary>
+        [Networked, Capacity(MaxSlots)] private NetworkArray<int> SlotDurabilities => default;
         [Networked] private int SlotCount { get; set; }
 
         /// <summary>호스트가 값을 쓸 때마다 1씩 오른다 (클라이언트는 바뀌었을 때만 적용).</summary>
@@ -131,6 +133,7 @@ namespace LastTruck.Networking
 
                 SlotItems.Set(written, index + 1);
                 SlotCounts.Set(written, slot.count);
+                SlotDurabilities.Set(written, slot.CurrentDurability);
                 written++;
             }
 
@@ -138,6 +141,7 @@ namespace LastTruck.Networking
             {
                 SlotItems.Set(i, 0);
                 SlotCounts.Set(i, 0);
+                SlotDurabilities.Set(i, 0);
             }
 
             SlotCount = written;
@@ -162,7 +166,7 @@ namespace LastTruck.Networking
             {
                 ItemData item = ItemIndexLookup.ItemAt(SlotItems[i] - 1);
                 int count = SlotCounts[i];
-                if (item != null && count > 0) slots.Add(new InventorySlot(item, count));
+                if (item != null && count > 0) slots.Add(new InventorySlot(item, count) { durability = SlotDurabilities[i] });
             }
             truck.Inventory.ReplaceAll(slots); // Changed 이벤트 → 열려 있는 트럭 창이 새로 그려진다
         }
@@ -171,16 +175,18 @@ namespace LastTruck.Networking
 
         #region 요청 (클라이언트 → 호스트)
 
-        public void RequestDeposit(ItemData item, int count)
+        /// <summary>durability: 도구/무기를 넣을 때 그 도구의 남은 내구도 (그 외에는 0).</summary>
+        public void RequestDeposit(ItemData item, int count, int durability = 0)
         {
             int index = ItemIndexLookup.IndexOf(item);
-            if (index >= 0 && count > 0) RPC_RequestDeposit(index, count);
+            if (index >= 0 && count > 0) RPC_RequestDeposit(index, count, durability);
         }
 
-        public void RequestWithdraw(ItemData item, int count)
+        /// <summary>durability: 도구/무기를 꺼낼 때 꺼낼 "그" 도구의 남은 내구도 (그 외에는 0).</summary>
+        public void RequestWithdraw(ItemData item, int count, int durability = 0)
         {
             int index = ItemIndexLookup.IndexOf(item);
-            if (index >= 0 && count > 0) RPC_RequestWithdraw(index, count);
+            if (index >= 0 && count > 0) RPC_RequestWithdraw(index, count, durability);
         }
 
         public void RequestCraft(RecipeData recipe)
@@ -231,29 +237,37 @@ namespace LastTruck.Networking
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-        private void RPC_RequestDeposit(int itemIndex, int count, RpcInfo info = default)
+        private void RPC_RequestDeposit(int itemIndex, int count, int durability, RpcInfo info = default)
         {
             TruckInventory truck = Truck;
             ItemData item = ItemIndexLookup.ItemAt(itemIndex);
             if (item == null || count <= 0) return;
 
-            int stored = truck != null ? TruckInventorySync.AddAndCount(truck.Inventory, item, count) : 0;
+            int stored = truck != null ? TruckInventorySync.AddAndCount(truck.Inventory, item, count, durability) : 0;
             int leftover = count - stored;
-            if (leftover > 0) RPC_GiveItem(info.Source, itemIndex, leftover); // 트럭이 꽉 차서 못 넣은 만큼 돌려준다
+            if (leftover > 0) RPC_GiveItem(info.Source, itemIndex, leftover, durability); // 트럭이 꽉 차서 못 넣은 만큼 돌려준다
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-        private void RPC_RequestWithdraw(int itemIndex, int count, RpcInfo info = default)
+        private void RPC_RequestWithdraw(int itemIndex, int count, int durability, RpcInfo info = default)
         {
             TruckInventory truck = Truck;
             ItemData item = ItemIndexLookup.ItemAt(itemIndex);
             if (truck == null || item == null || count <= 0) return;
 
+            if (item.HasDurability)
+            {
+                // 도구/무기는 요청한 "그" 도구 한 개만 꺼낸다 (다른 사람이 먼저 가져갔으면 아무것도 안 한다)
+                if (!truck.Inventory.RemoveDurable(item, durability)) return;
+                RPC_GiveItem(info.Source, itemIndex, 1, durability);
+                return;
+            }
+
             int take = Mathf.Min(count, truck.GetItemCount(item)); // 다른 사람이 먼저 가져갔으면 남은 만큼만
             if (take <= 0) return;
             if (!truck.RemoveItem(item, take)) return;
 
-            RPC_GiveItem(info.Source, itemIndex, take);
+            RPC_GiveItem(info.Source, itemIndex, take, 0);
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
@@ -284,13 +298,13 @@ namespace LastTruck.Networking
 
         /// <summary>호스트 → 특정 플레이어: 이 아이템을 네 가방에 넣어라 (꺼내기 결과 / 넣기 실패 반환).</summary>
         [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-        private void RPC_GiveItem([RpcTarget] PlayerRef target, int itemIndex, int count)
+        private void RPC_GiveItem([RpcTarget] PlayerRef target, int itemIndex, int count, int durability)
         {
             ItemData item = ItemIndexLookup.ItemAt(itemIndex);
             if (item == null || count <= 0) return;
 
             PlayerInventory player = TruckInventorySync.LocalPlayerInventory;
-            int added = player != null ? TruckInventorySync.AddAndCount(player.Inventory, item, count) : 0;
+            int added = player != null ? TruckInventorySync.AddAndCount(player.Inventory, item, count, durability) : 0;
             int leftover = count - added;
             if (leftover <= 0) return;
 
@@ -298,11 +312,11 @@ namespace LastTruck.Networking
             if (HasStateAuthority)
             {
                 TruckInventory truck = Truck;
-                if (truck != null) TruckInventorySync.AddAndCount(truck.Inventory, item, leftover);
+                if (truck != null) TruckInventorySync.AddAndCount(truck.Inventory, item, leftover, durability);
             }
             else
             {
-                RPC_RequestDeposit(itemIndex, leftover);
+                RPC_RequestDeposit(itemIndex, leftover, durability);
             }
             Debug.LogWarning($"[트럭 인벤토리] 가방 공간이 부족해서 {item.itemName} x{leftover}을(를) 트럭에 되돌렸습니다.");
         }
@@ -377,7 +391,8 @@ namespace LastTruck.Networking
         #region UI에서 부르는 함수
 
         /// <summary>내 가방 → 트럭.</summary>
-        public static void Deposit(TruckInventory truck, PlayerInventory player, ItemData item, int count)
+        /// <summary>내 가방 → 트럭. durability: 도구/무기면 넣을 "그" 도구의 남은 내구도 (칸의 CurrentDurability).</summary>
+        public static void Deposit(TruckInventory truck, PlayerInventory player, ItemData item, int count, int durability = 0)
         {
             if (truck == null || player == null || item == null || count <= 0) return;
             _localPlayerInventory = player;
@@ -385,7 +400,15 @@ namespace LastTruck.Networking
             NetworkTruckInventory net = IsRemoteClient ? Net : null;
             if (net == null)
             {
-                MoveItems(player.Inventory, truck.Inventory, item, count);
+                MoveItems(player.Inventory, truck.Inventory, item, count, durability);
+                return;
+            }
+
+            if (item.HasDurability)
+            {
+                // 도구/무기는 한 개씩: 가방에서 그 도구를 먼저 빼고 닳은 정도와 함께 호스트에 요청한다
+                if (durability <= 0 || !player.Inventory.RemoveDurable(item, durability)) return;
+                net.RequestDeposit(item, 1, durability);
                 return;
             }
 
@@ -394,8 +417,8 @@ namespace LastTruck.Networking
             net.RequestDeposit(item, count);
         }
 
-        /// <summary>트럭 → 내 가방.</summary>
-        public static void Withdraw(TruckInventory truck, PlayerInventory player, ItemData item, int count)
+        /// <summary>트럭 → 내 가방. durability: 도구/무기면 꺼낼 "그" 도구의 남은 내구도 (칸의 CurrentDurability).</summary>
+        public static void Withdraw(TruckInventory truck, PlayerInventory player, ItemData item, int count, int durability = 0)
         {
             if (truck == null || player == null || item == null || count <= 0) return;
             _localPlayerInventory = player;
@@ -403,11 +426,11 @@ namespace LastTruck.Networking
             NetworkTruckInventory net = IsRemoteClient ? Net : null;
             if (net == null)
             {
-                MoveItems(truck.Inventory, player.Inventory, item, count);
+                MoveItems(truck.Inventory, player.Inventory, item, count, durability);
                 return;
             }
 
-            net.RequestWithdraw(item, count);
+            net.RequestWithdraw(item, item.HasDurability ? 1 : count, durability);
         }
 
         /// <summary>트럭 재료로 제작/가공. 클라이언트는 요청만 보내므로 결과는 트럭 창이 갱신되면서 보인다.</summary>
@@ -480,9 +503,24 @@ namespace LastTruck.Networking
         /// <summary>
         /// source → destination으로 옮긴다. 목적지에 실제로 들어간 만큼만 source에서 뺀다 (공간 부족 시 복사 방지).
         /// </summary>
-        public static int MoveItems(ItemStackInventory source, ItemStackInventory destination, ItemData item, int count)
+        public static int MoveItems(ItemStackInventory source, ItemStackInventory destination, ItemData item, int count, int durability = 0)
         {
             if (source == null || destination == null || item == null || count <= 0) return 0;
+
+            // 도구/무기: 닳은 정도를 그대로 가진 "그" 도구 한 개를 옮긴다
+            if (item.HasDurability && durability > 0)
+            {
+                if (!source.RemoveDurable(item, durability))
+                    return 0;   // 그 도구가 없다 (다른 사람이 먼저 가져감) → 복사되지 않게 아무것도 하지 않는다
+                if (AddAndCount(destination, item, 1, durability) < 1)
+                {
+                    source.AddItem(item, 1, durability);   // 목적지가 꽉 찼다 → 되돌린다
+                    Debug.LogWarning("공간이 부족하여 아이템을 옮기지 못했습니다.");
+                    return 0;
+                }
+                return 1;
+            }
+
             count = Mathf.Min(count, source.GetItemCount(item));
             if (count <= 0) return 0;
 
@@ -493,11 +531,11 @@ namespace LastTruck.Networking
         }
 
         /// <summary>AddItem은 공간이 모자라면 일부만 넣고 false를 돌려주므로, 실제로 들어간 개수를 센다.</summary>
-        public static int AddAndCount(ItemStackInventory inventory, ItemData item, int count)
+        public static int AddAndCount(ItemStackInventory inventory, ItemData item, int count, int durability = 0)
         {
             if (inventory == null || item == null || count <= 0) return 0;
             int before = inventory.GetItemCount(item);
-            inventory.AddItem(item, count);
+            inventory.AddItem(item, count, durability);
             return Mathf.Clamp(inventory.GetItemCount(item) - before, 0, count);
         }
 
