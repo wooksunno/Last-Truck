@@ -4,7 +4,7 @@ namespace CraftingSystem
 {
     /// <summary>
     /// 맵에 놓인 일반 돌/나무 프리팹을 E키 꾹 누르기(LastTruck.PlayerInteract)로 채집한다.
-    /// 채집에 성공하면 인벤토리에 아이템이 들어오고 이 오브젝트(프롭 전체)는 사라진다.
+    /// 채집에 성공하면 인벤토리에 아이템이 들어오고 이 오브젝트(프롭 전체)는 사라진다 (나무는 쓰러지고, 돌/풀은 작아지며 사라짐 - PropRemoveEffect).
     /// PlayerInteract는 interactLayer(Water, 레이어 4)의 콜라이더만 찾으므로, 프롭의 자식 "GatherTrigger"
     /// (레이어 4, 트리거 콜라이더)에 이 컴포넌트를 붙여 사용한다. 설치는 에디터 메뉴 Tools/Gatherable Props 로 한다.
     /// </summary>
@@ -48,7 +48,7 @@ namespace CraftingSystem
             _done = true;
             GameObject remove = target != null ? target : (transform.parent != null ? transform.parent.gameObject : gameObject);
             SettleNeighbors(remove);
-            Destroy(remove);
+            PropRemoveEffect.Play(remove, itemId, null);
         }
 
         /// <summary>
@@ -191,7 +191,7 @@ namespace CraftingSystem
 
             GameObject remove = target != null ? target : (transform.parent != null ? transform.parent.gameObject : gameObject);
             SettleNeighbors(remove);
-            Destroy(remove);
+            PropRemoveEffect.Play(remove, itemId, player);
         }
     }
 }

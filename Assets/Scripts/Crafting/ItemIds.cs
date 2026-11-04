@@ -16,6 +16,7 @@ namespace CraftingSystem
         public const string PoisonHerb = "poison_herb"; // 독약초
         public const string Fish = "fish";
         public const string Meat = "meat";
+        public const string RottenMeat = "rotten_meat"; // 썩은 고기 (몬스터 전리품, 약초와 합치면 고기)
         public const string WetHide = "wet_hide"; // 젖은 가죽
 
         // 1차 가공된 재료
@@ -94,6 +95,7 @@ namespace CraftingSystem
         public const string SpikeBumper = "spike_bumper"; // 강철가시 범퍼
         public const string GrinderWheel = "grinder_wheel"; // 초진동 회전 분쇄 휠
         public const string TunedEngine = "tuned_engine"; // 개조 엔진 (트럭 파츠: 엔진)
+        public const string FishingRod = "fishing_rod"; // 낚싯대 (물가에서 왼쪽 클릭으로 던진다)
         public const string MiniTurret = "mini_turret"; // 미니 포탑 (트럭 파츠: 지붕)
 
         // 포탑 탄환 (자원 1개 → 5발)

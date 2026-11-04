@@ -10,7 +10,7 @@ namespace LastTruck
     /// - 가리는 물체의 머티리얼만 투명 복사본으로 잠깐 바꿔 끼우고(원본은 그대로), 가려지지 않으면 원래 머티리얼로 되돌린다.
     ///   그래서 수백 개의 오브젝트에 미리 컴포넌트를 붙일 필요가 없고 평소에는 아무 비용이 없다.
     /// - 땅, 작은 물체(돌멩이 등), 움직이는 물체(트럭/몬스터), 트리거는 건드리지 않는다.
-    /// - URP Lit 머티리얼(맵 대부분)은 부드럽게 투명해지고, 그 밖의 셰이더는 가려지는 동안 그림자만 남기고 숨긴다.
+    /// - URP Lit / LastTruck ToonWorld 머티리얼(맵 대부분)은 부드럽게 반투명해지고, 그 밖의 셰이더는 가려지는 동안 그림자만 남기고 숨긴다.
     /// </summary>
     [DefaultExecutionOrder(1100)]   // 시네머신이 카메라를 옮긴 뒤에 계산한다
     public class CameraOcclusionFader : MonoBehaviour
@@ -170,7 +170,7 @@ namespace LastTruck
             return e;
         }
 
-        /// <summary>URP Lit 계열이면 투명 복사본을 만들어 돌려준다 (그 밖의 셰이더는 null).</summary>
+        /// <summary>URP Lit / ToonWorld처럼 _Surface를 지원하면 투명 복사본을 만들어 돌려준다 (그 밖의 셰이더는 null).</summary>
         private Material GetFadedMaterial(Material source)
         {
             if (_fadedCache.TryGetValue(source, out Material cached))
@@ -184,7 +184,8 @@ namespace LastTruck
                 result.SetFloat("_Blend", 0f);
                 result.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
                 result.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-                result.SetFloat("_ZWrite", 0f);
+                // 깊이는 계속 쓴다: 반투명이 된 물체의 안쪽 면/뒤쪽 가지가 겹쳐 비치지 않고 앞면만 깔끔하게 비친다
+                result.SetFloat("_ZWrite", 1f);
                 result.SetOverrideTag("RenderType", "Transparent");
                 result.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
                 result.DisableKeyword("_ALPHATEST_ON");

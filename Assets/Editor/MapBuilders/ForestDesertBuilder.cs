@@ -248,7 +248,7 @@ public static class ForestDesertBuilder
             for (int j = 0; j < k; j++)
             {
                 float x = cx + (float)(rng.NextDouble() * 2 - 1) * 4f, z = cz + (float)(rng.NextDouble() * 2 - 1) * 4f;
-                string gn = rng.Next(2) == 0 ? "PP_Grass_0" + (1 + rng.Next(6)) : "PP_Grass_Single_" + (1 + rng.Next(10)).ToString("D2");
+                string gn = "PP_Grass_Single_" + (1 + rng.Next(10)).ToString("D2");   // 덤불형 풀(PP_Grass_0x)은 약초와 똑같이 생겨서 장식으로 쓰지 않는다
                 var o = Put(gn, gDeco, x, z, 1.6f + (float)rng.NextDouble() * 1.4f, 0.05f, 0.5f, true, rng);
                 if (o != null) ng++;
             }

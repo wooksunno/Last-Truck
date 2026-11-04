@@ -80,6 +80,11 @@ namespace CraftingSystem
             TruckInventory truckInv = ActiveTruckInventory;
             TruckUpgradeState state = TruckUpgradeState.Instance;
             WatchUpgrades(state);
+
+            // 강화 탭은 UI Toolkit 창으로 그린다 (만들 수 없으면 아래 uGUI 그대로)
+            if (TryShowUpgradeToolkit())
+                return;
+
             Vector2 inner = PopupInnerSize();
 
             var rootGo = new GameObject("TruckUpgrade", typeof(RectTransform), typeof(LayoutElement));

@@ -857,7 +857,7 @@ public static class QuarryBuilder
             if (NearGate(c.x, c.y, 14f)) continue;
             double r = rng.NextDouble();
             if (rim && r < 0.35) { if (Put(pinkTrees[rng.Next(pinkTrees.Length)], gTree, c.x, c.y, 0.9f + (float)rng.NextDouble() * 0.7f, 0.2f, 0.2f, _pinkMat, rng, -1f, 0.9f) != null) nt++; }
-            else if (rim && r < 0.6) { string gn = rng.Next(2) == 0 ? "PP_Grass_0" + (1 + rng.Next(6)) : "PP_Grass_Single_" + (1 + rng.Next(10)).ToString("D2"); if (Put(gn, gDeco, c.x, c.y, 1.8f + (float)rng.NextDouble() * 1.4f, 0.05f, 0.5f, _desertMat, rng, -1f, 0.85f) != null) ngr++; }
+            else if (rim && r < 0.6) { string gn = "PP_Grass_Single_" + (1 + rng.Next(10)).ToString("D2"); /* 덤불형 풀(PP_Grass_0x)은 약초와 똑같이 생겨서 장식으로 쓰지 않는다 */ if (Put(gn, gDeco, c.x, c.y, 1.8f + (float)rng.NextDouble() * 1.4f, 0.05f, 0.5f, _desertMat, rng, -1f, 0.85f) != null) ngr++; }
             else if (r < 0.75) { if (Put(rocks[rng.Next(rocks.Count)], gRock, c.x, c.y, 0.8f + (float)rng.NextDouble() * 1.8f, 0.3f, 0.6f, null, rng, -1f, 0.85f) != null) nr++; }
             else if (r < 0.82) { if (Put(pinkTrees[rng.Next(pinkTrees.Length)], gTree, c.x, c.y, 0.9f + (float)rng.NextDouble() * 0.6f, 0.2f, 0.2f, _pinkMat, rng, -1f, 0.9f) != null) nt++; }
             else if (Put("PP_Cactus_" + (1 + rng.Next(23)).ToString("D2"), gDeco, c.x, c.y, 1.8f + (float)rng.NextDouble() * 2.2f, 0.1f, 0.3f, null, rng, -1f, 0.9f) != null) nc++;

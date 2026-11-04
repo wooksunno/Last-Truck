@@ -459,6 +459,10 @@ private static void EnsureGatherProgressUI(PlayerInventory player)
             if (trap == null)
                 trap = player.gameObject.AddComponent<TrapController>();
 
+            // 낚싯대를 들고 물가에서 왼쪽 클릭하면 낚시
+            if (player.GetComponent<FishingController>() == null)
+                player.gameObject.AddComponent<FishingController>();
+
             LastTruck.PlayerInteract interact = player.GetComponent<LastTruck.PlayerInteract>();
 
             GatherProgressUI ui = FindFirstObjectByType<GatherProgressUI>();
