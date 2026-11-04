@@ -286,6 +286,24 @@ public class GameManager : MonoBehaviour
         StartDay();
     }
 
+    /// <summary>방장 변경으로 이 컴퓨터가 새 방장이 되어 낮/밤 진행을 이어받았을 때 발생 (몬스터 스포너가 남은 밤 쿼터를 이어서 스폰).</summary>
+    public event Action HostTakenOver;
+
+    /// <summary>
+    /// 멀티플레이 방장 변경: 지금까지 따라가던(미러) 값을 그대로 이어받아 이 컴퓨터가 직접 진행한다.
+    /// 페이즈 이벤트는 다시 발생시키지 않는다 (이미 같은 페이즈를 보고 있으므로).
+    /// </summary>
+    public void TakeOverAsHost()
+    {
+        if (!IsNetworkMirror && !_waitingForNetworkStart)
+            return;
+
+        IsNetworkMirror = false;
+        _waitingForNetworkStart = false;
+        _mirrorStarted = false;
+        HostTakenOver?.Invoke();
+    }
+
     /// <summary>클라이언트: 이제부터 호스트 값을 따라간다.</summary>
     public void SetNetworkMirror()
     {

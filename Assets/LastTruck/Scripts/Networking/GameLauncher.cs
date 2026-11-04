@@ -35,7 +35,7 @@ namespace LastTruck.Networking
     ///   그래서 다른 스크립트는 인스펙터 연결 대신 GameLauncher.Instance로 접근해야 한다.
     /// - NetworkRunner는 한 번 끊기면 재사용할 수 없어서, 로비로 돌아갈 때마다 새로 만든다.
     /// </summary>
-    public class GameLauncher : MonoBehaviour, INetworkRunnerCallbacks
+    public partial class GameLauncher : MonoBehaviour, INetworkRunnerCallbacks
     {
         public static GameLauncher Instance { get; private set; }
 
@@ -87,6 +87,12 @@ namespace LastTruck.Networking
         public string HostPassword => IsHost ? _hostPassword : null;
         public string CachedHostNickname => _cachedHostNickname;
 
+        /// <summary>게임 중 지금 방장의 닉네임 (방장 변경 뒤 "호스트 접속 끊김" 안내에 쓴다).</summary>
+        public void SetCachedHostNickname(string nickname)
+        {
+            if (!string.IsNullOrEmpty(nickname)) _cachedHostNickname = nickname;
+        }
+
         public int RoomMaxPlayers
         {
             get
@@ -107,7 +113,10 @@ namespace LastTruck.Networking
             get
             {
                 GameLauncher launcher = Instance;
-                return launcher != null && launcher._runner != null && launcher._runner.IsRunning
+                if (launcher == null) return false;
+                // 방장 변경 중에는 러너가 잠깐 없지만 여전히 멀티플레이 중이다 (싱글플레이용 처리로 빠지지 않게).
+                if (launcher._migrating) return true;
+                return launcher._runner != null && launcher._runner.IsRunning
                        && (launcher._state == LauncherState.StartingGame || launcher._state == LauncherState.InGame
                            || launcher._state == LauncherState.InRoom);
             }
@@ -236,7 +245,10 @@ namespace LastTruck.Networking
                 {
                     [LobbyRules.PropTitle] = title,
                     [LobbyRules.PropHasPassword] = isPrivate ? 1 : 0,
+                    [LobbyRules.PropVersion] = SessionTicket.GameVersion,
+                    [LobbyRules.PropInGame] = 0,
                 },
+                ConnectionToken = SessionTicket.Build(password),
                 SceneManager = _runner.GetComponent<NetworkSceneManagerDefault>(),
             };
 
@@ -247,6 +259,7 @@ namespace LastTruck.Networking
             {
                 result = new OperationResult(false, "방을 만드는 중 서버와의 연결이 끊어졌습니다.");
             }
+            if (result.Ok) RememberSession(_runner.SessionInfo != null ? _runner.SessionInfo.Name : args.SessionName, title, isPrivate, password);
 
             if (!result.Ok)
             {
@@ -267,14 +280,28 @@ namespace LastTruck.Networking
         #region 3. 방 참가 (클라이언트)
 
         /// <summary>비공개 방이면 password에 입력한 비밀번호, 공개 방이면 null.</summary>
-        public async void JoinSession(SessionInfo session, string password)
+        public void JoinSession(SessionInfo session, string password)
         {
             if (_state != LauncherState.InLobby || _runner == null || session == null) return;
 
+            string version = ReadVersion(session);
+            if (version != SessionTicket.GameVersion)
+            {
+                SystemUI.Alert("방 참가 실패", "게임 버전이 다른 방입니다.\n같은 버전의 게임으로 다시 시도해 주세요.");
+                return;
+            }
+            JoinSessionByName(session.Name, ReadTitle(session), HasPassword(session), password);
+        }
+
+        /// <summary>세션 이름으로 바로 참가 (방 목록 클릭 / 재접속 공용).</summary>
+        private async void JoinSessionByName(string sessionName, string title, bool isPrivate, string password)
+        {
+            if (_state != LauncherState.InLobby || _runner == null || string.IsNullOrEmpty(sessionName)) return;
+
             int op = BeginOperation();
-            _roomTitle = ReadTitle(session);
+            _roomTitle = title;
             _cachedHostNickname = string.Empty;
-            _roomIsPrivate = HasPassword(session);
+            _roomIsPrivate = isPrivate;
             _hostPassword = null;
 
             SetState(LauncherState.JoiningSession);
@@ -283,9 +310,9 @@ namespace LastTruck.Networking
             var args = new StartGameArgs
             {
                 GameMode = GameMode.Client,
-                SessionName = session.Name,
-                // 비밀번호는 세션 프로퍼티가 아니라 접속 토큰으로 보낸다. 호스트가 OnConnectRequest에서 확인한다.
-                ConnectionToken = string.IsNullOrEmpty(password) ? null : Encoding.UTF8.GetBytes(password),
+                SessionName = sessionName,
+                // 비밀번호/버전/기기 ID는 세션 프로퍼티가 아니라 접속 토큰(입장권)으로 보낸다. 호스트가 OnConnectRequest에서 확인한다.
+                ConnectionToken = SessionTicket.Build(password),
                 SceneManager = _runner.GetComponent<NetworkSceneManagerDefault>(),
             };
 
@@ -304,6 +331,7 @@ namespace LastTruck.Networking
                 return;
             }
 
+            RememberSession(sessionName, title, isPrivate, password);
             _wasHostInSession = false;
             SetState(LauncherState.InRoom);
             SystemUI.HideLoading();
@@ -358,15 +386,28 @@ namespace LastTruck.Networking
                 return;
             }
 
-            // 전환 중/게임 중에는 아무도 못 들어오게 닫는다 → 방 목록에서 회색으로 보인다.
-            _runner.SessionInfo.IsOpen = false;
-
-            // 모든 참가자가 같은 맵을 만들도록 시드를 정해 방장 엔트리에 넣는다 (씬 로드보다 먼저 복제됨).
+            // 게임 중에는 새 사람은 못 들어오고(호스트가 OnConnectRequest에서 거절), 끊겼던 사람의 재접속만 받는다.
+            // 그래서 방은 열어 두고(IsOpen) "게임 중" 표시만 한다 → 방 목록에서 회색 + 재접속 가능한 사람만 누를 수 있다.
             NetworkPlayer.ClearLoadedPlayers();
             _gameOver = false;
 
+            // 모든 참가자가 같은 맵을 만들도록 시드를 정해 방장 엔트리와 세션 프로퍼티에 넣는다
+            // (엔트리: 씬 로드보다 먼저 복제됨 / 프로퍼티: 재접속·방장 변경 뒤에도 남는다).
+            int seed = NetworkMapSeed.CreateSeed();
             LobbyPlayerEntry hostEntry = LobbyPlayerEntry.Local;
-            if (hostEntry != null) hostEntry.MapSeed = NetworkMapSeed.CreateSeed();
+            if (hostEntry != null) hostEntry.MapSeed = seed;
+            try
+            {
+                _runner.SessionInfo.UpdateCustomProperties(new Dictionary<string, SessionProperty>
+                {
+                    [LobbyRules.PropInGame] = 1,
+                    [LobbyRules.PropSeed] = seed,
+                });
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
 
             SetState(LauncherState.StartingGame);
             SystemUI.ShowLoading("게임을 불러오는 중...");
@@ -406,14 +447,16 @@ namespace LastTruck.Networking
             if (_state != LauncherState.InGame) return;
 
             string message = IsHost && RoomPlayerCount > 1
-                ? "방장이 나가면 게임이 끝나고\n모든 참가자가 방 목록으로 돌아갑니다.\n나가시겠습니까?"
-                : "게임에서 나가 방 목록으로 돌아가시겠습니까?";
+                ? "방장이 나가면 잠시 게임이 멈춘 뒤\n다른 참가자가 방장이 되어 이어서 진행합니다.\n나가시겠습니까?"
+                : $"게임에서 나가 방 목록으로 돌아가시겠습니까?\n({ReconnectWindowSeconds / 60f:0}분 안에 다시 들어오면 이어서 할 수 있습니다)";
             SystemUI.Confirm("게임 나가기", message, LeaveSession, null, "나가기", "계속하기", LeaveGamePopupTag);
         }
 
         private async void LeaveSession()
         {
             if (_state != LauncherState.InRoom && _state != LauncherState.InGame) return;
+            // 게임 도중 (게임 오버 전에) 직접 나간 참가자는 3분 안에 다시 들어올 수 있다. 방장은 나가면 방장이 바뀐다.
+            MarkLeftGame(_state == LauncherState.InGame && !_gameOver && !NetworkGameState.IsGameOver);
             BeginOperation();
             SetState(LauncherState.Leaving);
             SystemUI.ShowLoading("방에서 나가는 중...");
@@ -431,6 +474,8 @@ namespace LastTruck.Networking
         /// <summary>러너 종료 → (필요하면) Menu 씬 로드 → 로비 재접속.</summary>
         private async Task ReturnToLobbyAsync()
         {
+            _migrating = false;
+            NetworkPause.EndAll();
             await ShutdownRunnerAsync();
             if (!CanContinue()) return;
 
@@ -490,11 +535,22 @@ namespace LastTruck.Networking
                 message = "서버와의 연결이 끊어졌습니다.";
             }
 
+            // 게임 도중 내 연결만 끊긴 경우(방장은 그대로): 방 목록으로 돌아간 뒤 "다시 접속" 버튼을 보여준다.
+            MarkLeftGame(previous == LauncherState.InGame && !_wasHostInSession);
+            bool offerReconnect = previous == LauncherState.InGame && !_wasHostInSession && CanReconnect;
+
             BeginOperation();
             SetState(LauncherState.Leaving);
             SystemUI.Dismiss(LeaveGamePopupTag); // ESC로 띄워 둔 "게임 나가기" 창이 있으면 닫는다
-            SystemUI.Alert("연결 끊김", message);
+            if (!offerReconnect) SystemUI.Alert("연결 끊김", message);
             await ReturnToLobbyAsync();
+
+            if (offerReconnect && _state == LauncherState.InLobby)
+            {
+                SystemUI.Confirm("연결 끊김",
+                    $"{message}\n{ReconnectWindowSeconds / 60f:0}분 안에 다시 접속하면 이어서 할 수 있습니다.\n다시 접속할까요?",
+                    TryReconnect, null, "다시 접속", "방 목록");
+            }
         }
 
         #endregion
@@ -687,7 +743,29 @@ namespace LastTruck.Networking
 
         public static bool IsJoinable(SessionInfo session)
         {
-            return session != null && session.IsValid && session.IsOpen && !IsFull(session);
+            if (session == null || !session.IsValid || !session.IsOpen || IsFull(session)) return false;
+            // 게임 중인 방은 내가 끊겼던 방(재접속 가능 시간 안)만 들어갈 수 있다.
+            if (IsInGame(session)) return CanRejoin(session);
+            return true;
+        }
+
+        /// <summary>게임이 시작된 방인가 (세션 프로퍼티).</summary>
+        public static bool IsInGame(SessionInfo session)
+        {
+            return session != null && session.Properties != null
+                   && session.Properties.TryGetValue(LobbyRules.PropInGame, out SessionProperty prop)
+                   && prop.IsInt && (int)prop.PropertyValue != 0;
+        }
+
+        /// <summary>방을 만든 게임 버전 (없으면 null = 예전 버전).</summary>
+        public static string ReadVersion(SessionInfo session)
+        {
+            if (session != null && session.Properties != null
+                && session.Properties.TryGetValue(LobbyRules.PropVersion, out SessionProperty prop) && prop.IsString)
+            {
+                return (string)prop.PropertyValue;
+            }
+            return null;
         }
 
         #endregion
@@ -697,29 +775,50 @@ namespace LastTruck.Networking
         public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList)
         {
             if (runner != _runner) return;
-            _sessions = sessionList.Where(s => s != null && s.IsValid && s.IsVisible).ToList();
+            // 같은 버전으로 만든 방만 보여준다 (다른 빌드끼리는 함께 할 수 없다).
+            string version = SessionTicket.GameVersion;
+            _sessions = sessionList.Where(s => s != null && s.IsValid && s.IsVisible && ReadVersion(s) == version).ToList();
             SessionListUpdated?.Invoke(_sessions);
         }
 
         public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token)
         {
-            // 호스트만 불린다. 게임 시작 후에는 아무도 받지 않는다.
-            // (방이 목록에 뜨는 시점과 StartGame 완료 시점 사이에 들어오는 사람을 위해 CreatingSession도 허용)
-            if (_state != LauncherState.InRoom && _state != LauncherState.CreatingSession)
+            // 호스트만 불린다.
+            SessionTicket.Info ticket = SessionTicket.Parse(token);
+
+            // 다른 버전 빌드는 받지 않는다 (방 목록에서도 안 보이지만, 이름으로 직접 들어오는 경우 대비).
+            if (ticket.Version != SessionTicket.GameVersion)
             {
+                LogSession($"접속 거절 (버전 다름: {ticket.Version ?? "예전 버전"})");
                 request.Refuse();
                 return;
             }
 
-            if (string.IsNullOrEmpty(_hostPassword))
+            if (!string.IsNullOrEmpty(_hostPassword) && ticket.Password != _hostPassword)
+            {
+                LogSession("접속 거절 (비밀번호 틀림)");
+                request.Refuse();
+                return;
+            }
+
+            // 대기실: 누구나 (방이 목록에 뜨는 시점과 StartGame 완료 사이에 들어오는 사람을 위해 CreatingSession도 허용)
+            if (_state == LauncherState.InRoom || _state == LauncherState.CreatingSession)
             {
                 request.Accept();
                 return;
             }
 
-            string given = token != null && token.Length > 0 ? Encoding.UTF8.GetString(token) : string.Empty;
-            if (given == _hostPassword) request.Accept();
-            else request.Refuse();
+            // 게임 중: 새 사람은 받지 않고, 끊겼던 사람(재접속 대기 캐릭터가 있는 기기)이거나
+            // 방장 변경 직후 주인을 기다리는 캐릭터의 주인만 받는다.
+            if (_state == LauncherState.InGame && !_gameOver && !NetworkGameState.IsGameOver && CanAcceptReturning(ticket.DeviceId))
+            {
+                LogSession("재접속 허용");
+                request.Accept();
+                return;
+            }
+
+            LogSession($"접속 거절 (게임 중 / 상태 {_state})");
+            request.Refuse();
         }
 
         public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
@@ -728,8 +827,12 @@ namespace LastTruck.Networking
 
             if (_state == LauncherState.StartingGame || _state == LauncherState.InGame)
             {
-                // 세션을 닫아두므로 오면 안 되지만, 혹시 들어오면 내보낸다.
-                if (player != runner.LocalPlayer) runner.Disconnect(player);
+                // 게임 중: 재접속 / 방장 변경 뒤 다시 붙는 사람 → 원래 캐릭터를 돌려준다. 아니면 내보낸다.
+                if (!HostAttachReturningPlayer(runner, player) && player != runner.LocalPlayer)
+                {
+                    LogSession($"게임 중 참가 → 원래 캐릭터가 없어 내보냄 ({player})");
+                    runner.Disconnect(player);
+                }
                 return;
             }
 
@@ -755,6 +858,16 @@ namespace LastTruck.Networking
                 _entryObjects.Remove(player);
             }
 
+            // 게임 중에 나간 사람의 캐릭터는 바로 없애지 않고 숨긴 채 재접속을 기다린다 (가방도 호스트가 보관).
+            NetworkPlayer leaving = NetworkPlayer.Find(player);
+            if (_state == LauncherState.InGame && leaving != null && !_gameOver)
+            {
+                LogSession($"{leaving.Nickname} 나감 → 재접속 대기 {ReconnectWindowSeconds:0}초");
+                leaving.HostMarkDeparted(ReconnectWindowSeconds);
+                _characterObjects.Remove(player);
+                return;
+            }
+
             if (_characterObjects.TryGetValue(player, out NetworkObject character))
             {
                 if (character != null) runner.Despawn(character);
@@ -768,6 +881,23 @@ namespace LastTruck.Networking
             // 호스트가 시작을 누르면 모든 참가자(호스트 포함)에게 불린다 → 로딩 패널로 조작을 막는다.
             if (_state == LauncherState.InRoom) SetState(LauncherState.StartingGame);
             SystemUI.ShowLoading("게임을 불러오는 중...");
+            if (_state == LauncherState.StartingGame) StartCoroutine(SceneLoadWatchdog(runner));
+        }
+
+        /// <summary>게임 씬 불러오기가 너무 오래 걸리면(멈춤) 알리고 방 목록으로 돌아간다.</summary>
+        private System.Collections.IEnumerator SceneLoadWatchdog(NetworkRunner runner)
+        {
+            yield return new WaitForSecondsRealtime(SceneLoadTimeoutSeconds);
+            if (runner != _runner || _state != LauncherState.StartingGame) yield break;
+
+            LogSession("씬 불러오기 시간 초과");
+            MarkLeftGame(false);
+            BeginOperation();
+            SetState(LauncherState.Leaving);
+            SystemUI.ShowLoading("방에서 나가는 중...");
+            Task leaving = ReturnToLobbyAsync();
+            while (!leaving.IsCompleted) yield return null;
+            SystemUI.Alert("불러오기 실패", "게임을 불러오는 데 너무 오래 걸려 방 목록으로 돌아왔습니다.");
         }
 
         public void OnSceneLoadDone(NetworkRunner runner)
@@ -777,6 +907,16 @@ namespace LastTruck.Networking
 
             SetState(LauncherState.InGame);
             _gameOver = false;
+
+            // 방장 변경으로 다시 시작한 러너: 씬은 그대로 이어받고, 캐릭터/게임 상태는 이전 방장의 스냅샷에서 되살린다.
+            if (runner.IsResume || _migrating) return;
+
+            // 재접속: 이미 진행 중인 게임이면 대기 화면 없이 바로 (내 캐릭터는 호스트가 원래 것을 돌려준다).
+            if (!runner.IsServer && NetworkGameState.Instance != null && NetworkGameState.Instance.Started)
+            {
+                SystemUI.HideLoading();
+                return;
+            }
 
             // 모든 참가자가 준비될 때까지 대기 화면 (NetworkGameState가 시작되면 닫는다).
             NetworkPrefabRegistry registry = NetworkPrefabRegistry.Instance;
@@ -964,6 +1104,7 @@ namespace LastTruck.Networking
             LobbyPlayerEntry entry = LobbyPlayerEntry.Find(player);
             int characterIndex = entry != null ? entry.CharacterIndex : 0;
             string nickname = entry != null ? entry.Nickname.ToString() : "player";
+            string deviceId = DeviceIdOf(runner, player);
 
             CharacterCatalog catalog = CharacterCatalog.Instance;
             NetworkObject prefab = catalog != null ? catalog.ResolveSpawnPrefab(ref characterIndex) : null;
@@ -979,10 +1120,15 @@ namespace LastTruck.Networking
             NetworkObject character = runner.Spawn(prefab, position, rotation, player,
                 (spawnRunner, spawned) =>
                 {
+                    NetworkInterest.Apply(spawnRunner, spawned, false);
                     NetworkPlayer networkPlayer = spawned.GetComponent<NetworkPlayer>();
-                    if (networkPlayer != null) networkPlayer.InitializeBeforeSpawn(nickname, characterIndex);
+                    if (networkPlayer != null) networkPlayer.InitializeBeforeSpawn(nickname, characterIndex, deviceId);
                 });
-            if (character != null) _characterObjects[player] = character;
+            if (character != null)
+            {
+                _characterObjects[player] = character;
+                runner.SetPlayerObject(player, character); // 방장 변경 때 "누구 캐릭터였는지" 스냅샷에 남긴다
+            }
         }
 
         // 이번 단계에서 쓰지 않지만 인터페이스 구현을 위해 필요한 콜백들.
@@ -991,7 +1137,6 @@ namespace LastTruck.Networking
         public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) { }
         public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }
         public void OnCustomAuthenticationResponse(NetworkRunner runner, Dictionary<string, object> data) { }
-        public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken) { }
         public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress) { }
         public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ReadOnlySpan<byte> data) { }
         public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }

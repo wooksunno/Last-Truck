@@ -233,6 +233,7 @@ namespace LastTruck.Networking
         public override void FixedUpdateNetwork()
         {
             if (!HasStateAuthority) return;
+            if (NetworkGameState.IsHeld) return; // 게임 전체 멈춤 (방장 변경 중)
             if (_agent == null || !_agent.enabled) return;
             if (!_agent.isOnNavMesh)
             {

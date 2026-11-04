@@ -44,6 +44,19 @@ namespace LastTruck.Networking
 
         public override void Spawned()
         {
+            ApplyAuthority();
+        }
+
+        /// <summary>조종 권한이 바뀌었을 때(재접속 / 방장 변경) 다시 부른다: 내 캐릭터면 무기 이벤트를 보내고, 아니면 보여주기 전용.</summary>
+        public void RefreshAuthority()
+        {
+            if (Object == null || !Object.IsValid) return;
+            UnsubscribeLocal();
+            ApplyAuthority();
+        }
+
+        private void ApplyAuthority()
+        {
             if (_weapon == null) _weapon = GetComponent<WeaponController>();
             if (_weapon == null) return;
 
@@ -70,6 +83,11 @@ namespace LastTruck.Networking
         }
 
         public override void Despawned(NetworkRunner runner, bool hasState)
+        {
+            UnsubscribeLocal();
+        }
+
+        private void UnsubscribeLocal()
         {
             if (_weapon == null) return;
             _weapon.HeldWeaponChanged -= OnLocalHeldWeaponChanged;

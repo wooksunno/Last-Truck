@@ -145,6 +145,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RequestProp(Vector3 propPosition, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestProp), 30)) return;
             PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
             GatherableProp prop = FindProp(propPosition);
             if (prop == null || prop.IsDone) return; // 다른 사람이 먼저 캤다
@@ -195,6 +196,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RequestGather(Vector3 nodePosition, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestGather), 30)) return;
             PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
             SpecialResourceNode node = FindNode(nodePosition);
             if (node == null) return;
@@ -258,6 +260,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RequestTrap(Vector3 position, int damage, float rootSeconds, float triggerRadius, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestTrap), 15)) return;
             PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
             NetworkPlayer owner = NetworkPlayer.Find(source);
             // 너무 먼 위치면 요청을 버리지 않고 설치자 발밑에 놓는다 (덫 아이템은 이미 소모됐으므로).
@@ -319,6 +322,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RequestBarricade(int kind, Vector3 position, float yaw, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestBarricade), 15)) return;
             PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
             NetworkPlayer owner = NetworkPlayer.Find(source);
             // 너무 먼 위치면 설치자 바로 앞에 세운다 (아이템은 이미 소모됐으므로 버리지 않는다)
@@ -372,6 +376,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RequestPump(Vector3 sitePosition, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestPump), 15)) return;
             PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
             OilWellSite site = OilWellSite.FindAt(sitePosition);
             if (site == null || site.Pump != null || !IsNear(source, sitePosition))
@@ -394,6 +399,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RequestPumpCollect(Vector3 sitePosition, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestPumpCollect), 15)) return;
             PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
             OilWellSite site = OilWellSite.FindAt(sitePosition);
             if (site == null || site.Pump == null || !IsNear(source, sitePosition)) return;
@@ -415,6 +421,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RequestPumpRemove(Vector3 sitePosition, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestPumpRemove), 15)) return;
             PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
             OilWellSite site = OilWellSite.FindAt(sitePosition);
             if (site == null || site.Pump == null || !IsNear(source, sitePosition)) return;

@@ -20,7 +20,7 @@
     "ClientsRecordFrameAndPacketTimingTraces": false,
     "Simulation": {
         "InputDataWordCount": 0,
-        "ReplicationFeatures": 0,
+        "ReplicationFeatures": 2,
         "InterestManagementConfig": {
             "AreaOfInterestCellSize": 32,
             "AreaOfInterestCellGridSize": {
@@ -67,8 +67,8 @@
         "GameReliableChannelSendCount": 1
     },
     "HostMigration": {
-        "EnableAutoUpdate": false,
-        "UpdateDelay": 10
+        "EnableAutoUpdate": true,
+        "UpdateDelay": 5
     },
     "EncryptionConfig": {
         "EnableEncryption": false

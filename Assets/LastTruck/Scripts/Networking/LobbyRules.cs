@@ -32,6 +32,9 @@ namespace LastTruck.Networking
         // ---- 세션 프로퍼티 키 (로비의 모든 사람이 읽을 수 있으므로 비밀번호 자체는 절대 넣지 않는다) ----
         public const string PropTitle = "title";
         public const string PropHasPassword = "pw"; // 0 = 공개, 1 = 비공개
+        public const string PropVersion = "ver";    // 게임 버전 (SessionTicket.GameVersion) - 같은 버전 방만 보인다
+        public const string PropInGame = "ing";     // 1 = 게임 중 (재접속만 가능)
+        public const string PropSeed = "seed";      // 맵 시드 (재접속/방장 변경 뒤에도 같은 맵)
 
         public static string DefaultRoomTitle(string nickname) => nickname + DefaultTitleSuffix;
 

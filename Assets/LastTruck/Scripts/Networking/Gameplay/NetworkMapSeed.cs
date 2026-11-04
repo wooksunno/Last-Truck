@@ -16,14 +16,23 @@ namespace LastTruck.Networking
             if (!GameLauncher.IsOnlineSession) return false;
 
             LobbyPlayerEntry host = LobbyPlayerEntry.HostEntry;
-            if (host == null || host.MapSeed == 0)
+            if (host != null && host.MapSeed != 0)
             {
-                Debug.LogWarning("[NetworkMapSeed] 멀티플레이 중인데 맵 시드를 아직 받지 못했습니다. 맵이 참가자마다 다를 수 있습니다.");
-                return false;
+                seed = host.MapSeed;
+                return true;
             }
 
-            seed = host.MapSeed;
-            return true;
+            // 재접속 / 방장 변경 뒤에는 대기실 정보가 없을 수 있다 → 세션 프로퍼티의 시드를 쓴다.
+            Fusion.NetworkRunner runner = GameLauncher.Instance != null ? GameLauncher.Instance.Runner : null;
+            if (runner != null && runner.SessionInfo != null && runner.SessionInfo.Properties != null
+                && runner.SessionInfo.Properties.TryGetValue(LobbyRules.PropSeed, out Fusion.SessionProperty prop) && prop.IsInt)
+            {
+                seed = (int)prop.PropertyValue;
+                if (seed != 0) return true;
+            }
+
+            Debug.LogWarning("[NetworkMapSeed] 멀티플레이 중인데 맵 시드를 아직 받지 못했습니다. 맵이 참가자마다 다를 수 있습니다.");
+            return false;
         }
 
         /// <summary>0이 아닌 새 시드.</summary>

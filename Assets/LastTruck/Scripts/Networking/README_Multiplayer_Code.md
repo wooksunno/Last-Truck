@@ -411,3 +411,51 @@ InRoom/InGame ─(RequestLeaveSession 또는 연결 끊김)─> Leaving ─> (Me
   FBX 클립 이름이 전부 "Take 001"이라 `MonsterAnimationSet` 컴포넌트에 클립을 직접 연결 (attackHitTiming 0.45, stunImmunitySeconds 1, corpseLingerSeconds 0.5).
   경직: 호스트 `DamagedOnHost` → 공격 취소 + `RPC_PlayHit`, 사망: `Dead` + 콜라이더 끔, DespawnDelay = 사망 클립 + 0.5초. 싱글 MonsterAI도 Damageable `Damaged/Died` 이벤트로 동일.
   메뉴 1이 원본에 콜라이더가 없으면 CapsuleCollider를 맞춰 추가하고, 원본이 바뀌면 Monster_Network를 다시 만든다.
+
+## 13. 서버 안정화: 방장 변경(호스트 마이그레이션) / 재접속 / 검증 / AOI / F3 (`NDH/feat(v3)`)
+
+### 13-1. 설정 (`Photon/Fusion/Resources/NetworkProjectConfig.fusion`)
+- `HostMigration.EnableAutoUpdate = true`, `UpdateDelay = 5` (5초마다 스냅샷 → 방장이 나가면 최대 5초 전 상태로 이어감).
+- `Simulation.ReplicationFeatures = 2` (Interest Management, AOI). 몬스터만 AOI, 나머지는 Global.
+- Fusion은 실제 시간으로 돌아서(`SimulationTimeMode` Unscaled) `Time.timeScale = 0` 일시정지 중에도 재연결은 계속된다.
+
+### 13-2. 새 파일
+| 파일 | 역할 |
+|---|---|
+| `GameLauncher.Session.cs` (partial) | 재접속 정보, `OnHostMigration`, `HostMigrationResume`, 돌아온 사람 캐릭터 붙이기, `LogSession`/`RecentLog` |
+| `Session/SessionTicket.cs` | 접속 토큰 `LT1\n버전\n기기ID\n비번`, `GameVersion`(`Application.version/n프로토콜`), `DeviceId`(PlayerPrefs GUID) |
+| `Session/NetworkPause.cs` | 게임 전체 멈춤. 이유(reason)별 Begin/End/EndAll. timeScale 0, 소리, EventSystem, 로딩 문구 |
+| `Session/RpcGuard.cs` | 요청 RPC 검증: `Allow`(초당 횟수), `Near`(거리) |
+| `Game/NetworkInterest.cs` | AOI 켜짐 확인, 스폰 직전 `ObjectInterest` 지정 |
+| `UI/NetworkStatsHud.cs` | F3 네트워크 상태 창 (OnGUI) |
+
+### 13-3. 방장 변경 흐름
+1. 클라이언트 `OnHostMigration` → 게임 중이 아니면 방 목록. 게임 중이면 `NetworkPause.Begin(migration)`, 내 가방을 `NetworkPlayer.PendingLocalBag`에 저장,
+   화면의 네트워크 오브젝트는 남겨 두고(멈춘 모습) 내 옛 캐릭터 입력 스크립트를 끈 뒤 `Shutdown(false, HostMigration)`.
+2. 새 러너 `StartGame(HostMigrationToken, HostMigrationResume)`. 씬은 이어받음(`IsSceneTakeOverEnabled`), 씬 오브젝트는 자동 복원.
+3. 새 방장 `HostMigrationResume`: 스냅샷의 프리팹 오브젝트를 `Spawn + CopyStateFrom`(LobbyPlayerEntry, 씬 오브젝트 제외).
+   캐릭터는 주인 없음 + `HostBeginClaimWait(20초)`, 트럭 좌석은 PlayerRef가 바뀌므로 전원 하차. 들어온 사람은 기기ID로 원래 캐릭터를 되찾음.
+4. `NetworkGameState`(IsResume) → `GameManager.TakeOverAsHost()` → `HostTakenOver` → `MonsterSpawner`가 2초 뒤 남은 몬스터 목록 재구성 + 부족분 스폰.
+5. 새 방장의 `NetworkGameState.Held` = 되찾기 대기 캐릭터가 있음 → 모든 컴퓨터 `NetworkPause(hold)`. 몬스터 `FixedUpdateNetwork`, 피해, 이동 입력(`AllowPlayerControl`)이 멈춘다.
+6. 내 캐릭터를 다시 받으면(최대 15초) 남겨 둔 옛 오브젝트 삭제 + `NetworkPause.End(migration)`. 실패 → 방 목록 + 알림.
+
+### 13-4. 나간 사람 / 재접속 (3분)
+- 방은 게임 중에도 열림, 세션 속성 `ing=1`. 방 목록은 `재접속 가능`(내가 있던 방, 3분 안) / `게임 중`으로 표시, 재접속만 허용.
+- `OnPlayerLeft`(게임 중) → `NetworkPlayer.HostMarkDeparted(180초)`: 트럭 하차, 입력 권한 None, 캐릭터 숨김(렌더러/콜라이더), `All`에서 빠짐(몬스터/게임 오버/HUD 제외).
+- 가방은 주인이 0.4초 간격으로 `RPC_ReportBag` → 호스트 `[Networked]` 배열에 보관. 돌아오면 `HostReattach` → `RestoreBag` → 주인 컴퓨터가 가방 복원.
+- 3분 지나면 `HostExpireDeparted`: 가방을 트럭 인벤토리로 옮기고 Despawn.
+- `OnConnectRequest`: 버전 다름 / 비번 틀림 / 게임 중 + 기다리는 캐릭터 없음 → 거절.
+
+### 13-5. 검증 (`RpcGuard`)
+- 클라이언트 → 호스트 요청 RPC 전부에 `RpcInfo` + 초당 횟수 제한(기본 15, 트럭 인벤토리 60, 가공/채집 30, 터렛 조준 60, 피해 80). 넘친 요청은 버리고 F3 기록에 남김.
+- 피해 요청: 기존 `maxDamagePerHit` 상한 + 보낸 사람과 대상 거리 120m 이내.
+
+### 13-6. AOI / F3 / 시간 제한
+- `NetworkGameState.HostUpdateInterest`: 매 틱 플레이어(탑승 중이면 트럭) 위치에 `AddPlayerAreaOfInterest(반경 interestRadius=60m, 인스펙터)`. 0이면 끔.
+- 몬스터 스폰 `onBeforeSpawned`에서 AreaOfInterest, 캐릭터/복원 오브젝트는 Global.
+- F3: 버전, 방, 역할, 핑, 틱, 접속/캐릭터 수, 보이는 몬스터 수, AOI, 일시정지, 최근 기록 8줄.
+- 게임 씬 불러오기 60초 초과 → 방 목록 + 알림. `NetworkGameState.HostName`으로 새 방장 닉네임 공유.
+
+### 13-7. 그 외
+- 로비 버그: 방 만들기 창을 다시 열 때 토글은 `SetIsOnWithoutNotify`라 "공개/비공개" 글자가 안 바뀌던 문제 → `RefreshPasswordFieldState`에서 글자도 갱신.
+- 트럭 클라이언트 운전자 예측: 호스트가 `TruckVelocity/AngularVelocity`를 올리고, 운전자 화면만 RTT+2틱(최대 0.35초)만큼 앞당겨 그림.

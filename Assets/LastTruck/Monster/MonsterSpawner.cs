@@ -110,6 +110,7 @@ public class MonsterSpawner : MonoBehaviour
         {
             gameManager.OnNightStarted += HandleNightStarted;
             gameManager.OnNightEnded += HandleNightEnded;
+            gameManager.HostTakenOver += HandleHostTakenOver;
         }
     }
 
@@ -119,6 +120,40 @@ public class MonsterSpawner : MonoBehaviour
         {
             gameManager.OnNightStarted -= HandleNightStarted;
             gameManager.OnNightEnded -= HandleNightEnded;
+            gameManager.HostTakenOver -= HandleHostTakenOver;
+        }
+    }
+
+    /// <summary>
+    /// 멀티플레이 방장 변경: 이 컴퓨터가 새 방장이 됐다. 밤이면 남은 쿼터(쿼터 - 처치 - 살아 있는 몬스터)를 이어서 스폰한다.
+    /// 이어받은 몬스터가 모두 생길 때까지 잠깐(실시간) 기다렸다가 센다.
+    /// </summary>
+    private void HandleHostTakenOver()
+    {
+        if (!LastTruck.Networking.NetworkMonsterSpawning.CanSpawnMonsters)
+            return;
+        StartCoroutine(ResumeNightAfterTakeover());
+    }
+
+    private IEnumerator ResumeNightAfterTakeover()
+    {
+        yield return new WaitForSecondsRealtime(2f);
+
+        _aliveMonsters.Clear();
+        foreach (LastTruck.Networking.NetworkMonster monster in FindObjectsByType<LastTruck.Networking.NetworkMonster>(FindObjectsSortMode.None))
+        {
+            if (monster != null && monster.Object != null && monster.Object.IsValid) _aliveMonsters.Add(monster.gameObject);
+        }
+
+        GameManager gm = GameManager.Instance;
+        if (gm == null || gm.CurrentPhase != GameManager.GamePhase.Night || spawnRoutine != null)
+            yield break;
+
+        int remaining = gm.NightMonsterQuota - gm.NightMonstersKilled - CountAliveMonsters();
+        if (remaining > 0)
+        {
+            Debug.Log($"[MonsterSpawner] 방장 변경: 남은 밤 몬스터 {remaining}마리를 이어서 스폰합니다.");
+            SpawnMonsters(remaining);
         }
     }
 

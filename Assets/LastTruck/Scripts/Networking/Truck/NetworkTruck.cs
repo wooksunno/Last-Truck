@@ -38,6 +38,12 @@ namespace LastTruck.Networking
         [Tooltip("클라이언트 화면에서 트럭을 따라가는 부드러움 (클수록 빠르게 따라감, 작을수록 부드럽지만 늦음).")]
         [SerializeField] private float clientSmoothing = 18f;
 
+        [Header("운전자 화면 보정 (클라이언트가 운전할 때)")]
+        [Tooltip("클라이언트 운전자 화면에서는 트럭을 핑만큼 앞으로 내다봐서 그린다 (조작이 바로 반응하는 것처럼 보이게). 판정은 호스트 그대로.")]
+        [SerializeField] private bool predictForDriver = true;
+        [Tooltip("내다보는 최대 시간(초). 핑이 매우 높아도 이 이상은 앞당기지 않는다 (급정거 때 튀는 것 방지).")]
+        [SerializeField] private float maxPredictSeconds = 0.35f;
+
         #endregion
 
         #region 네트워크 상태
@@ -50,6 +56,8 @@ namespace LastTruck.Networking
         [Networked] public Quaternion TruckRotation { get; set; }
         [Networked] public NetworkBool HasPose { get; set; }
         [Networked, OnChangedRender(nameof(OnLightsRender))] public NetworkBool LightsOn { get; set; }
+        [Networked] public Vector3 TruckVelocity { get; set; }
+        [Networked] public Vector3 TruckAngularVelocity { get; set; }
 
         // 트럭 파츠(자리별 아이템 번호+1, 0 = 없음) / 강화 레벨 / 포탑 방향. 호스트가 TruckUpgradeState 값을 그대로 쓴다.
         public const int TurretSeat = 1;
@@ -140,9 +148,17 @@ namespace LastTruck.Networking
 
             if (HasStateAuthority)
             {
-                for (int i = 0; i < SeatCount; i++) Seats.Set(i, PlayerRef.None);
-                LightsOn = false;
+                // 방장 변경으로 이어받은 경우(Object.IsResume)에는 좌석/라이트 값을 그대로 둔다 (좌석은 이전 PlayerRef라서 따로 정리).
+                if (!Object.IsResume)
+                {
+                    for (int i = 0; i < SeatCount; i++) Seats.Set(i, PlayerRef.None);
+                    LightsOn = false;
+                }
                 _upgradeDirty = true;
+
+                // 클라이언트였다가 방장이 된 경우: 꺼 두었던 트럭 물리를 다시 켠다.
+                if (_rigidbody != null && _rigidbody.isKinematic) _rigidbody.isKinematic = false;
+                if (_move != null) _move.useExternalInput = true;
 
                 // 호스트: 물리 스텝 사이도 매 프레임 부드러운 위치를 쓰도록 보간을 켠다 (보내는 위치가 덜 튄다).
                 if (_rigidbody != null) _rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
@@ -177,7 +193,36 @@ namespace LastTruck.Networking
 
             TruckPosition = _truck.transform.position;
             TruckRotation = _truck.transform.rotation;
+            if (_rigidbody != null && !_rigidbody.isKinematic)
+            {
+                TruckVelocity = _rigidbody.linearVelocity;
+                TruckAngularVelocity = _rigidbody.angularVelocity;
+            }
             HasPose = true;
+        }
+
+        /// <summary>호스트: 이 사람을 트럭에서 내리게 한다 (나갔을 때 등).</summary>
+        public void HostForceExit(PlayerRef player)
+        {
+            if (HasStateAuthority) HostExit(player);
+        }
+
+        /// <summary>
+        /// 호스트(방장 변경 직후): 좌석에 남은 예전 PlayerRef를 모두 비우고, 앉아 있던 캐릭터는 트럭 옆에 내려놓는다
+        /// (방장이 바뀌면 PlayerRef 번호가 새로 매겨져서 좌석 값이 맞지 않는다 → 모두 내린 뒤 다시 타게 한다).
+        /// </summary>
+        public void HostEjectAllAfterMigration(System.Collections.Generic.IReadOnlyDictionary<PlayerRef, NetworkPlayer> oldOwners)
+        {
+            if (!HasStateAuthority || !FindTruck()) return;
+            for (int i = 0; i < SeatCount; i++)
+            {
+                PlayerRef old = Seats[i];
+                if (old == PlayerRef.None) continue;
+                Seats.Set(i, PlayerRef.None);
+                if (oldOwners != null && oldOwners.TryGetValue(old, out NetworkPlayer character) && character != null)
+                    MoveOut(character, i);
+            }
+            LightsOn = false;
         }
 
         /// <summary>죽었거나 나간 사람의 좌석을 비운다.</summary>
@@ -455,6 +500,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_InstallPart(int itemIndex, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_InstallPart), 15)) return;
             if (Upgrades == null) return;
             Upgrades.TryInstall(ItemIndexLookup.ItemAt(itemIndex), FindTruckInventory(), out string msg);
             RPC_Toast(SourceOf(info), msg ?? "");
@@ -463,6 +509,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RemovePart(int slot, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RemovePart), 15)) return;
             if (Upgrades == null || slot < 0 || slot >= CraftingSystem.TruckUpgradeRules.SlotCount) return;
             Upgrades.TryRemove((CraftingSystem.TruckPartSlot)slot, FindTruckInventory(), out string msg);
             RPC_Toast(SourceOf(info), msg ?? "");
@@ -471,6 +518,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_Upgrade(int stat, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_Upgrade), 15)) return;
             if (Upgrades == null || stat < 0 || stat >= CraftingSystem.TruckUpgradeRules.StatCount) return;
             Upgrades.TryUpgrade((CraftingSystem.TruckStat)stat, FindTruckInventory(), out string msg);
             RPC_Toast(SourceOf(info), msg ?? "");
@@ -479,12 +527,14 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_TurretAim(float yaw, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_TurretAim), 60)) return;
             if (Seats[TurretSeat] == SourceOf(info)) TurretYaw = yaw;
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_TurretFire(Vector3 aimPoint, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_TurretFire), 20)) return;
             PlayerRef source = SourceOf(info);
             if (Seats[TurretSeat] != source || CraftingSystem.TruckTurret.Instance == null) return;
             if (!CraftingSystem.TruckTurret.Instance.HostFire(aimPoint, out string msg) && !string.IsNullOrEmpty(msg))
@@ -494,6 +544,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_TurretCraftAmmo(RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_TurretCraftAmmo), 15)) return;
             PlayerRef source = SourceOf(info);
             if (Seats[TurretSeat] != source || CraftingSystem.TruckTurret.Instance == null) return;
             CraftingSystem.TruckTurret.Instance.HostCraftAmmo(out string msg);
@@ -539,23 +590,37 @@ namespace LastTruck.Networking
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-        private void RPC_RequestRepair()
+        private void RPC_RequestRepair(RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestRepair), 15)) return;
             if (FindTruck() && _info != null) _info.Repair(_info.MaxDurability);
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-        private void RPC_RequestBoard(RpcInfo info = default) => HostBoard(SourceOf(info));
+        private void RPC_RequestBoard(RpcInfo info = default)
+        {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestBoard), 15)) return;
+            HostBoard(SourceOf(info));
+        }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-        private void RPC_RequestExit(RpcInfo info = default) => HostExit(SourceOf(info));
+        private void RPC_RequestExit(RpcInfo info = default)
+        {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestExit), 15)) return;
+            HostExit(SourceOf(info));
+        }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-        private void RPC_RequestDriverSeat(RpcInfo info = default) => HostTakeDriverSeat(SourceOf(info));
+        private void RPC_RequestDriverSeat(RpcInfo info = default)
+        {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestDriverSeat), 15)) return;
+            HostTakeDriverSeat(SourceOf(info));
+        }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_ToggleLights(RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_ToggleLights), 15)) return;
             if (Seats[DriverSeat] == SourceOf(info)) LightsOn = !LightsOn;
         }
 
@@ -591,6 +656,20 @@ namespace LastTruck.Networking
                     rotation = interpolator.Quaternion(nameof(TruckRotation));
                 }
 
+                // 운전자 화면 보정: 내가 (클라이언트로) 운전 중이면 핑 + 보간 지연만큼 앞을 내다봐서 그린다.
+                // 판정/실제 위치는 호스트 것 그대로이고, 내 화면만 조작이 바로 반응하는 것처럼 보인다.
+                if (predictForDriver && _localSeat == DriverSeat)
+                {
+                    float lookahead = PredictionSeconds();
+                    if (lookahead > 0f)
+                    {
+                        position += TruckVelocity * lookahead;
+                        Vector3 angular = TruckAngularVelocity * lookahead;
+                        if (angular.sqrMagnitude > 0.000001f)
+                            rotation = Quaternion.AngleAxis(angular.magnitude * Mathf.Rad2Deg, angular.normalized) * rotation;
+                    }
+                }
+
                 Transform truck = _truck.transform;
                 Vector3 previous = truck.position;
                 if ((truck.position - position).sqrMagnitude > snapDistance * snapDistance)
@@ -605,6 +684,17 @@ namespace LastTruck.Networking
                 }
                 SpinClientWheels(truck, truck.position - previous);
             }
+        }
+
+        /// <summary>클라이언트 운전자가 내다볼 시간: 왕복 핑 + 보간 지연(약 2틱), maxPredictSeconds까지.</summary>
+        private float PredictionSeconds()
+        {
+            if (Runner == null || Runner.IsServer) return 0f;
+            double rtt = 0d;
+            try { rtt = Runner.GetPlayerRtt(Runner.LocalPlayer); }
+            catch { rtt = 0d; }
+            float seconds = (float)rtt + Runner.DeltaTime * 2f;
+            return Mathf.Clamp(seconds, 0f, maxPredictSeconds);
         }
 
         /// <summary>클라이언트: 물리가 없어서 바퀴가 멈춰 보이므로, 움직인 거리만큼 바퀴 모델을 굴린다 (차축 = 트럭 오른쪽 방향).</summary>

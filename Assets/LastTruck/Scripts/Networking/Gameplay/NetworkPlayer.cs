@@ -22,15 +22,33 @@ namespace LastTruck.Networking
     /// 프리팹은 에디터 메뉴 "LastTruck > Multiplayer > 1. 네트워크 프리팹 생성"이 자동으로 만든다.
     /// </summary>
     [DisallowMultipleComponent]
-    public class NetworkPlayer : NetworkBehaviour
+    public class NetworkPlayer : NetworkBehaviour, IInputAuthorityGained, IInputAuthorityLost
     {
         #region 정적 목록 / 이벤트
 
         private static readonly List<NetworkPlayer> AllPlayers = new List<NetworkPlayer>();
+        private static readonly List<NetworkPlayer> PresentPlayers = new List<NetworkPlayer>();
         private static readonly HashSet<PlayerRef> LoadedPlayers = new HashSet<PlayerRef>();
 
-        /// <summary>지금 이 컴퓨터에 스폰되어 있는 모든 플레이어 캐릭터.</summary>
-        public static IReadOnlyList<NetworkPlayer> All => AllPlayers;
+        /// <summary>
+        /// 지금 게임에 "있는" 플레이어 캐릭터 (나가서 재접속을 기다리는 캐릭터는 빠진다).
+        /// 몬스터 타깃, 이름표, 미니맵, 스폰 기준점 등은 모두 이 목록을 쓴다.
+        /// </summary>
+        public static IReadOnlyList<NetworkPlayer> All
+        {
+            get
+            {
+                PresentPlayers.Clear();
+                foreach (NetworkPlayer p in AllPlayers)
+                {
+                    if (p != null && p.IsPresent) PresentPlayers.Add(p);
+                }
+                return PresentPlayers;
+            }
+        }
+
+        /// <summary>나간 사람(재접속 대기)까지 포함한 모든 캐릭터 (호스트의 재접속/호스트 이전 처리용).</summary>
+        public static IReadOnlyList<NetworkPlayer> AllIncludingDeparted => AllPlayers;
 
         /// <summary>내 캐릭터 (없으면 null - 아직 스폰 전이거나 사망 후).</summary>
         public static NetworkPlayer Local { get; private set; }
@@ -122,10 +140,17 @@ namespace LastTruck.Networking
         }
 
         /// <summary>호스트가 Runner.Spawn의 onBeforeSpawned 안에서 부른다 (스폰과 동시에 값이 모두에게 전달됨).</summary>
-        public void InitializeBeforeSpawn(string nickname, int characterIndex)
+        public void InitializeBeforeSpawn(string nickname, int characterIndex, string deviceId = null)
         {
             Nickname = PlayerProfile.ClampForNetwork(nickname);
             CharacterIndex = characterIndex;
+            DeviceId = ClampDeviceId(deviceId);
+        }
+
+        public static string ClampDeviceId(string deviceId)
+        {
+            if (string.IsNullOrEmpty(deviceId)) return string.Empty;
+            return deviceId.Length > 60 ? deviceId.Substring(0, 60) : deviceId;
         }
 
         public override void Spawned()
@@ -143,24 +168,61 @@ namespace LastTruck.Networking
 
             if (Object.HasInputAuthority)
             {
-                Local = this;
-                try
-                {
-                    LocalPlayerBinder.BindLocalPlayer(this);
-                }
-                catch (Exception e)
-                {
-                    Debug.LogException(e);
-                }
-                LocalPlayerSpawned?.Invoke(this);
-
-                // 내 캐릭터가 보인다 = 게임 씬 로딩이 끝났다 → 호스트에게 알린다.
-                RPC_ReportLoaded();
+                BecomeLocal();
             }
             else
             {
                 DisableLocalOnlyBehaviours(keepWeaponView: true);
             }
+
+            _departedApplied = false;
+            if (Departed) ApplyDeparted(true);
+        }
+
+        /// <summary>이 캐릭터가 "내 캐릭터"가 됐다 (처음 스폰 / 재접속 / 방장 변경 후 다시 붙음).</summary>
+        private void BecomeLocal()
+        {
+            if (Local == this) return;
+            Local = this;
+            _becameLocalFrame = Time.frameCount;
+            try
+            {
+                LocalPlayerBinder.BindLocalPlayer(this);
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
+            SubscribeBag();
+            LocalPlayerSpawned?.Invoke(this);
+
+            // 내 캐릭터가 보인다 = 게임 씬 로딩이 끝났다 → 호스트에게 알린다.
+            RPC_ReportLoaded();
+        }
+
+        /// <summary>재접속 / 방장 변경으로 이 캐릭터의 조종 권한을 받았다.</summary>
+        void IInputAuthorityGained.InputAuthorityGained()
+        {
+            // 다른 사람 캐릭터로 보이던 동안 꺼 둔 입력 스크립트를 다시 켠다 (기절해 있으면 OnDied 규칙대로 다시 끈다).
+            foreach (UnityEngine.Behaviour behaviour in GetLocalOnlyBehaviours())
+            {
+                if (behaviour != null) behaviour.enabled = true;
+            }
+            GetComponent<NetworkWeaponVisuals>()?.RefreshAuthority();
+            BecomeLocal();
+            if (_health != null && _health.IsDead) OnDied(_health);
+        }
+
+        void IInputAuthorityLost.InputAuthorityLost()
+        {
+            UnsubscribeBag();
+            if (Local == this)
+            {
+                Local = null;
+                LocalPlayerDespawned?.Invoke(this);
+            }
+            DisableLocalOnlyBehaviours(keepWeaponView: true);
+            GetComponent<NetworkWeaponVisuals>()?.RefreshAuthority();
         }
 
         public override void Despawned(NetworkRunner runner, bool hasState)
@@ -175,6 +237,7 @@ namespace LastTruck.Networking
 
         private void Unregister()
         {
+            UnsubscribeBag();
             if (_health != null)
             {
                 _health.Died -= OnDied;
@@ -270,6 +333,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_BeginRevive(RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_BeginRevive), 15)) return;
             PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
             if (!IsDowned || source == Owner) return;
             if (Reviver != PlayerRef.None && Reviver != source) return; // 이미 다른 사람이 살리는 중
@@ -288,13 +352,16 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_CancelRevive(RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_CancelRevive), 15)) return;
             PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
             if (Reviver == source) ClearReviver();
         }
 
         public override void FixedUpdateNetwork()
         {
-            if (!HasStateAuthority || Reviver == PlayerRef.None) return;
+            if (!HasStateAuthority) return;
+            HostUpdatePresence();
+            if (Object == null || !Object.IsValid || Reviver == PlayerRef.None) return;
 
             NetworkPlayer reviver = Find(Reviver);
             bool valid = IsDowned && reviver != null && reviver.IsAlive && !reviver.IsSeated &&
@@ -328,6 +395,351 @@ namespace LastTruck.Networking
 
         #endregion
 
+        #region 자리 비움 (나감 → 재접속 대기) / 방장 변경 후 주인 찾기
+
+        /// <summary>이 캐릭터 주인의 기기 ID (재접속/방장 변경 때 같은 사람인지 알아보는 값).</summary>
+        [Networked] public NetworkString<_64> DeviceId { get; set; }
+
+        /// <summary>주인이 나가서 재접속을 기다리는 중 (모습/충돌을 숨기고 게임 판정에서 빠진다).</summary>
+        [Networked] public NetworkBool Departed { get; private set; }
+        [Networked] private TickTimer DepartTimer { get; set; }
+
+        /// <summary>방장 변경 직후: 주인이 새 방에 다시 붙기를 기다리는 중 (시간 안에 안 오면 자리 비움으로).</summary>
+        [Networked] private TickTimer ClaimTimer { get; set; }
+
+        /// <summary>게임에 "있는" 캐릭터인가 (나가서 재접속을 기다리는 캐릭터는 false).</summary>
+        public bool IsPresent => Object != null && Object.IsValid && !Departed;
+
+        /// <summary>재접속 대기 중이고 아직 시간이 남았는가 (호스트가 재접속을 받아줄지 판단).</summary>
+        public bool IsAwaitingReturn => Object != null && Object.IsValid && Departed && Runner != null && !DepartTimer.ExpiredOrNotRunning(Runner);
+
+        /// <summary>방장 변경 직후 주인을 기다리는 중인가.</summary>
+        public bool IsUnclaimed => Object != null && Object.IsValid && !Departed && Object.InputAuthority == PlayerRef.None;
+
+        /// <summary>호스트: 주인이 나갔다. 좌석/부활을 정리하고 숨긴 채 seconds초 동안 재접속을 기다린다.</summary>
+        public void HostMarkDeparted(float seconds)
+        {
+            if (!HasStateAuthority || Departed) return;
+
+            PlayerRef owner = Object.InputAuthority;
+            if (owner != PlayerRef.None && NetworkTruck.IsReady) NetworkTruck.Instance.HostForceExit(owner);
+            ClearReviver();
+
+            Object.AssignInputAuthority(PlayerRef.None);
+            Departed = true;
+            DepartTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(1f, seconds));
+            ClaimTimer = TickTimer.None;
+            Debug.Log($"[NetworkPlayer] {Nickname} 나감 → {seconds:0}초 동안 재접속 대기");
+        }
+
+        /// <summary>호스트: 방장 변경 직후 이 캐릭터의 주인이 다시 붙기를 seconds초 기다린다.</summary>
+        public void HostBeginClaimWait(float seconds)
+        {
+            if (!HasStateAuthority) return;
+            Object.AssignInputAuthority(PlayerRef.None);
+            ClearReviver();
+            ClaimTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(1f, seconds));
+        }
+
+        /// <summary>호스트: 같은 사람이 돌아왔다 → 조종 권한을 돌려주고 가방을 복구하게 한다.</summary>
+        public void HostReattach(PlayerRef player)
+        {
+            if (!HasStateAuthority || player == PlayerRef.None) return;
+
+            Object.AssignInputAuthority(player);
+            Runner.SetPlayerObject(player, Object);
+            Departed = false;
+            DepartTimer = TickTimer.None;
+            ClaimTimer = TickTimer.None;
+            RestoreBag = true;
+            LoadedPlayers.Add(player);
+            Debug.Log($"[NetworkPlayer] {Nickname} 재접속 → 캐릭터를 다시 연결 ({player})");
+        }
+
+        /// <summary>호스트: 재접속 시간이 지났다 → 가방 아이템을 트럭에 넣고 캐릭터를 없앤다.</summary>
+        private void HostExpireDeparted()
+        {
+            int moved = 0;
+            CraftingSystem.TruckInventory truck = FindFirstObjectByType<CraftingSystem.TruckInventory>();
+            if (truck != null)
+            {
+                for (int i = 0; i < BagCapacity; i++)
+                {
+                    CraftingSystem.ItemData item = ItemIndexLookup.ItemAt(BagItems[i] - 1);
+                    int count = BagCounts[i];
+                    if (item == null || count <= 0) continue;
+                    moved += TruckInventorySync.AddAndCount(truck.Inventory, item, count, BagDurability[i]);
+                }
+            }
+            Debug.Log($"[NetworkPlayer] {Nickname} 재접속 시간 초과 → 가방 아이템 {moved}개를 트럭으로 옮기고 캐릭터 제거");
+            Runner.Despawn(Object);
+        }
+
+        private void HostUpdatePresence()
+        {
+            if (Departed)
+            {
+                if (DepartTimer.Expired(Runner)) HostExpireDeparted();
+                return;
+            }
+            if (ClaimTimer.IsRunning && Object.InputAuthority == PlayerRef.None && ClaimTimer.Expired(Runner))
+            {
+                HostMarkDeparted(GameLauncher.ReconnectWindowSeconds);
+            }
+        }
+
+        // ---------------- 숨기기 (모든 컴퓨터) ----------------
+
+        private bool _departedApplied;
+        private readonly List<Renderer> _departHiddenRenderers = new List<Renderer>();
+        private readonly List<Collider> _departDisabledColliders = new List<Collider>();
+
+        private void ApplyDeparted(bool departed)
+        {
+            _departedApplied = departed;
+            if (departed)
+            {
+                foreach (Renderer renderer in GetComponentsInChildren<Renderer>(true))
+                {
+                    if (renderer != null && renderer.enabled)
+                    {
+                        renderer.enabled = false;
+                        _departHiddenRenderers.Add(renderer);
+                    }
+                }
+                foreach (Collider collider in GetComponentsInChildren<Collider>(true))
+                {
+                    if (collider != null && collider.enabled && !(collider is CharacterController))
+                    {
+                        collider.enabled = false;
+                        _departDisabledColliders.Add(collider);
+                    }
+                }
+                CharacterController cc = GetComponent<CharacterController>();
+                if (cc != null) cc.detectCollisions = false;
+                return;
+            }
+
+            foreach (Renderer renderer in _departHiddenRenderers)
+            {
+                if (renderer != null) renderer.enabled = true;
+            }
+            foreach (Collider collider in _departDisabledColliders)
+            {
+                if (collider != null) collider.enabled = true;
+            }
+            _departHiddenRenderers.Clear();
+            _departDisabledColliders.Clear();
+            CharacterController controller = GetComponent<CharacterController>();
+            if (controller != null && !IsSeated) controller.detectCollisions = true;
+        }
+
+        #endregion
+
+        #region 가방 동기화 (호스트가 보관 → 재접속/방장 변경 때 복구)
+
+        /// <summary>가방(플레이어 칸 + 파우치 칸)을 호스트에 보관하는 칸 수.</summary>
+        public const int BagCapacity = 24;
+
+        [Networked, Capacity(BagCapacity)] private NetworkArray<int> BagItems => default;      // 아이템 번호 + 1 (0 = 빈 칸)
+        [Networked, Capacity(BagCapacity)] private NetworkArray<int> BagCounts => default;
+        [Networked, Capacity(BagCapacity)] private NetworkArray<int> BagDurability => default;
+        [Networked] private int BagPlayerSlots { get; set; } // 앞에서부터 이만큼이 플레이어 칸, 나머지는 파우치
+
+        /// <summary>재접속/방장 변경 뒤: 주인이 호스트에 보관된 가방으로 복구해야 한다.</summary>
+        [Networked] public NetworkBool RestoreBag { get; private set; }
+
+        /// <summary>
+        /// 방장 변경 중 이 컴퓨터가 붙잡아 둔 내 가방 (호스트 보관본은 몇 초 늦을 수 있어서, 내 컴퓨터의 최신 상태를 우선한다).
+        /// GameLauncher가 방장 변경 직전에 채운다.
+        /// </summary>
+        public static string PendingLocalBag;
+
+        private CraftingSystem.PlayerInventory _bagInventory;
+        private CraftingSystem.PouchInventory _bagPouch;
+        private bool _bagDirty;
+        private float _bagSendTime;
+        private int _becameLocalFrame = -1;
+        private const float BagSendInterval = 0.4f;
+
+        private void SubscribeBag()
+        {
+            UnsubscribeBag();
+            _bagInventory = GetComponent<CraftingSystem.PlayerInventory>();
+            _bagPouch = GetComponent<CraftingSystem.PouchInventory>();
+            if (_bagInventory != null) _bagInventory.Changed += MarkBagDirty;
+            if (_bagPouch != null) _bagPouch.Changed += MarkBagDirty;
+            _bagDirty = true;
+        }
+
+        private void UnsubscribeBag()
+        {
+            if (_bagInventory != null) _bagInventory.Changed -= MarkBagDirty;
+            if (_bagPouch != null) _bagPouch.Changed -= MarkBagDirty;
+            _bagInventory = null;
+            _bagPouch = null;
+        }
+
+        private void MarkBagDirty() => _bagDirty = true;
+
+        /// <summary>내 캐릭터: 복구가 필요하면 복구하고, 가방이 바뀌었으면 잠깐 모아서 호스트에 보낸다.</summary>
+        private void UpdateBagSync()
+        {
+            if (!IsLocal || Object == null || !Object.IsValid) return;
+
+            // 복구는 스폰/권한을 받은 다음 프레임 이후에 (PlayerInventory.Start의 기본 지급보다 나중에 덮어쓰도록)
+            if (RestoreBag && Time.frameCount > _becameLocalFrame + 1)
+            {
+                string source = !string.IsNullOrEmpty(PendingLocalBag) ? PendingLocalBag : EncodeNetworkBag();
+                PendingLocalBag = null;
+                ApplyBag(source);
+                RPC_BagRestored();
+                _bagDirty = true;
+                return;
+            }
+
+            if (_bagDirty && Time.unscaledTime - _bagSendTime >= BagSendInterval && !RestoreBag)
+            {
+                _bagDirty = false;
+                _bagSendTime = Time.unscaledTime;
+                RPC_ReportBag(EncodeLocalBag());
+            }
+        }
+
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        private void RPC_ReportBag(string data)
+        {
+            if (data == null || data.Length > 2048) return;
+            WriteNetworkBag(data);
+        }
+
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        private void RPC_BagRestored()
+        {
+            RestoreBag = false;
+        }
+
+        /// <summary>내 컴퓨터의 가방을 문자열로 ("플레이어칸수|아이템,개수,내구도;...").</summary>
+        public string EncodeLocalBag()
+        {
+            var builder = new System.Text.StringBuilder();
+            CraftingSystem.PlayerInventory inventory = _bagInventory != null ? _bagInventory : GetComponent<CraftingSystem.PlayerInventory>();
+            CraftingSystem.PouchInventory pouch = _bagPouch != null ? _bagPouch : GetComponent<CraftingSystem.PouchInventory>();
+
+            int playerSlots = inventory != null ? Mathf.Min(inventory.MaxSlots, BagCapacity) : 0;
+            builder.Append(playerSlots).Append('|');
+            int written = 0;
+            if (inventory != null)
+            {
+                for (int i = 0; i < playerSlots; i++)
+                {
+                    CraftingSystem.InventorySlot slot = i < inventory.Slots.Count ? inventory.Slots[i] : null;
+                    AppendSlot(builder, slot);
+                    written++;
+                }
+            }
+            if (pouch != null)
+            {
+                foreach (CraftingSystem.InventorySlot slot in pouch.Slots)
+                {
+                    if (written >= BagCapacity) break;
+                    if (slot == null || slot.IsEmpty) continue;
+                    AppendSlot(builder, slot);
+                    written++;
+                }
+            }
+            return builder.ToString();
+        }
+
+        private static void AppendSlot(System.Text.StringBuilder builder, CraftingSystem.InventorySlot slot)
+        {
+            if (slot == null || slot.IsEmpty) { builder.Append("-;"); return; }
+            builder.Append(ItemIndexLookup.IndexOf(slot.item)).Append(',').Append(slot.count).Append(',').Append(slot.durability).Append(';');
+        }
+
+        /// <summary>호스트: 받은 문자열을 보관 칸에 쓴다.</summary>
+        private void WriteNetworkBag(string data)
+        {
+            ParseBag(data, out int playerSlots, out List<int[]> entries);
+            BagPlayerSlots = playerSlots;
+            for (int i = 0; i < BagCapacity; i++)
+            {
+                int[] e = i < entries.Count ? entries[i] : null;
+                BagItems.Set(i, e != null ? e[0] + 1 : 0);
+                BagCounts.Set(i, e != null ? e[1] : 0);
+                BagDurability.Set(i, e != null ? e[2] : 0);
+            }
+        }
+
+        /// <summary>호스트 보관본을 문자열로 (복구용).</summary>
+        private string EncodeNetworkBag()
+        {
+            var builder = new System.Text.StringBuilder();
+            builder.Append(BagPlayerSlots).Append('|');
+            for (int i = 0; i < BagCapacity; i++)
+            {
+                if (BagItems[i] <= 0 || BagCounts[i] <= 0) { builder.Append("-;"); continue; }
+                builder.Append(BagItems[i] - 1).Append(',').Append(BagCounts[i]).Append(',').Append(BagDurability[i]).Append(';');
+            }
+            return builder.ToString();
+        }
+
+        private static void ParseBag(string data, out int playerSlots, out List<int[]> entries)
+        {
+            playerSlots = 0;
+            entries = new List<int[]>();
+            if (string.IsNullOrEmpty(data)) return;
+
+            int bar = data.IndexOf('|');
+            if (bar < 0) return;
+            int.TryParse(data.Substring(0, bar), out playerSlots);
+            playerSlots = Mathf.Clamp(playerSlots, 0, BagCapacity);
+
+            foreach (string part in data.Substring(bar + 1).Split(';'))
+            {
+                if (entries.Count >= BagCapacity) break;
+                if (part.Length == 0) continue;
+                if (part == "-") { entries.Add(null); continue; }
+                string[] f = part.Split(',');
+                if (f.Length < 3 || !int.TryParse(f[0], out int index) || !int.TryParse(f[1], out int count) || !int.TryParse(f[2], out int dur))
+                {
+                    entries.Add(null);
+                    continue;
+                }
+                entries.Add(index >= 0 && count > 0 ? new[] { index, Mathf.Min(count, 9999), Mathf.Max(0, dur) } : null);
+            }
+        }
+
+        /// <summary>내 캐릭터: 문자열 가방으로 플레이어 칸/파우치를 덮어쓴다 (칸 위치 유지).</summary>
+        private void ApplyBag(string data)
+        {
+            ParseBag(data, out int playerSlots, out List<int[]> entries);
+            CraftingSystem.PlayerInventory inventory = GetComponent<CraftingSystem.PlayerInventory>();
+            CraftingSystem.PouchInventory pouch = GetComponent<CraftingSystem.PouchInventory>();
+
+            var playerList = new List<CraftingSystem.InventorySlot>();
+            var pouchList = new List<CraftingSystem.InventorySlot>();
+            for (int i = 0; i < entries.Count; i++)
+            {
+                CraftingSystem.InventorySlot slot = ToSlot(entries[i]);
+                if (i < playerSlots) playerList.Add(slot);
+                else if (slot != null) pouchList.Add(slot);
+            }
+
+            if (inventory != null) inventory.Inventory.ReplaceAllKeepPositions(playerList);
+            if (pouch != null) pouch.Inventory.ReplaceAll(pouchList);
+        }
+
+        private static CraftingSystem.InventorySlot ToSlot(int[] entry)
+        {
+            if (entry == null) return null;
+            CraftingSystem.ItemData item = ItemIndexLookup.ItemAt(entry[0]);
+            if (item == null) return null;
+            return new CraftingSystem.InventorySlot(item, entry[1]) { durability = entry[2] };
+        }
+
+        #endregion
+
         #region 트럭 탑승 (숨기기)
 
         private bool _seatedApplied;
@@ -342,6 +754,8 @@ namespace LastTruck.Networking
         {
             bool seated = IsSeated;
             if (seated != _seatedApplied) ApplySeated(seated);
+            if (Departed != _departedApplied) ApplyDeparted(Departed);
+            UpdateBagSync();
         }
 
         /// <summary>
@@ -454,6 +868,7 @@ namespace LastTruck.Networking
         /// <summary>해당 PlayerRef의 캐릭터 (없으면 null).</summary>
         public static NetworkPlayer Find(PlayerRef player)
         {
+            if (player == PlayerRef.None) return null;
             foreach (NetworkPlayer p in AllPlayers)
             {
                 if (p != null && p.Owner == player) return p;

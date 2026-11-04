@@ -220,6 +220,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RequestConsume(int recipeIndex, int requestId, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestConsume), 60)) return;
             PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
             bool ok;
             using (TruckInventory.SuppressBag(source != Runner.LocalPlayer))   // 남의 요청은 트럭 재료로만 (호스트 가방 보호)
@@ -239,6 +240,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RequestDeposit(int itemIndex, int count, int durability, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestDeposit), 60)) return;
             TruckInventory truck = Truck;
             ItemData item = ItemIndexLookup.ItemAt(itemIndex);
             if (item == null || count <= 0) return;
@@ -251,6 +253,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RequestWithdraw(int itemIndex, int count, int durability, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestWithdraw), 60)) return;
             TruckInventory truck = Truck;
             ItemData item = ItemIndexLookup.ItemAt(itemIndex);
             if (truck == null || item == null || count <= 0) return;
@@ -273,6 +276,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RequestCraft(int recipeIndex, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestCraft), 60)) return;
             TruckInventory truck = Truck;
             RecipeData recipe = ItemIndexLookup.RecipeAt(recipeIndex);
             if (truck == null || recipe == null) return;
@@ -291,8 +295,9 @@ namespace LastTruck.Networking
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-        private void RPC_RequestGrantRaw(int amount)
+        private void RPC_RequestGrantRaw(int amount, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestGrantRaw), 60)) return;
             TruckInventorySync.GrantRawLocal(Truck, Mathf.Clamp(amount, 1, 100));
         }
 

@@ -236,6 +236,13 @@ namespace LastTruck.Networking
                 return;
             }
 
+            // 내가 끊겼던 게임: 저장해 둔 정보(비밀번호 포함)로 바로 다시 접속한다.
+            if (GameLauncher.IsInGame(session))
+            {
+                _launcher.RejoinLastSession();
+                return;
+            }
+
             if (GameLauncher.HasPassword(session))
             {
                 _pendingPasswordSession = session;
@@ -318,6 +325,9 @@ namespace LastTruck.Networking
         private void RefreshPasswordFieldState()
         {
             bool isPrivate = privateToggle.isOn;
+            // 방 만들기 창을 다시 열 때 SetIsOnWithoutNotify로 값만 바뀌고 글자("공개/비공개")는 그대로 남던 문제 →
+            // 글자도 여기서 같이 맞춘다 (화면 표시와 실제로 만들어지는 방이 항상 같도록).
+            if (privateToggleText != null) privateToggleText.text = isPrivate ? "비공개" : "공개";
             createPasswordInput.interactable = isPrivate;
             createPasswordGroup.alpha = isPrivate ? 1f : 0.4f;
             if (isPrivate && string.IsNullOrWhiteSpace(createPasswordInput.text))

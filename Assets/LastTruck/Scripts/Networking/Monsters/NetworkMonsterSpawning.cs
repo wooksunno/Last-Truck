@@ -41,7 +41,9 @@ namespace LastTruck.Networking
                 return null;
             }
 
-            NetworkObject spawned = runner.Spawn(registry.monsterPrefab, position, rotation);
+            // 몬스터만 관심 영역(AOI) 대상: 멀리 있는 몬스터는 그 플레이어에게 보내지 않는다.
+            NetworkObject spawned = runner.Spawn(registry.monsterPrefab, position, rotation, PlayerRef.None,
+                (r, obj) => NetworkInterest.Apply(r, obj, true));
             if (spawned == null) return null;
 
             // 킬 집계: 체력이 0이 되는 순간 호스트의 GameManager에 알린다

@@ -47,7 +47,12 @@ namespace LastTruck.Networking
             playerCountText.text = $"{session.PlayerCount} / {session.MaxPlayers}";
             lockIcon.SetActive(GameLauncher.HasPassword(session));
 
-            if (!session.IsOpen)
+            if (GameLauncher.IsInGame(session) && GameLauncher.CanRejoin(session))
+            {
+                statusText.text = "재접속 가능";
+                statusText.color = openColor;
+            }
+            else if (!session.IsOpen || GameLauncher.IsInGame(session))
             {
                 statusText.text = "게임 중";
                 statusText.color = closedColor;
