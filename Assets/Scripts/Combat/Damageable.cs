@@ -199,6 +199,7 @@ namespace Combat
 
             if (_currentHealth <= 0)
             {
+                CraftingSystem.MonsterLoot.Drop(gameObject, maxHealth);
                 // 사망 연출을 맡은 스크립트(MonsterAI 등)가 있으면 그쪽이 애니메이션 후 없앤다.
                 if (Died != null)
                 {
@@ -286,7 +287,8 @@ namespace Combat
 
         void LastTruck.Networking.INetworkHealthListener.OnNetworkDeath()
         {
-            // 호스트가 곧 오브젝트를 없앤다 (NetworkHealth). 여기서는 따로 할 일 없음.
+            // 호스트가 곧 오브젝트를 없앤다 (NetworkHealth). 몬스터면 내 화면에 전리품(고기/가죽)을 떨어뜨린다.
+            CraftingSystem.MonsterLoot.Drop(gameObject, maxHealth);
         }
 
         #endregion

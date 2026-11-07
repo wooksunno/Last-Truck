@@ -19,3 +19,4 @@ MonoBehaviour:
   maxStack: 1
   icon: {fileID: 21300000, guid: 288279c2f7ac8d345941a4897803fde5, type: 3}
   toolTier: 0
+  maxDurability: 150

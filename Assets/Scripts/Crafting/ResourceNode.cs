@@ -76,6 +76,9 @@ public void Configure(string name, ItemData item, int amount, float seconds, int
 
         private void GatherNow(PlayerInventory player)
         {
+            if (requiredTier > 0)
+                player.WearSelectedTool();
+
             // 가방에 안 들어가는 만큼은 발밑에 떨어진다
             player.AddOrDrop(outputItem, outputAmount);
 

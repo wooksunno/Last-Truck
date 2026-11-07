@@ -19,6 +19,8 @@ namespace LastTruck
     {
         private static readonly int NightFactorId = Shader.PropertyToID("_GameNightFactor");
         private static readonly int WeatherFogId = Shader.PropertyToID("_GameWeatherFog");
+        private static readonly int HazeColorId = Shader.PropertyToID("_LT_HazeColor");
+        private static readonly int HazeParamsId = Shader.PropertyToID("_LT_HazeParams");
 
         [Header("연동")]
         [SerializeField] private GameManager gameManager;
@@ -72,6 +74,18 @@ namespace LastTruck
         [Range(0f, 1f)] [SerializeField] private float weatherAmbientScale = 0.7f;
         [Tooltip("짙은 안개 색 (낮). 밤에는 밤 안개 색과 섞여 더 어두워진다.")]
         [SerializeField] private Color weatherFogColor = new Color(0.62f, 0.66f, 0.70f);
+
+        [Header("공기 원근감 (먼 산이 옅고 흐려 보이게)")]
+        [Tooltip("이 거리(m)부터 옅어지기 시작한다.")]
+        [SerializeField] private float hazeStart = 70f;
+        [Tooltip("이 거리(m)에서 가장 옅어진다.")]
+        [SerializeField] private float hazeEnd = 480f;
+        [Tooltip("가장 멀리서 안개 색에 섞이는 정도 (0~1).")]
+        [Range(0f, 1f)] [SerializeField] private float hazeStrength = 0.55f;
+        [Tooltip("가장 멀리서 채도가 빠지는 정도 (0~1).")]
+        [Range(0f, 1f)] [SerializeField] private float hazeDesaturate = 0.45f;
+        [Tooltip("안개 색과 하늘 색 중 어느 쪽으로 옅어질지 (0 안개 ~ 1 하늘).")]
+        [Range(0f, 1f)] [SerializeField] private float hazeSkyBlend = 0.35f;
 
         [Header("동굴 안 (낮)")]
         [Tooltip("낮에 내 캐릭터가 동굴 안에 있을 때 햇빛 세기 배율. 밤에는 원래 어두우므로 적용하지 않는다.")]
@@ -131,6 +145,7 @@ namespace LastTruck
             if (gameManager != null) gameManager.OnPhaseChanged -= HandlePhaseChanged;
             Shader.SetGlobalFloat(NightFactorId, 0f);
             Shader.SetGlobalFloat(WeatherFogId, 0f);
+            Shader.SetGlobalVector(HazeParamsId, Vector4.zero);
         }
 
         private void Start()
@@ -283,6 +298,14 @@ namespace LastTruck
             Color weatherCol = Color.Lerp(weatherFogColor, nightFog * 0.6f, t);
             RenderSettings.fogColor = Color.Lerp(fogCol, weatherCol, w);
             RenderSettings.fogDensity = Mathf.Lerp(Mathf.Lerp(dayFogDensity, sunsetFogDensity, glow), nightFogDensity, t) * Mathf.Lerp(1f, weatherFogDensityScale, w);
+
+            // 공기 원근감: 날씨 안개가 짙으면 더 가까이서부터 옅어지고, 동굴 안에서는 거의 끈다
+            Color hazeCol = Color.Lerp(RenderSettings.fogColor, Color.Lerp(Color.Lerp(dayBackground, sunsetBackground, glow), nightBackground, t), hazeSkyBlend);
+            float caveHaze = 1f - 0.8f * Ease(_caveFactor);
+            float hazeNear = hazeStart * Mathf.Lerp(1f, 0.4f, w);
+            float hazeFar = Mathf.Max(hazeNear + 1f, hazeEnd * Mathf.Lerp(1f, 0.35f, w));
+            Shader.SetGlobalColor(HazeColorId, hazeCol);
+            Shader.SetGlobalVector(HazeParamsId, new Vector4(hazeNear, hazeFar, Mathf.Clamp01(hazeStrength + 0.3f * w) * caveHaze, hazeDesaturate * caveHaze));
 
             if (_camera == null) _camera = Camera.main;
             if (_camera != null) _camera.backgroundColor = Color.Lerp(Color.Lerp(Color.Lerp(dayBackground, sunsetBackground, glow), nightBackground, t), RenderSettings.fogColor, w * 0.8f);

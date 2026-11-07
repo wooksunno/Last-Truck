@@ -22,6 +22,9 @@ namespace LastTruck
         private Transform _real;
         private float _velocityY;
 
+        /// <summary>카메라가 실제로 따라가는 대상 (캐릭터 또는 트럭). 시네머신이 보는 것은 이것을 부드럽게 따라가는 중간 대상이다.</summary>
+        public Transform RealTarget => _real;
+
         private void Awake()
         {
             if (cam == null)

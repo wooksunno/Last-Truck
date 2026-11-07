@@ -108,8 +108,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Fusion.Unity::Fusion.NetworkCharacterController
   _stateAuthorityChangeErrorCorrectionDelta: 0
-  gravity: -20
-  jumpImpulse: 6.5
+  gravity: -28
+  jumpImpulse: 7.4
   acceleration: 100
   braking: 100
   maxSpeed: 6
@@ -151,7 +151,7 @@ MonoBehaviour:
   sprintSpeedMultiplier: 1.6
   fallbackMoveSpeed: 5
   runAnimationThreshold: 0.15
-  jumpImpulse: 6.5
+  jumpImpulse: 7.4
   jumpStateName: Jumping Up
   _IsWalking:
     RawValue: 0

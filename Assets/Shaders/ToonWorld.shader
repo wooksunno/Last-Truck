@@ -26,11 +26,24 @@ Shader "LastTruck/ToonWorld"
         _MoonSheenSize ("Moon Sheen Size", Range(0.01,1)) = 0.3
         [Toggle] _FlatShading ("Flat Shading", Float) = 1
 
+        [Header(Stone Readability)]
+        // 갈색 땅 위의 갈색 돌처럼 색이 겹쳐 덩어리로만 보일 때: 색을 회색 쪽으로 빼고(_Desaturate), 가장자리를 밝게(_Rim) 해서 윤곽을 살린다
+        _Desaturate ("Desaturate", Range(0,1)) = 0
+        _DesaturateTint ("Desaturate Tint", Color) = (1,1,1,1)
+        _RimStrength ("Rim Light Strength", Range(0,1)) = 0
+        _RimColor ("Rim Light Color", Color) = (1,0.95,0.85,1)
+        _RimPower ("Rim Light Power", Range(0.5,6)) = 2.5
+
         [Header(Emission)]
         _EmissionMap ("Emission Map", 2D) = "white" {}
         [HDR] _EmissionColor ("Emission", Color) = (0,0,0,1)
 
         [HideInInspector] _Cull ("Cull", Float) = 2
+        // 카메라 가림 투명 처리(CameraOcclusionFader)가 바꾸는 값. 평소엔 불투명 그대로
+        [HideInInspector] _Surface ("Surface", Float) = 0
+        [HideInInspector] _SrcBlend ("Src Blend", Float) = 1
+        [HideInInspector] _DstBlend ("Dst Blend", Float) = 0
+        [HideInInspector] _ZWrite ("ZWrite", Float) = 1
     }
 
     HLSLINCLUDE
@@ -54,6 +67,11 @@ Shader "LastTruck/ToonWorld"
         half _MoonSheen;
         half _MoonSheenSize;
         half _FlatShading;
+        half _Desaturate;
+        half4 _DesaturateTint;
+        half _RimStrength;
+        half4 _RimColor;
+        half _RimPower;
         half4 _EmissionColor;
         half _Cull;
     CBUFFER_END
@@ -61,6 +79,9 @@ Shader "LastTruck/ToonWorld"
     // AtmosphereController가 매 프레임 설정 (낮 0 ~ 밤 1 / 날씨 안개 0 ~ 1)
     float _GameNightFactor;
     float _GameWeatherFog;
+    // 공기 원근감 (AtmosphereController가 설정): 색 / (시작 m, 끝 m, 세기, 채도 빼기)
+    float4 _LT_HazeColor;
+    float4 _LT_HazeParams;
     ENDHLSL
 
     SubShader
@@ -72,7 +93,8 @@ Shader "LastTruck/ToonWorld"
             Name "ForwardLit"
             Tags { "LightMode"="UniversalForward" }
             Cull [_Cull]
-            ZWrite On
+            Blend [_SrcBlend] [_DstBlend]
+            ZWrite [_ZWrite]
 
             HLSLPROGRAM
             #pragma target 3.0
@@ -132,7 +154,11 @@ Shader "LastTruck/ToonWorld"
             half4 frag(Varyings i, bool frontFace : SV_IsFrontFace) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(i);
-                half3 albedo = (SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv) * _BaseColor).rgb;
+                half4 baseTex = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv) * _BaseColor;
+                half3 albedo = baseTex.rgb;
+                // 색 빼기: 밝기는 유지한 채 회색(+색조)쪽으로
+                half luma = dot(albedo, half3(0.299h, 0.587h, 0.114h));
+                albedo = lerp(albedo, luma * _DesaturateTint.rgb, _Desaturate);
 
                 half3 smoothN = normalize(i.normalWS);
                 if (!frontFace) smoothN = -smoothN;
@@ -149,6 +175,12 @@ Shader "LastTruck/ToonWorld"
                 half sharpW = lerp(0.5h, 0.08h, _ShadowSharpness);
                 half shadow = smoothstep(0.5h - sharpW, 0.5h + sharpW, mainLight.shadowAttenuation);
                 half lit = Band(dot(N, mainLight.direction) * 0.5h + 0.5h) * shadow * mainLight.distanceAttenuation;
+
+                // 멀수록 면 하나하나의 밝기 차이를 줄여 디테일을 뭉갠다 (먼 산은 덩어리로만 읽힌다)
+                float viewDist = distance(i.positionWS, _WorldSpaceCameraPos);
+                half far = (half)saturate((viewDist - _LT_HazeParams.x) / max(_LT_HazeParams.y - _LT_HazeParams.x, 1.0));
+                far = far * far * (3.0h - 2.0h * far) * (half)step(0.5, _LT_HazeParams.y);   // 값이 설정되지 않았으면(에디터) 끈다
+                lit = lerp(lit, 0.45h + 0.4h * shadow, far * 0.6h);
 
                 half3 ambient = SampleSH(N) * _AmbientStrength;
                 // 그림자 면도 빛 색을 조금 받아 새까맣게 꺼지지 않는다 (노을엔 주황빛, 밤엔 푸른빛 그림자)
@@ -167,7 +199,7 @@ Shader "LastTruck/ToonWorld"
                 half3 H = normalize(mainLight.direction + V);
                 half sheenT = pow(saturate(dot(N, H)), 12.0h);
                 half sheen = smoothstep(1.0h - _MoonSheenSize, 1.0h - _MoonSheenSize + 0.08h, sheenT);
-                light += mainLight.color * sheen * lit * _MoonSheen * moonContrast;
+                light += mainLight.color * sheen * lit * _MoonSheen * moonContrast * (1.0h - far);
 
                 // 추가 라이트(횃불, 헤드라이트 등)도 단계로 비춘다
                 #if defined(_ADDITIONAL_LIGHTS)
@@ -199,9 +231,19 @@ Shader "LastTruck/ToonWorld"
                 #endif
 
                 half3 color = albedo * light;
+
+                // 공기 원근감: 멀수록 채도가 빠지고 하늘/안개 색으로 옅어진다
+                half haze = far * (half)_LT_HazeParams.z;
+                half lum = dot(color, half3(0.299h, 0.587h, 0.114h));
+                color = lerp(color, lum.xxx, haze * (half)_LT_HazeParams.w);
+                color = lerp(color, (half3)_LT_HazeColor.rgb, haze);
+                // 가장자리 빛: 시선과 비스듬한 면(윤곽)을 밝혀서 배경과 색이 비슷해도 형태가 읽히게 한다 (밤엔 약하게)
+                half rim = pow(1.0h - saturate(dot(smoothN, V)), _RimPower);
+                color += _RimColor.rgb * rim * _RimStrength * lerp(1.0h, 0.5h, night) * saturate(light.r + 0.35h);
                 color += SAMPLE_TEXTURE2D(_EmissionMap, sampler_EmissionMap, i.uv).rgb * _EmissionColor.rgb;
                 color = MixFog(color, i.fogFactor);
-                return half4(color, 1);
+                // 불투명일 땐 Blend One Zero라 알파가 무시되고, 가림 투명 처리 중엔 _BaseColor.a 만큼 비친다
+                return half4(color, baseTex.a);
             }
             ENDHLSL
         }

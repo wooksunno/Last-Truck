@@ -28,18 +28,25 @@ namespace CraftingSystem
         static readonly Color DarkText = new Color(0.22f, 0.19f, 0.16f, 1f);
 
         // ---------- 분류 ----------
-        public static readonly string[] CategoryNames = { "원재료", "가공 재료", "도구", "무기", "설비", "트럭 강화", "음식(소모품)" };
+        public static readonly string[] CategoryNames = { "원재료", "가공 재료", "도구", "무기", "설비", "트럭 강화", "음식", "소모품" };
         public static readonly Color[] CategoryColors =
         {
             new Color(0.45f, 0.82f, 0.66f), new Color(0.96f, 0.78f, 0.40f), new Color(0.50f, 0.74f, 0.96f), new Color(0.96f, 0.55f, 0.50f),
-            new Color(0.70f, 0.62f, 0.96f), new Color(0.98f, 0.66f, 0.34f), new Color(0.96f, 0.68f, 0.86f),
+            new Color(0.70f, 0.62f, 0.96f), new Color(0.98f, 0.66f, 0.34f), new Color(0.96f, 0.68f, 0.86f), new Color(0.55f, 0.86f, 0.90f),
         };
+
+        const int FoodCategory = 6, ConsumableCategory = 7;
 
         static readonly HashSet<string> WeaponIds = new HashSet<string>
         {
             ItemIds.WoodSpear, ItemIds.HuntingBow, ItemIds.Machete, ItemIds.FlameMachete, ItemIds.VibrationBlade,
             ItemIds.Pistol, ItemIds.Ak47, ItemIds.PlatinumSniperRifle, ItemIds.Flamethrower, ItemIds.ChemicalSprayer,
             ItemIds.ShredderDrillLauncher, ItemIds.IronFieldCannon, ItemIds.PlatinumRailCannon, ItemIds.FragGrenade, ItemIds.ChemicalGasGrenade,
+            ItemIds.ThrowingStone,
+        };
+        static readonly HashSet<string> FoodIds = new HashSet<string>
+        {
+            ItemIds.Steak, ItemIds.GrilledFood, ItemIds.Jerky, ItemIds.HerbPorridge, ItemIds.HeartyStew,
         };
         static readonly HashSet<string> FacilityIds = new HashSet<string>
         {
@@ -50,7 +57,31 @@ namespace CraftingSystem
         {
             ItemIds.EmergencyPatchBoard, ItemIds.WeldingKit, ItemIds.HighTensionRepairPack,
             ItemIds.TruckCompositeArmor, ItemIds.SpikeBumper, ItemIds.GrinderWheel,
+            // 트럭에 끼우는 파츠 (엔진 / 장갑 / 포탑)
+            ItemIds.TunedEngine, ItemIds.TurboEngine, ItemIds.AlloyArmor,
+            ItemIds.MiniTurret, ItemIds.GatlingTurret, ItemIds.SniperTurret, ItemIds.MortarTurret, ItemIds.FlameTurret, ItemIds.RailTurret,
         };
+        // 포탑 탄환 (자원 → 5발)
+        static readonly HashSet<string> AmmoIds = new HashSet<string>
+        {
+            ItemIds.WoodRound, ItemIds.StoneRound, ItemIds.CopperRound, ItemIds.IronRound,
+        };
+
+        // 분류마다 대표 아이템 (글자 대신 그림으로 보여 줄 때 쓴다)
+        public static readonly string[] CategoryIconItems =
+        {
+            ItemIds.Wood, ItemIds.Iron, ItemIds.StonePickaxe, ItemIds.Ak47,
+            ItemIds.Campfire, ItemIds.TruckCompositeArmor, ItemIds.Steak, ItemIds.EmergencyRevivalKit,
+        };
+
+        /// <summary>분류 이름("원재료" 등)에 해당하는 대표 아이템 그림 (분류 이름이 아니거나 그림이 없으면 null).</summary>
+        public static Sprite CategoryIconByName(string name)
+        {
+            int idx = Array.IndexOf(CategoryNames, name);
+            if (idx < 0 || idx >= CategoryIconItems.Length) return null;
+            ItemData it = ItemCatalog.GetOrCreate().GetItem(CategoryIconItems[idx]);
+            return it != null ? it.icon : null;
+        }
 
         public static int CategoryOf(ItemData it)
         {
@@ -59,13 +90,15 @@ namespace CraftingSystem
             if (WeaponIds.Contains(id)) return 3;
             if (FacilityIds.Contains(id)) return 4;
             if (TruckIds.Contains(id)) return 5;
+            if (FoodIds.Contains(id)) return FoodCategory;
+            if (AmmoIds.Contains(id)) return ConsumableCategory;
             switch (it.itemType)
             {
                 case ItemType.Raw: return 0;
                 case ItemType.Intermediate: return 1;
                 case ItemType.Tool: return 2;
                 case ItemType.Weapon: return 3;
-                default: return it.isWeapon ? 3 : 6;     // 음식, 소생 키트, 장갑/파우치/트랩 등 소모·생존 아이템
+                default: return it.isWeapon ? 3 : ConsumableCategory;   // 붕대/각성제/소생 키트/장갑/파우치/트랩/바리케이드 등 소모·생존 아이템
             }
         }
 

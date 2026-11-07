@@ -11,6 +11,9 @@ namespace CraftingSystem
         public ItemData item;
         public int count;
 
+        /// <summary>남은 도구 내구도. 0 = 아직 안 쓴 새 것(가득)으로 본다. 내구도가 있는 아이템(ItemData.maxDurability)에만 의미가 있다.</summary>
+        public int durability;
+
         public InventorySlot()
         {
         }
@@ -22,6 +25,27 @@ namespace CraftingSystem
         }
 
         public bool IsEmpty => item == null || count <= 0;
+
+        /// <summary>남은 내구도 (내구도가 없는 아이템이면 0).</summary>
+        public int CurrentDurability
+        {
+            get
+            {
+                if (IsEmpty || !item.HasDurability) return 0;
+                return durability > 0 ? Mathf.Min(durability, item.maxDurability) : item.maxDurability;
+            }
+        }
+
+        /// <summary>남은 내구도 비율 0~1 (내구도가 없는 아이템이면 1).</summary>
+        public float DurabilityRatio =>
+            IsEmpty || !item.HasDurability ? 1f : (float)CurrentDurability / item.maxDurability;
+
+        public void Clear()
+        {
+            item = null;
+            count = 0;
+            durability = 0;
+        }
     }
 
     /// <summary>
@@ -100,8 +124,8 @@ namespace CraftingSystem
 
             if (b.IsEmpty)
             {
-                b.item = a.item; b.count = a.count;
-                a.item = null; a.count = 0;
+                b.item = a.item; b.count = a.count; b.durability = a.durability;
+                a.Clear();
             }
             else if (ItemMatching.IsSameItem(a.item, b.item))
             {
@@ -110,13 +134,13 @@ namespace CraftingSystem
                 if (move <= 0) return false;
                 b.count += move;
                 a.count -= move;
-                if (a.count <= 0) { a.item = null; a.count = 0; }
+                if (a.count <= 0) a.Clear();
             }
             else
             {
-                ItemData ti = a.item; int tc = a.count;
-                a.item = b.item; a.count = b.count;
-                b.item = ti; b.count = tc;
+                ItemData ti = a.item; int tc = a.count; int td = a.durability;
+                a.item = b.item; a.count = b.count; a.durability = b.durability;
+                b.item = ti; b.count = tc; b.durability = td;
             }
 
             if (!KeepSlotPositions)
@@ -183,16 +207,65 @@ namespace CraftingSystem
                 remaining -= take;
 
                 if (slot.count <= 0)
-                {
-                    slot.item = null;
-                    slot.count = 0;
-                }
+                    slot.Clear();
             }
 
             if (!KeepSlotPositions)
                 CompactEmptySlots();
             NotifyChanged();
             return remaining == 0;
+        }
+
+        /// <summary>도구/무기를 닳은 채로 넣는다 (durability = 남은 내구도, 0이면 새 것). 도구는 한 칸에 하나라 빈 칸에 그대로 들어간다.</summary>
+        public bool AddItem(ItemData item, int amount, int durability)
+        {
+            if (item == null || amount <= 0)
+                return false;
+            if (!item.HasDurability || durability <= 0)
+                return AddItem(item, amount);
+
+            for (int n = 0; n < amount; n++)
+            {
+                InventorySlot empty = FindEmptySlot();
+                if (empty == null)
+                {
+                    if (slots.Count >= maxSlots)
+                    {
+                        Debug.LogWarning($"[Inventory] 슬롯 부족: {item.itemName}");
+                        NotifyChanged();
+                        return false;
+                    }
+                    empty = new InventorySlot();
+                    slots.Add(empty);
+                }
+                empty.item = item;
+                empty.count = 1;
+                empty.durability = durability;
+            }
+            NotifyChanged();
+            return true;
+        }
+
+        /// <summary>
+        /// 남은 내구도가 currentDurability인 도구/무기 한 개를 뺀다 (같은 도구가 여러 개 있을 때 "그" 도구를 정확히 꺼내려고).
+        /// 못 찾으면 false.
+        /// </summary>
+        public bool RemoveDurable(ItemData item, int currentDurability)
+        {
+            if (item == null) return false;
+            for (int i = 0; i < slots.Count; i++)
+            {
+                InventorySlot s = slots[i];
+                if (s.IsEmpty || !ItemMatching.IsSameItem(s.item, item) || s.CurrentDurability != currentDurability)
+                    continue;
+
+                s.Clear();
+                if (!KeepSlotPositions)
+                    CompactEmptySlots();
+                NotifyChanged();
+                return true;
+            }
+            return false;
         }
 
         public bool AddItem(ItemData item, int amount)
@@ -237,6 +310,7 @@ namespace CraftingSystem
                 int add = Mathf.Min(maxStack, remaining);
                 empty.item = item;
                 empty.count = add;
+                empty.durability = 0;   // 새로 들어온 도구는 새 것
                 remaining -= add;
             }
 
@@ -261,7 +335,7 @@ namespace CraftingSystem
                 foreach (InventorySlot slot in newSlots)
                 {
                     if (slot != null && !slot.IsEmpty)
-                        slots.Add(new InventorySlot(slot.item, slot.count));
+                        slots.Add(new InventorySlot(slot.item, slot.count) { durability = slot.durability });
                 }
             }
 
@@ -277,14 +351,15 @@ namespace CraftingSystem
             for (int i = 0; i < slots.Count; i++)
             {
                 if (!slots[i].IsEmpty)
-                    snapshot.Add(new InventorySlot(slots[i].item, slots[i].count));
+                    snapshot.Add(new InventorySlot(slots[i].item, slots[i].count) { durability = slots[i].CurrentDurability });
             }
 
             foreach (InventorySlot slot in snapshot)
             {
-                if (!target.AddItem(slot.item, slot.count))
+                if (!target.AddItem(slot.item, slot.count, slot.durability))
                     return false;
-                RemoveItem(slot.item, slot.count);
+                if (slot.item.HasDurability) RemoveDurable(slot.item, slot.durability);   // 닳은 정도가 같은 "그" 도구를 뺀다
+                else RemoveItem(slot.item, slot.count);
             }
 
             return true;

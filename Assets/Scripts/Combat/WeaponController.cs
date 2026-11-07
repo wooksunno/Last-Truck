@@ -542,6 +542,10 @@ namespace Combat
 
         private Coroutine _attackRecoveryRoutine;
 
+        // 화염방사기/분무기는 쏜 시간으로 닳는다 (ConeWearInterval초 뿜을 때마다 내구도 1)
+        private const float ConeWearInterval = 0.6f;
+        private float _coneWearTime;
+
         [Header("맨손 공격")]
         [Tooltip("맨손일 때 공격 대상을 찾는 탐지 반경(m). 이 범위 안의 가장 가까운 대상을 바라보며 공격한다.")]
         [SerializeField] private float fistDetectRange = 6f;
@@ -775,6 +779,7 @@ namespace Combat
                                 OnGunFired(selected.itemID, true, transform.position + Vector3.up * 1.2f, transform.right, 0);
                             }
                             StartAttackRecovery(stats.cooldown);
+                            _inventory.WearSelectedTool();   // 한 발 쏠 때마다 무기가 닳는다
                         }
                     }
                     break;
@@ -793,6 +798,7 @@ namespace Combat
                             else
                                 FireMeleeArc(stats);
                             StartAttackRecovery(stats.cooldown);
+                            _inventory.WearSelectedTool();   // 한 번 휘두를 때마다 무기가 닳는다
                         }
                     }
                     break;
@@ -822,6 +828,14 @@ namespace Combat
                             _nextFireTime = Time.time + stats.cooldown;
                             FireCone(stats);
                             Combat.CameraShake.Shake(0.05f);     // 화염 뿜는 동안 은은한 진동
+
+                            // 연사 무기는 뿜은 시간 0.6초마다 1씩 닳는다 (틱마다 닳으면 너무 빨리 부서진다)
+                            _coneWearTime += stats.cooldown;
+                            if (_coneWearTime >= ConeWearInterval)
+                            {
+                                _coneWearTime = 0f;
+                                _inventory.WearSelectedTool();
+                            }
                         }
                     }
                     else if (_isFlameActive && (Input.GetMouseButtonUp(0) || !Input.GetMouseButton(0)))
@@ -859,6 +873,7 @@ namespace Combat
                                 FireHitscan(stats, scaledDamage);
                             // 활은 쿨다운 대신 당긴 시간만큼(세게 당길수록 오래) 멈칫한다.
                             StartAttackRecovery(stats.chargeTime * fraction);
+                            _inventory.WearSelectedTool();   // 화살 한 발마다 활이 닳는다
                         }
                     }
                     break;
@@ -1071,7 +1086,10 @@ namespace Combat
                 return;
             _isCharging = charging;
             if (!_remoteView)
+            {
                 ChargingChanged?.Invoke(charging);
+                LastTruck.CameraEffects.SetAiming(charging);   // 활을 당기는 동안 카메라가 살짝 줌인
+            }
         }
 
         #endregion

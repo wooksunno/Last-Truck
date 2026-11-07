@@ -8,6 +8,7 @@ namespace CraftingSystem
     /// <summary>
     /// 우하단 플레이어 인벤토리(핫바) HUD. 슬롯은 에디터에서 미리 배치돼 있고,
     /// 이 컴포넌트는 PlayerInventory 상태를 슬롯 뷰에 옮겨 담기만 한다.
+    /// UI 스킨이 있으면 같은 내용을 UI Toolkit 핫바(LastTruck.InventoryHotbarView)로 그리고, uGUI 슬롯은 숨겨 둔다.
     /// </summary>
     public class PlayerInventoryHUD : MonoBehaviour
     {
@@ -16,15 +17,44 @@ namespace CraftingSystem
         [SerializeField] private Text heldNameText;      // 선택한(손에 든) 아이템 이름
 
         private PlayerInventory _inventory;
+        private LastTruck.InventoryHotbarView _toolkit;
 
         public int SlotCount => slots.Count;
 
         public void Bind(PlayerInventory inventory, Action<int> onSlotClicked)
         {
             _inventory = inventory;
+
+            // UI Toolkit 핫바가 만들어지면 그쪽으로 그리고 uGUI 핫바는 숨긴다 (만들 수 없으면 아래 uGUI 그대로)
+            if (_toolkit != null && !_toolkit.IsBuilt)
+            {
+                Destroy(_toolkit.gameObject);   // 스크립트를 다시 불러와 화면이 사라진 핫바는 새로 만든다
+                _toolkit = null;
+            }
+            if (_toolkit == null)
+            {
+                _toolkit = LastTruck.InventoryHotbarView.Create(slots.Count,
+                    onSlotClicked,
+                    (from, to) => _inventory.SwapSlots(from, to),
+                    from => _inventory.DropSlot(from, int.MaxValue));
+                if (_toolkit != null)
+                {
+                    var group = GetComponent<CanvasGroup>();
+                    if (group == null) group = gameObject.AddComponent<CanvasGroup>();
+                    group.alpha = 0f;
+                    group.blocksRaycasts = false;
+                    group.interactable = false;
+                    _toolkit.SetVisible(isActiveAndEnabled);
+                }
+            }
+
+            // UI 스킨이 있으면 핫바 판과 칸을 Kenney 나무 판 모양으로 (없으면 예전 모양 그대로)
+            LastTruck.UiSkinUtil.SkinHotbarPanel(gameObject);
+
             for (int i = 0; i < slots.Count; i++)
             {
                 if (slots[i] == null) continue;
+                slots[i].ApplySkin();
                 slots[i].Setup(i, onSlotClicked != null ? new UnityEngine.Events.UnityAction<int>(onSlotClicked) : null);
                 slots[i].OnSwapRequested = (from, to) => _inventory.SwapSlots(from, to);
                 slots[i].OnDropOutRequested = from => _inventory.DropSlot(from, int.MaxValue);   // 칸 전부 버리기
@@ -49,7 +79,19 @@ namespace CraftingSystem
                 InventorySlot s = i < data.Count ? data[i] : null;
                 bool empty = s == null || s.IsEmpty;
                 if (!empty) used++;
-                slots[i].Set(empty ? null : s.item, empty ? 0 : s.count, i == _inventory.SelectedSlotIndex);
+                slots[i].Set(empty ? null : s.item, empty ? 0 : s.count, i == _inventory.SelectedSlotIndex, empty ? 1f : s.DurabilityRatio);
+            }
+
+            if (_toolkit != null)
+            {
+                for (int i = 0; i < slots.Count; i++)
+                {
+                    InventorySlot s = i < data.Count ? data[i] : null;
+                    bool empty = s == null || s.IsEmpty;
+                    _toolkit.SetSlot(i, i < cap, empty ? null : s.item, empty ? 0 : s.count, i == _inventory.SelectedSlotIndex, empty ? 1f : s.DurabilityRatio);
+                }
+                ItemData heldItem = _inventory.SelectedItem;
+                _toolkit.SetSummary(used, cap, heldItem != null ? heldItem.itemName : "빈 손");
             }
 
             if (usedCountText != null) usedCountText.text = used + "/" + cap;
@@ -58,6 +100,21 @@ namespace CraftingSystem
                 ItemData held = _inventory.SelectedItem;
                 heldNameText.text = held != null ? held.itemName : "빈 손";
             }
+        }
+
+        private void OnEnable()
+        {
+            if (_toolkit != null) _toolkit.SetVisible(true);
+        }
+
+        private void OnDisable()
+        {
+            if (_toolkit != null) _toolkit.SetVisible(false);
+        }
+
+        private void OnDestroy()
+        {
+            if (_toolkit != null) Destroy(_toolkit.gameObject);
         }
     }
 }

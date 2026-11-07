@@ -20,6 +20,10 @@ namespace LastTruck
             if (string.IsNullOrEmpty(message))
                 return;
 
+            // UI Toolkit HUD가 준비돼 있으면 그쪽(나무 판 모양)으로 보여 준다
+            if (LastTruckHud.TryShowToast(message, seconds))
+                return;
+
             if (_instance == null)
                 _instance = Create();
             _instance.Display(message, seconds);

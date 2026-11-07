@@ -32,25 +32,40 @@ namespace CraftingSystem
             if (player == null || item == null || count <= 0)
                 return null;
 
-            foreach (Collider col in Physics.OverlapSphere(player.position, 3f, 1 << InteractLayer, QueryTriggerInteraction.Collide))
+            // 내구도가 있는 도구는 한 개마다 닳은 정도가 달라서 합치지 않는다
+            if (!item.HasDurability)
             {
-                if (col.TryGetComponent<DroppedItem>(out var existing) && !existing._picked
-                    && existing._item != null && ItemMatching.IsSameItem(existing._item, item))
+                foreach (Collider col in Physics.OverlapSphere(player.position, 3f, 1 << InteractLayer, QueryTriggerInteraction.Collide))
                 {
-                    existing._count += count;
-                    return existing;
+                    if (col.TryGetComponent<DroppedItem>(out var existing) && !existing._picked
+                        && existing._item != null && ItemMatching.IsSameItem(existing._item, item))
+                    {
+                        existing._count += count;
+                        return existing;
+                    }
                 }
             }
             return Spawn(player, item, count);
         }
 
-        /// <summary>player 앞쪽 바닥에 아이템을 떨어뜨린다.</summary>
-        public static DroppedItem Spawn(Transform player, ItemData item, int count)
+        private int _durability;   // 도구를 버린 경우 그 도구의 남은 내구도 (0 = 새 것)
+
+        /// <summary>player 앞쪽 바닥에 아이템을 떨어뜨린다. durability는 도구가 닳은 정도를 그대로 들고 있게 한다.</summary>
+        public static DroppedItem Spawn(Transform player, ItemData item, int count, int durability = 0)
         {
             if (player == null || item == null || count <= 0)
                 return null;
 
-            Vector3 pos = player.position + player.forward * 1.3f + Vector3.up * 0.9f;
+            return SpawnAt(player.position + player.forward * 1.3f, item, count, durability);
+        }
+
+        /// <summary>월드 위치 근처 바닥에 아이템을 떨어뜨린다 (몬스터 전리품 등).</summary>
+        public static DroppedItem SpawnAt(Vector3 position, ItemData item, int count, int durability = 0)
+        {
+            if (item == null || count <= 0)
+                return null;
+
+            Vector3 pos = position + Vector3.up * 0.9f;
 
             // 바닥에 맞춘다 (벽 속에 떨어지지 않게 위쪽에서 아래로 쏜다)
             if (Physics.Raycast(pos + Vector3.up * 1.5f, Vector3.down, out RaycastHit hit, 6f, ~0, QueryTriggerInteraction.Ignore))
@@ -65,6 +80,7 @@ namespace CraftingSystem
             trigger.radius = 0.7f;
 
             var di = go.AddComponent<DroppedItem>();
+            di._durability = durability;
             di.Init(item, count);
             return di;
         }
@@ -137,7 +153,7 @@ namespace CraftingSystem
                 return;
             }
 
-            if (!inv.AddItem(_item, take))
+            if (!inv.Inventory.AddItem(_item, take, _durability))
                 return;
 
             _count -= take;

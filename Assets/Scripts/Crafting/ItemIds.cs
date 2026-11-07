@@ -16,6 +16,7 @@ namespace CraftingSystem
         public const string PoisonHerb = "poison_herb"; // 독약초
         public const string Fish = "fish";
         public const string Meat = "meat";
+        public const string RottenMeat = "rotten_meat"; // 썩은 고기 (몬스터 전리품, 약초와 합치면 고기)
         public const string WetHide = "wet_hide"; // 젖은 가죽
 
         // 1차 가공된 재료
@@ -94,6 +95,7 @@ namespace CraftingSystem
         public const string SpikeBumper = "spike_bumper"; // 강철가시 범퍼
         public const string GrinderWheel = "grinder_wheel"; // 초진동 회전 분쇄 휠
         public const string TunedEngine = "tuned_engine"; // 개조 엔진 (트럭 파츠: 엔진)
+        public const string FishingRod = "fishing_rod"; // 낚싯대 (물가에서 왼쪽 클릭으로 던진다)
         public const string MiniTurret = "mini_turret"; // 미니 포탑 (트럭 파츠: 지붕)
 
         // 포탑 탄환 (자원 1개 → 5발)
@@ -116,6 +118,24 @@ namespace CraftingSystem
         public const string Torch = "torch"; // 횃불 (손에 들면 주변을 밝힌다)
         public const string WoodBarricade = "wood_barricade"; // 나무 바리케이드 (몬스터 길막)
         public const string StoneWall = "stone_wall"; // 돌 방벽 (몬스터 길막, 더 오래 감)
+
+        // 포탑 (트럭 지붕 파츠). MiniTurret이 기본형이고 나머지는 성격이 다른 상위/특화형 (TruckUpgradeRules.Turrets)
+        public const string GatlingTurret = "gatling_turret"; // 기관포 포탑: 빠른 연사
+        public const string SniperTurret = "sniper_turret"; // 저격 포탑: 느리지만 아주 강하고 멀리
+        public const string MortarTurret = "mortar_turret"; // 박격포 포탑: 넓은 범위 폭발
+        public const string FlameTurret = "flame_turret"; // 화염 포탑: 가까이 불바다
+        public const string RailTurret = "rail_turret"; // 레일 포탑: 일직선 관통 (최종)
+
+        // 트럭 파츠 (상위)
+        public const string TurboEngine = "turbo_engine"; // 터보 엔진 (엔진 자리, 최종)
+        public const string AlloyArmor = "alloy_armor"; // 합금 장갑 (장갑 자리, 최종)
+
+        // 음식 / 소모품 / 수리
+        public const string HerbPorridge = "herb_porridge"; // 약초 죽
+        public const string HeartyStew = "hearty_stew"; // 든든한 스튜
+        public const string HerbBandage = "herb_bandage"; // 약초 붕대
+        public const string VitalityTonic = "vitality_tonic"; // 활력 토닉 (최종 소모품)
+        public const string ToolRepairKit = "tool_repair_kit"; // 도구 수리 키트
 
         // 맵 특산물 구역 전용 자원 (기존 유지)
         public const string Platinum = PlatinumOre;
