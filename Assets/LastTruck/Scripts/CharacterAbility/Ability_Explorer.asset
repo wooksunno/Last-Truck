@@ -13,4 +13,4 @@ MonoBehaviour:
   m_Name: Ability_Explorer
   m_EditorClassIdentifier: Assembly-CSharp::LastTruck.PlayerAbility_Explorer
   cooldown: 0
-  resourceMultiplier: 1.2
+  resourceMultiplier: 1.3
