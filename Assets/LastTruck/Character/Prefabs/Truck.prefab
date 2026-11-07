@@ -1071,9 +1071,29 @@ MonoBehaviour:
   driveType: 1
   turnSensitivity: 1
   maxSteerAngle: 30
+  steerInSpeed: 110
+  steerReturnSpeed: 240
+  highSpeedSteerAngle: 18
+  highSpeedForSteer: 18
+  turnAssist: 1
+  assistYawRate: 60
+  standstillTurnFactor: 0.4
+  assistFullSpeed: 4
+  assistResponse: 5
   _centerOfMass: {x: 0, y: 0, z: 0}
   downForce: 150
   carRb: {fileID: 7313451405434990046}
+  minMass: 6000
+  autoSuspension: 1
+  suspensionTravel: 0.4
+  maxSpeed: 18
+  speedDownForce: 700
+  airExtraGravity: 1.5
+  maxUpwardSpeed: 6
+  antiRoll: 18000
+  uprightTorque: 9000
+  maxAngularSpeed: 2.5
+  angularDamping: 1
   wheels:
   - wheelModel: {fileID: 8554293424728943750}
     wheelCollider: {fileID: 8706558609009342533}
@@ -1088,6 +1108,7 @@ MonoBehaviour:
     wheelCollider: {fileID: 3456958735036498817}
     accelerator: 1
   _isDriving: 0
+  useExternalInput: 0
 --- !u!114 &5798319895712415082
 MonoBehaviour:
   m_ObjectHideFlags: 0
