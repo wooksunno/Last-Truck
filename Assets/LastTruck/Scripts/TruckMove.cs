@@ -445,6 +445,10 @@ namespace LastTruck
 
                 wheel.wheelCollider.motorTorque = 0f;
                 wheel.wheelCollider.brakeTorque = brakeAcceleration * 2f;
+
+                // 내려서 멈춘 트럭의 앞바퀴가 마지막으로 꺾인 채 굳어 있지 않게 천천히 바르게 돌려놓는다
+                if (wheel.accelerator == Accelerator.Front)
+                    wheel.wheelCollider.steerAngle = Mathf.MoveTowards(wheel.wheelCollider.steerAngle, 0f, steerReturnSpeed * Time.fixedDeltaTime);
             }
 
             if (carRb != null)

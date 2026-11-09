@@ -95,20 +95,34 @@ namespace CraftingSystem
         private void Build(string turretId)
         {
             _builtId = turretId;
-            // 트럭 몸체(바퀴/트리거 제외) 위쪽 가운데에 올린다
-            Bounds b = new Bounds(transform.position, Vector3.zero); bool any = false;
-            foreach (var r in GetComponentsInChildren<Renderer>())
+            // 트럭의 "Mount_Roof" 자리(운전석 지붕)에 올린다. 자리가 없는 트럭이면 몸체 위쪽 가운데.
+            Vector3 top;
+            Transform mount = transform.Find("Mount_Roof");
+            if (mount != null) top = mount.position;
+            else
             {
-                if (r is ParticleSystemRenderer || r is LineRenderer) continue;
-                if (!any) { b = r.bounds; any = true; } else b.Encapsulate(r.bounds);
+                Bounds b = new Bounds(transform.position, Vector3.zero); bool any = false;
+                foreach (var r in GetComponentsInChildren<Renderer>())
+                {
+                    if (r is ParticleSystemRenderer || r is LineRenderer) continue;
+                    if (!any) { b = r.bounds; any = true; } else b.Encapsulate(r.bounds);
+                }
+                top = any ? new Vector3(b.center.x, b.max.y, b.center.z) : transform.position + Vector3.up * 2.5f;
             }
-            Vector3 top = any ? new Vector3(b.center.x, b.max.y, b.center.z) : transform.position + Vector3.up * 2.5f;
 
             _root = new GameObject("TruckTurret_Model").transform;
             _root.SetParent(transform, false);
             _root.position = top;
             _root.localRotation = Quaternion.identity;
+            BuildModel(turretId, _root, out _yawPivot, out _muzzle);
+        }
 
+        /// <summary>
+        /// 포탑 모델을 만든다: root 아래에 받침대 + 회전하는 포신(yawPivot) + 총구(muzzle). 자동 포탑(TruckAutoTurret)도 같은 모델을 쓴다.
+        /// turretId는 수동 포탑 id (자동은 "auto_"를 뗀 id를 넘긴다).
+        /// </summary>
+        public static void BuildModel(string turretId, Transform _root, out Transform _yawPivot, out Transform _muzzle)
+        {
             var dark = MakeMat(new Color(0.22f, 0.24f, 0.26f));
             var olive = MakeMat(new Color(0.36f, 0.42f, 0.28f));
 
@@ -307,14 +321,7 @@ namespace CraftingSystem
             return Mathf.Max(0.1f, rate);
         }
 
-        public int AmmoCount()
-        {
-            var inv = Inventory; if (inv == null) return 0;
-            var catalog = ItemCatalog.GetOrCreate();
-            int n = 0;
-            foreach (var a in TruckUpgradeRules.AmmoTypes) { var it = catalog.GetItem(a.id); if (it != null) n += inv.GetItemCount(it); }
-            return n;
-        }
+        public int AmmoCount() => AmmoCountIn(Inventory);
 
         // ───── 판정 (싱글/호스트) ─────
 
@@ -337,13 +344,25 @@ namespace CraftingSystem
             _lastHostShot = Time.time;
 
             Vector3 from = MuzzlePosition;
-            Vector3 dir = aimPoint - from;
-            if (dir.sqrMagnitude < 0.01f) dir = Quaternion.Euler(0f, _yaw, 0f) * Vector3.forward;
-            dir.Normalize();
-            float range = _state.StatValue(TruckStat.TurretRange);
             int damage = Mathf.RoundToInt(_state.StatValue(TruckStat.TurretAttack) + ammoDamage);
+            ApplyShot(transform, from, aimPoint, _yaw, kind, _state.StatValue(TruckStat.TurretRange), damage, _state.StatValue(TruckStat.TurretArea), out Vector3 to);
+
+            if (Online) LastTruck.Networking.NetworkTruck.BroadcastTurretShot(from, to);
+            else ShowShot(from, to);
+            return true;
+        }
+
+        /// <summary>
+        /// 한 발의 피해 판정 (수동/자동 포탑 공통). truck은 맞히지 않을 트럭, fallbackYaw는 조준점이 너무 가까울 때 쓸 방향.
+        /// to에 탄도가 끝나는 지점을 돌려준다.
+        /// </summary>
+        public static void ApplyShot(Transform truck, Vector3 from, Vector3 aimPoint, float fallbackYaw, TruckUpgradeRules.Turret kind,
+                                     float range, int damage, float area, out Vector3 to)
+        {
+            Vector3 dir = aimPoint - from;
+            if (dir.sqrMagnitude < 0.01f) dir = Quaternion.Euler(0f, fallbackYaw, 0f) * Vector3.forward;
+            dir.Normalize();
             var done = new System.Collections.Generic.HashSet<Combat.Damageable>();
-            Vector3 to;
 
             if (kind.pierce)
             {
@@ -353,7 +372,7 @@ namespace CraftingSystem
                 System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
                 foreach (var h in hits)
                 {
-                    if (h.collider.transform.IsChildOf(transform) || IsPlayer(h.collider)) continue;
+                    if (h.collider.transform.IsChildOf(truck) || IsPlayer(h.collider)) continue;
                     Vector3 p = h.distance > 0f ? h.point : h.collider.ClosestPoint(from);
                     var target = h.collider.GetComponentInParent<Combat.Damageable>();
                     if (target == null) { to = p; break; }
@@ -367,31 +386,35 @@ namespace CraftingSystem
                 float bestDist = float.MaxValue;
                 foreach (var h in Physics.SphereCastAll(from, 0.25f, dir, range, ~0, QueryTriggerInteraction.Ignore))
                 {
-                    if (h.collider.transform.IsChildOf(transform) || IsPlayer(h.collider)) continue;
+                    if (h.collider.transform.IsChildOf(truck) || IsPlayer(h.collider)) continue;
                     if (h.distance < bestDist) { bestDist = h.distance; to = h.distance > 0f ? h.point : h.collider.ClosestPoint(from); }
                 }
 
-                float area = _state.StatValue(TruckStat.TurretArea);
                 foreach (var col in Physics.OverlapSphere(to, area, ~0, QueryTriggerInteraction.Ignore))
                 {
-                    if (col.transform.IsChildOf(transform) || IsPlayer(col)) continue;
+                    if (col.transform.IsChildOf(truck) || IsPlayer(col)) continue;
                     var target = col.GetComponentInParent<Combat.Damageable>();
                     if (target == null || !done.Add(target)) continue;
                     target.TakeDamage(damage, col.ClosestPoint(to), null);
                 }
             }
-
-            if (Online) LastTruck.Networking.NetworkTruck.BroadcastTurretShot(from, to);
-            else ShowShot(from, to);
-            return true;
         }
 
-        /// <summary>트럭 보관함에서 탄환 need개를 좋은 것부터 꺼낸다. 모자라면 아무것도 꺼내지 않고 false. damage는 가장 먼저 쓴 탄환의 데미지.</summary>
-        private bool TryConsumeAmmo(int need, out int damage)
+        /// <summary>트럭 보관함에 있는 탄환 수 (좋은 것부터 전부 합친 값).</summary>
+        public static int AmmoCountIn(TruckInventory inv)
+        {
+            if (inv == null) return 0;
+            var catalog = ItemCatalog.GetOrCreate();
+            int n = 0;
+            foreach (var a in TruckUpgradeRules.AmmoTypes) { var it = catalog.GetItem(a.id); if (it != null) n += inv.GetItemCount(it); }
+            return n;
+        }
+
+        /// <summary>보관함에서 탄환 need개를 좋은 것부터 꺼낸다. 모자라면 아무것도 꺼내지 않고 false. damage는 가장 먼저 쓴 탄환의 데미지.</summary>
+        public static bool TryConsumeAmmoFrom(TruckInventory inv, int need, out int damage)
         {
             damage = -1;
-            var inv = Inventory;
-            if (inv == null || need <= 0 || AmmoCount() < need) return false;
+            if (inv == null || need <= 0 || AmmoCountIn(inv) < need) return false;
 
             var catalog = ItemCatalog.GetOrCreate();
             int left = need;
@@ -407,6 +430,9 @@ namespace CraftingSystem
             }
             return left <= 0;
         }
+
+        /// <summary>트럭 보관함에서 탄환 need개를 좋은 것부터 꺼낸다. 모자라면 아무것도 꺼내지 않고 false. damage는 가장 먼저 쓴 탄환의 데미지.</summary>
+        private bool TryConsumeAmmo(int need, out int damage) => TryConsumeAmmoFrom(Inventory, need, out damage);
 
         private static bool IsPlayer(Collider c) =>
             c.GetComponentInParent<LastTruck.PlayerMove>() != null || c.GetComponentInParent<LastTruck.Networking.NetworkPlayer>() != null;
@@ -442,13 +468,20 @@ namespace CraftingSystem
 
         public void ShowShot(Vector3 from, Vector3 to)
         {
+            string id = _state != null ? _state.PartAt(TruckPartSlot.Roof) : null;
+            float area = _state != null ? _state.StatValue(TruckStat.TurretArea) : 3f;
+            ShowShotFor(id, area, from, to);
+        }
+
+        /// <summary>포탑 종류(수동 포탑 id)에 맞는 탄도/폭발 연출. 자동 포탑도 이것을 쓴다.</summary>
+        public void ShowShotFor(string id, float area, Vector3 from, Vector3 to)
+        {
             if (_tracerMat == null)
             {
                 var sh = Shader.Find("Sprites/Default") ?? Shader.Find("Universal Render Pipeline/Unlit");
                 _tracerMat = new Material(sh);
             }
             // 포탑 종류마다 탄도 색/굵기/지속시간이 다르다
-            string id = _state != null ? _state.PartAt(TruckPartSlot.Roof) : null;
             float width = 0.12f, life = 0.07f, flashMax = 2.5f;
             Color c0 = new Color(1f, 0.85f, 0.4f), c1 = new Color(1f, 0.5f, 0.1f, 0.6f);
             switch (id)
@@ -472,7 +505,6 @@ namespace CraftingSystem
             var flash = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             Destroy(flash.GetComponent<Collider>());
             flash.transform.position = to;
-            float area = _state != null ? _state.StatValue(TruckStat.TurretArea) : 3f;
             flash.transform.localScale = Vector3.one * Mathf.Min(area, flashMax);
             flash.GetComponent<Renderer>().sharedMaterial = _tracerMat;
             Destroy(flash, life + 0.01f);

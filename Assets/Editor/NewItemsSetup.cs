@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System.Collections.Generic;
 using CraftingSystem;
 using UnityEditor;
 using UnityEngine;
@@ -30,6 +31,18 @@ public static class NewItemsSetup
     static Recipe Assemble(string id, string name, int outCount, params (string id, int count)[] inputs) =>
         new Recipe { facility = FacilityType.None, recipeId = "assemble_" + id, recipeName = name + " 조립", inputs = inputs, outCount = outCount, seconds = 2f };
 
+    /// <summary>자동 포탑: 수동 포탑 1개 + 첨단 부품 (후반 포탑은 영구 에너지 코어까지). 장착되는 파츠라 한 개씩만 쌓인다.</summary>
+    static Def AutoTurret(string id, string name, string manualTurretId, bool needsCore)
+    {
+        var inputs = new List<(string id, int count)>
+        {
+            (manualTurretId, 1),
+            (ItemIds.MechanicalTrigger, 2), (ItemIds.HighVoltageCable, 3), (ItemIds.PlatinumGear, 2), (ItemIds.SuperconductorCatalyst, 2),
+        };
+        if (needsCore) inputs.Add((ItemIds.EternalEnergyCore, 1));
+        return new Def { id = id, name = name, type = ItemType.Finished, stack = 1, recipe = Assemble(id, name, 1, inputs.ToArray()) };
+    }
+
     static readonly Def[] Defs =
     {
         // 포탑 (트럭 지붕 파츠). 미니 포탑은 TruckPartsSetup이 만든다.
@@ -43,6 +56,14 @@ public static class NewItemsSetup
                   recipe = Assemble(ItemIds.FlameTurret, "화염 포탑", 1, (ItemIds.PrecisionBarrel, 1), (ItemIds.NapalmGel, 4), (ItemIds.RefinedFuel, 2), (ItemIds.ArmorPlate, 2)) },
         new Def { id = ItemIds.RailTurret, name = "레일 포탑", type = ItemType.Finished, stack = 1,
                   recipe = Assemble(ItemIds.RailTurret, "레일 포탑", 1, (ItemIds.PlatinumGear, 3), (ItemIds.SuperconductorCatalyst, 2), (ItemIds.HighVoltageCable, 3), (ItemIds.PrecisionBarrel, 2), (ItemIds.EternalEnergyCore, 1)) },
+
+        // 자동 포탑 (적재함 파츠): 같은 종류의 수동 포탑 + 첨단 부품. 수동 포탑을 먼저 만들어야 하고 재료도 훨씬 많이 든다.
+        AutoTurret(ItemIds.AutoMiniTurret, "자동 미니 포탑", ItemIds.MiniTurret, false),
+        AutoTurret(ItemIds.AutoGatlingTurret, "자동 기관포 포탑", ItemIds.GatlingTurret, false),
+        AutoTurret(ItemIds.AutoSniperTurret, "자동 저격 포탑", ItemIds.SniperTurret, true),
+        AutoTurret(ItemIds.AutoMortarTurret, "자동 박격포 포탑", ItemIds.MortarTurret, true),
+        AutoTurret(ItemIds.AutoFlameTurret, "자동 화염 포탑", ItemIds.FlameTurret, true),
+        AutoTurret(ItemIds.AutoRailTurret, "자동 레일 포탑", ItemIds.RailTurret, true),
 
         // 트럭 상위 파츠 (최종)
         new Def { id = ItemIds.TurboEngine, name = "터보 엔진", type = ItemType.Finished, stack = 1,

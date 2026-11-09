@@ -506,6 +506,19 @@ namespace LastTruck.Networking
             if (CraftingSystem.TruckTurret.Instance != null) CraftingSystem.TruckTurret.Instance.ShowShot(from, to);
         }
 
+        /// <summary>호스트: 자동 포탑 발사 연출을 모두에게.</summary>
+        public static void BroadcastAutoTurretShot(Vector3 from, Vector3 to)
+        {
+            if (IsReady) Instance.RPC_AutoTurretShot(from, to);
+            else if (CraftingSystem.TruckAutoTurret.Instance != null) CraftingSystem.TruckAutoTurret.Instance.ShowShot(from, to);
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_AutoTurretShot(Vector3 from, Vector3 to)
+        {
+            if (CraftingSystem.TruckAutoTurret.Instance != null) CraftingSystem.TruckAutoTurret.Instance.ShowShot(from, to);
+        }
+
         [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
         private void RPC_Toast([RpcTarget] PlayerRef target, string message) => Toast(message);
 

@@ -5,51 +5,63 @@ using UnityEngine;
 namespace CraftingSystem
 {
     /// <summary>
-    /// 트럭 내구도가 낮아지면 문과 지붕이 투명해지고, 수리되면 다시 원래대로 보인다.
-    /// 원본 머티리얼은 흰색 _BaseColor + _BaseMap 텍스처로 실제 색을 낸다.
+    /// 트럭 내구도가 떨어지면 부품(TruckDetachablePart: 문, 사이드미러, 범퍼, 적재함 아치 등)이 하나씩 떨어져 나간다.
     ///
-    /// 지붕은 차체(본네트/적재함/펜더 포함) 메쉬와 한 덩어리라 따로 뗄 수 없어서, 높이(worldY) 기준으로
-    /// clip()하는 셰이더(Custom/TruckRoofClip, Opaque+ZWrite On)를 쓴다 — 알파블렌딩이 아니라 완전히
-    /// 잘라내는 방식이라 차체 전체의 깊이 정렬은 그대로 유지된다.
-    ///
-    /// 문은 자체 메쉬라서 알파 페이드가 가능한 별도 셰이더(Custom/TruckDoorFade, Transparent+ZWrite Off)를 쓴다.
-    /// 이 둘을 하나로 합쳐 차체까지 Transparent로 만들면 깊이 정렬이 깨져 트럭 전체가 이상하게 보이므로 분리했다.
+    /// - 부품은 내구도 비율이 부품의 detachBelow 아래로 내려가는 순간 몸체에서 사라지고, 같은 모양의 파편이
+    ///   트럭이 달리던 속도를 이어받아 튕겨 나가 땅에 구른다 (파편은 몇 초 뒤 줄어들며 사라진다).
+    /// - 수리해서 비율이 다시 올라가면 부품이 다시 붙는다.
+    /// - 처음 상태(게임 시작 / 멀티플레이 접속 직후)는 파편 없이 이미 떨어진 채로 시작한다.
+    /// - 내구도 변화는 TruckInformation.OnDurabilityChanged로 받는다. 멀티플레이에서는 클라이언트도 호스트의 내구도를
+    ///   그대로 받아서 같은 이벤트가 오므로, 각자 화면에서 똑같이 떨어진다 (파편은 보기용이라 네트워크로 보내지 않는다).
     /// </summary>
     public class TruckDamageVisuals : MonoBehaviour
     {
-        private class FadePart
+        [Tooltip("떨어진 파편이 사라지기까지 (초).")]
+        [SerializeField] private float debrisLifetime = 12f;
+        [Tooltip("동시에 남아 있을 수 있는 파편 수. 넘으면 오래된 것부터 지운다.")]
+        [SerializeField] private int maxDebris = 30;
+        [Tooltip("다시 붙을 때 커지며 나타나는 시간 (초).")]
+        [SerializeField] private float reattachPopSeconds = 0.25f;
+
+        private class Slot
         {
-            public Material[] materials;
-            public float detachBelow;
+            public TruckDetachablePart part;
+            public Renderer[] renderers;
+            public Vector3 baseScale;
+            public bool gone;
         }
 
-        [Tooltip("이 worldY 이상은 지붕으로 간주해 클립한다. 문 상단(약 1.89) 바로 위로 잡는다.")]
-        [SerializeField] private float roofClipWorldY = 1.86f;
-        [Tooltip("지붕이 사라지기 시작하는 내구도 비율.")]
-        [SerializeField] private float roofDetachBelow = 0.35f;
-        [SerializeField] private float fadeDuration = 0.4f;
-        [SerializeField] private float goneAlpha = 0.08f;
-
-        private readonly List<FadePart> _doors = new List<FadePart>();
+        private readonly List<Slot> _slots = new List<Slot>();
+        private static readonly Queue<GameObject> LiveDebris = new Queue<GameObject>();
         private LastTruck.TruckInformation _info;
-        private Renderer _bodyRenderer;
-        private Material _roofMaterial;
-        private int _bodyMaterialIndex = -1;
-        private bool _roofGone;
-        private Coroutine _doorFadeRoutine;
-        private static Shader _roofClipShader;
-        private static Shader _doorFadeShader;
+        private Rigidbody _rb;
+        private bool _initialized;
+
+        /// <summary>떨어진(숨겨진) 부품 수.</summary>
+        public int DetachedCount
+        {
+            get
+            {
+                int n = 0;
+                foreach (Slot s in _slots) if (s.gone) n++;
+                return n;
+            }
+        }
 
         private void Awake()
         {
             _info = GetComponent<LastTruck.TruckInformation>();
-            _bodyRenderer = GetComponent<Renderer>();
-            _roofClipShader = Shader.Find("Custom/TruckRoofClip");
-            _doorFadeShader = Shader.Find("Custom/TruckDoorFade");
+            _rb = GetComponent<Rigidbody>();
 
-            AddDoor("Pick Up_7 L Door", 0.75f);
-            AddDoor("Pick Up_7 R Door", 0.5f);
-            SetupRoofMaterial();
+            foreach (TruckDetachablePart part in GetComponentsInChildren<TruckDetachablePart>(true))
+            {
+                _slots.Add(new Slot
+                {
+                    part = part,
+                    renderers = part.GetComponentsInChildren<Renderer>(true),
+                    baseScale = part.transform.localScale,
+                });
+            }
 
             if (_info != null)
                 _info.OnDurabilityChanged += OnDurabilityChanged;
@@ -61,114 +73,122 @@ namespace CraftingSystem
                 _info.OnDurabilityChanged -= OnDurabilityChanged;
         }
 
-        private static void CopyBaseAppearance(Material dest, Material source)
-        {
-            if (source.HasProperty("_BaseMap"))
-            {
-                dest.SetTexture("_BaseMap", source.GetTexture("_BaseMap"));
-                dest.SetTextureScale("_BaseMap", source.GetTextureScale("_BaseMap"));
-                dest.SetTextureOffset("_BaseMap", source.GetTextureOffset("_BaseMap"));
-            }
-            dest.SetColor("_BaseColor", source.HasProperty("_BaseColor") ? source.GetColor("_BaseColor") : Color.white);
-        }
-
-        private void AddDoor(string childName, float detachBelow)
-        {
-            if (_doorFadeShader == null)
-                return;
-
-            Transform t = transform.Find(childName);
-            Renderer r = t != null ? t.GetComponent<Renderer>() : null;
-            if (r == null)
-                return;
-
-            Material[] original = r.sharedMaterials;
-            var fadeMats = new Material[original.Length];
-            for (int i = 0; i < original.Length; i++)
-            {
-                if (original[i] == null) continue;
-                var mat = new Material(_doorFadeShader);
-                CopyBaseAppearance(mat, original[i]);
-                mat.SetFloat("_FadeAlpha", 1f);
-                fadeMats[i] = mat;
-            }
-
-            r.materials = fadeMats;
-            _doors.Add(new FadePart { materials = fadeMats, detachBelow = detachBelow });
-        }
-
-        private void SetupRoofMaterial()
-        {
-            if (_bodyRenderer == null || _roofClipShader == null)
-                return;
-
-            Material[] shared = _bodyRenderer.sharedMaterials;
-            for (int i = 0; i < shared.Length; i++)
-            {
-                if (shared[i] != null && shared[i].name.Replace(" (Instance)", "") == "Color")
-                {
-                    _bodyMaterialIndex = i;
-                    break;
-                }
-            }
-
-            if (_bodyMaterialIndex < 0)
-                return;
-
-            _roofMaterial = new Material(_roofClipShader);
-            CopyBaseAppearance(_roofMaterial, shared[_bodyMaterialIndex]);
-            _roofMaterial.SetFloat("_ClipHeight", roofClipWorldY);
-            _roofMaterial.SetFloat("_ClipEnabled", 0f);
-
-            Material[] mats = _bodyRenderer.materials;
-            mats[_bodyMaterialIndex] = _roofMaterial;
-            _bodyRenderer.materials = mats;
-        }
-
         private void OnDurabilityChanged(float current, float max)
         {
             float fraction = max > 0f ? current / max : 0f;
+            bool silent = !_initialized;   // 첫 값은 "이미 이런 상태였다": 파편을 만들지 않는다
+            _initialized = true;
 
-            if (_doorFadeRoutine != null)
-                StopCoroutine(_doorFadeRoutine);
-            _doorFadeRoutine = StartCoroutine(FadeDoors(fraction));
-
-            bool roofShouldBeGone = fraction < roofDetachBelow;
-            if (roofShouldBeGone != _roofGone)
+            foreach (Slot slot in _slots)
             {
-                _roofGone = roofShouldBeGone;
-                if (_roofMaterial != null)
-                    _roofMaterial.SetFloat("_ClipEnabled", _roofGone ? 1f : 0f);
+                if (slot.part == null) continue;
+                bool shouldBeGone = fraction < slot.part.detachBelow;
+                if (shouldBeGone && !slot.gone) Detach(slot, silent);
+                else if (!shouldBeGone && slot.gone) Reattach(slot, silent);
             }
         }
 
-        private IEnumerator FadeDoors(float fraction)
-        {
-            var targets = new List<(Material mat, float from, float to)>();
-            foreach (FadePart door in _doors)
-            {
-                bool gone = fraction < door.detachBelow;
-                float to = gone ? goneAlpha : 1f;
-                foreach (Material mat in door.materials)
-                {
-                    if (mat == null) continue;
-                    float from = mat.GetFloat("_FadeAlpha");
-                    targets.Add((mat, from, to));
-                }
-            }
+        // ---------------------------------------------------------------- 떨어지기
 
-            float t = 0f;
-            while (t < fadeDuration)
+        private void Detach(Slot slot, bool silent)
+        {
+            slot.gone = true;
+            if (!silent) SpawnDebris(slot);
+            SetVisible(slot, false);
+        }
+
+        private void Reattach(Slot slot, bool silent)
+        {
+            slot.gone = false;
+            SetVisible(slot, true);
+            if (!silent && isActiveAndEnabled) StartCoroutine(Pop(slot));
+        }
+
+        private static void SetVisible(Slot slot, bool visible)
+        {
+            foreach (Renderer r in slot.renderers)
+                if (r != null) r.enabled = visible;
+        }
+
+        private IEnumerator Pop(Slot slot)
+        {
+            Transform t = slot.part.transform;
+            float time = 0f;
+            while (time < reattachPopSeconds && t != null && !slot.gone)
             {
-                t += Time.deltaTime;
-                float k = Mathf.Clamp01(t / fadeDuration);
-                foreach (var (mat, from, to) in targets)
-                    mat.SetFloat("_FadeAlpha", Mathf.Lerp(from, to, k));
+                time += Time.deltaTime;
+                float k = Mathf.Clamp01(time / reattachPopSeconds);
+                t.localScale = slot.baseScale * Mathf.Lerp(0.6f, 1f, k * (2f - k));
                 yield return null;
             }
-
-            foreach (var (mat, from, to) in targets)
-                mat.SetFloat("_FadeAlpha", to);
+            if (t != null) t.localScale = slot.baseScale;
         }
+
+        private void SpawnDebris(Slot slot)
+        {
+            var filter = slot.part.GetComponent<MeshFilter>();
+            var source = slot.part.GetComponent<MeshRenderer>();
+            if (filter == null || filter.sharedMesh == null || source == null) return;
+
+            var go = new GameObject("Debris_" + slot.part.name);
+            go.layer = LastTruck.TruckMove.PassLayer;   // 트럭 바퀴/몸체와는 부딪히지 않고 땅에만 구른다
+            go.transform.SetPositionAndRotation(slot.part.transform.position, slot.part.transform.rotation);
+            go.transform.localScale = slot.part.transform.lossyScale;
+
+            go.AddComponent<MeshFilter>().sharedMesh = filter.sharedMesh;
+            go.AddComponent<MeshRenderer>().sharedMaterials = source.sharedMaterials;
+
+            Bounds b = filter.sharedMesh.bounds;
+            var box = go.AddComponent<BoxCollider>();
+            box.center = b.center;
+            box.size = Vector3.Max(b.size, Vector3.one * 0.08f);
+
+            var body = go.AddComponent<Rigidbody>();
+            body.mass = Mathf.Max(1f, slot.part.debrisMass);
+            body.interpolation = RigidbodyInterpolation.Interpolate;
+            body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+
+            Vector3 inherited = _rb != null ? _rb.linearVelocity : Vector3.zero;
+            Vector3 kick = transform.TransformDirection(slot.part.kickLocal) + Random.insideUnitSphere * 0.5f;
+            body.linearVelocity = inherited + kick;
+            body.angularVelocity = Random.insideUnitSphere * slot.part.spin;
+
+            // 지나가던 플레이어가 파편에 걸려 막히지 않게 한다
+            foreach (CharacterController cc in FindObjectsByType<CharacterController>(FindObjectsSortMode.None))
+                Physics.IgnoreCollision(box, cc, true);
+            foreach (LastTruck.PlayerMove pm in FindObjectsByType<LastTruck.PlayerMove>(FindObjectsSortMode.None))
+                foreach (Collider c in pm.GetComponentsInChildren<Collider>())
+                    Physics.IgnoreCollision(box, c, true);
+
+            go.AddComponent<DebrisFader>().lifetime = debrisLifetime;
+
+            LiveDebris.Enqueue(go);
+            while (LiveDebris.Count > Mathf.Max(1, maxDebris))
+            {
+                GameObject oldest = LiveDebris.Dequeue();
+                if (oldest != null) Destroy(oldest);
+            }
+        }
+
+        /// <summary>파편: lifetime초 뒤 마지막 1초 동안 줄어들며 사라진다.</summary>
+        private class DebrisFader : MonoBehaviour
+        {
+            public float lifetime = 12f;
+            private float _age;
+            private Vector3 _scale;
+
+            private void Start() => _scale = transform.localScale;
+
+            private void Update()
+            {
+                _age += Time.deltaTime;
+                float left = lifetime - _age;
+                if (left <= 1f) transform.localScale = _scale * Mathf.Clamp01(left);
+                if (left <= 0f) Destroy(gameObject);
+            }
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics() => LiveDebris.Clear();
     }
 }

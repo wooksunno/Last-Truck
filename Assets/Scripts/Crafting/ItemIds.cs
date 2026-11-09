@@ -126,6 +126,15 @@ namespace CraftingSystem
         public const string FlameTurret = "flame_turret"; // 화염 포탑: 가까이 불바다
         public const string RailTurret = "rail_turret"; // 레일 포탑: 일직선 관통 (최종)
 
+        // 자동 포탑 (트럭 적재함 파츠). 위 포탑을 재료로 쓰고 첨단 부품이 더 들어가는 상위 버전: 사수 없이 가까운 적을 알아서 쏜다.
+        // id는 항상 "auto_" + 수동 포탑 id (TruckUpgradeRules가 이 규칙으로 수치를 만든다)
+        public const string AutoMiniTurret = "auto_mini_turret";
+        public const string AutoGatlingTurret = "auto_gatling_turret";
+        public const string AutoSniperTurret = "auto_sniper_turret";
+        public const string AutoMortarTurret = "auto_mortar_turret";
+        public const string AutoFlameTurret = "auto_flame_turret";
+        public const string AutoRailTurret = "auto_rail_turret";
+
         // 트럭 파츠 (상위)
         public const string TurboEngine = "turbo_engine"; // 터보 엔진 (엔진 자리, 최종)
         public const string AlloyArmor = "alloy_armor"; // 합금 장갑 (장갑 자리, 최종)

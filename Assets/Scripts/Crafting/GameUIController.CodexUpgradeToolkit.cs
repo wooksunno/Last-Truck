@@ -125,7 +125,7 @@ namespace CraftingSystem
             {
                 var stat = (TruckStat)i;
                 bool turret = TruckUpgradeRules.IsTurretStat(stat);
-                bool locked = turret && !state.HasTurret;
+                bool locked = turret && !state.AnyTurret;
                 int level = state.LevelOf(stat);
                 bool max = level >= TruckUpgradeRules.MaxLevel;
                 string val = TruckUpgradeRules.Format(stat, state.ValueAt(stat, level));

@@ -5,7 +5,8 @@ using UnityEngine;
 namespace CraftingSystem
 {
     /// <summary>트럭 파츠를 끼우는 자리.</summary>
-    public enum TruckPartSlot { Engine = 0, Front = 1, Armor = 2, Roof = 3 }
+    /// <summary>Roof = 지붕(수동 포탑: 사수가 직접 조준), Bed = 적재함(자동 포탑: 알아서 사격).</summary>
+    public enum TruckPartSlot { Engine = 0, Front = 1, Armor = 2, Roof = 3, Bed = 4 }
 
     /// <summary>레벨로 강화하는 트럭/포탑 스탯 (기획서 7. 트럭 스탯, 6-1 포탑 스탯).</summary>
     public enum TruckStat { Durability = 0, Speed = 1, Light = 2, Attack = 3, TurretAttack = 4, TurretRate = 5, TurretRange = 6, TurretArea = 7 }
@@ -23,9 +24,9 @@ namespace CraftingSystem
     {
         public const int MaxLevel = 10;
         public const int StatCount = 8;
-        public const int SlotCount = 4;
+        public const int SlotCount = 5;
 
-        public static readonly string[] SlotNames = { "엔진", "전면", "장갑", "지붕" };
+        public static readonly string[] SlotNames = { "엔진", "전면", "장갑", "지붕", "적재함" };
         public static readonly string[] StatNames = { "내구도", "이동속도", "조명 반경", "트럭 공격력", "포탑 공격력", "포탑 공격 속도", "포탑 사거리", "포탑 피해 범위" };
 
         public static bool IsTurretStat(TruckStat s) => s >= TruckStat.TurretAttack;
@@ -84,7 +85,8 @@ namespace CraftingSystem
         // ───── 파츠 ─────
         public static bool TryGetSlot(string itemId, out TruckPartSlot slot)
         {
-            if (TryGetTurret(itemId, out _)) { slot = TruckPartSlot.Roof; return true; }
+            // 수동 포탑은 지붕, 자동 포탑은 적재함
+            if (TryGetTurret(itemId, out Turret placed)) { slot = placed.auto ? TruckPartSlot.Bed : TruckPartSlot.Roof; return true; }
             switch (itemId)
             {
                 case ItemIds.TunedEngine:
@@ -103,7 +105,9 @@ namespace CraftingSystem
         public static string PartEffect(string itemId)
         {
             if (TryGetTurret(itemId, out Turret turret))
-                return turret.effect + "  (동승석 1번이 포탑 사수 · 마우스 조준 · 좌클릭 발사 · R 탄환 만들기)";
+                return turret.auto
+                    ? turret.effect + "  (적재함에 설치 · 사수 없이 가까운 적을 알아서 조준하고 사격 · 탄환은 보관함에서)"
+                    : turret.effect + "  (지붕에 설치 · 동승석 1번이 포탑 사수 · 마우스 조준 · 좌클릭 발사 · R 탄환 만들기)";
             switch (itemId)
             {
                 case ItemIds.TunedEngine: return "이동속도·가속 +25%";
@@ -146,10 +150,18 @@ namespace CraftingSystem
             public float attack, rate, range, area;
             public int ammoPerShot;      // 한 발에 쓰는 탄환 수
             public bool pierce;          // true면 일직선 위의 모든 적을 뚫고 맞힌다
+            public bool auto;            // true면 자동 포탑 (적재함, 사수 없이 알아서 쏜다)
             public string effect;
         }
 
-        public static readonly Turret[] Turrets =
+        /// <summary>자동 포탑의 사격 속도 배율 (사수의 정밀 조준이 없는 대신 만들기 어렵다).</summary>
+        public const float AutoRateMultiplier = 0.85f;
+        public const string AutoPrefix = "auto_";
+
+        /// <summary>수동 포탑 id → 그 자동 버전 id.</summary>
+        public static string AutoIdOf(string manualId) => AutoPrefix + manualId;
+
+        private static readonly Turret[] ManualTurrets =
         {
             new Turret { id = ItemIds.MiniTurret, attack = 1f, rate = 1f, range = 1f, area = 1f, ammoPerShot = 1,
                          effect = "기본형 - 균형 잡힌 사격" },
@@ -164,6 +176,25 @@ namespace CraftingSystem
             new Turret { id = ItemIds.RailTurret, attack = 2f, rate = 1.3f, range = 1.6f, area = 0.6f, ammoPerShot = 1, pierce = true,
                          effect = "레일 - 일직선에 있는 적을 전부 관통 (최종)" },
         };
+
+        /// <summary>수동 6종 + 같은 성격의 자동 6종 (수치는 같고 사격 속도만 AutoRateMultiplier배).</summary>
+        public static readonly Turret[] Turrets = BuildTurretTable();
+
+        private static Turret[] BuildTurretTable()
+        {
+            var all = new Turret[ManualTurrets.Length * 2];
+            for (int i = 0; i < ManualTurrets.Length; i++)
+            {
+                all[i] = ManualTurrets[i];
+                Turret a = ManualTurrets[i];
+                a.id = AutoIdOf(a.id);
+                a.auto = true;
+                a.rate *= AutoRateMultiplier;
+                a.effect = "자동 " + a.effect;
+                all[ManualTurrets.Length + i] = a;
+            }
+            return all;
+        }
 
         public static bool TryGetTurret(string itemId, out Turret turret)
         {
@@ -230,15 +261,33 @@ namespace CraftingSystem
             get { TruckUpgradeRules.TryGetTurret(_parts[(int)TruckPartSlot.Roof], out var t); return t; }
         }
 
+        /// <summary>적재함에 자동 포탑이 끼워져 있는가.</summary>
+        public bool HasAutoTurret => TruckUpgradeRules.TryGetTurret(_parts[(int)TruckPartSlot.Bed], out TruckUpgradeRules.Turret t) && t.auto;
+
+        /// <summary>지금 끼워진 자동 포탑 종류 (HasAutoTurret으로 먼저 확인할 것).</summary>
+        public TruckUpgradeRules.Turret AutoTurret
+        {
+            get { TruckUpgradeRules.TryGetTurret(_parts[(int)TruckPartSlot.Bed], out var t); return t; }
+        }
+
+        /// <summary>수동이든 자동이든 포탑이 하나라도 있는가 (포탑 레벨 강화는 하나라도 있으면 할 수 있다).</summary>
+        public bool AnyTurret => HasTurret || HasAutoTurret;
+
         /// <summary>레벨 강화 수치에 포탑 종류 배율까지 곱한 실제 값 (포탑 스탯만 배율이 적용된다).</summary>
         public float StatValue(TruckStat stat) => ValueAt(stat, LevelOf(stat));
 
-        /// <summary>그 레벨일 때의 실제 값 (강화 화면의 "현재 → 다음" 표시용. 끼운 포탑 종류 배율 포함).</summary>
+        /// <summary>그 레벨일 때의 실제 값 (강화 화면의 "현재 → 다음" 표시용. 끼운 포탑 종류 배율 포함. 지붕 포탑이 없으면 자동 포탑 기준).</summary>
         public float ValueAt(TruckStat stat, int level)
         {
+            if (HasTurret) return ValueFor(stat, level, Turret);
+            if (HasAutoTurret) return ValueFor(stat, level, AutoTurret);
+            return TruckUpgradeRules.Value(stat, level);
+        }
+
+        /// <summary>지정한 포탑 종류 기준의 그 레벨 값 (포탑 스탯에만 종류 배율이 곱해진다).</summary>
+        public static float ValueFor(TruckStat stat, int level, TruckUpgradeRules.Turret t)
+        {
             float v = TruckUpgradeRules.Value(stat, level);
-            if (!HasTurret) return v;
-            TruckUpgradeRules.Turret t = Turret;
             switch (stat)
             {
                 case TruckStat.TurretAttack: return v * t.attack;
@@ -248,6 +297,9 @@ namespace CraftingSystem
             }
             return v;
         }
+
+        /// <summary>현재 레벨에서 지정한 포탑 종류의 실제 값 (자동 포탑이 자기 수치를 읽을 때).</summary>
+        public float StatValueFor(TruckStat stat, TruckUpgradeRules.Turret t) => ValueFor(stat, LevelOf(stat), t);
 
         /// <summary>트럭 들이받기 피해 (트럭 공격력 × 전면 파츠 배율).</summary>
         public float RamDamage
@@ -368,7 +420,7 @@ namespace CraftingSystem
             message = null;
             int level = LevelOf(stat);
             if (level >= TruckUpgradeRules.MaxLevel) { message = "이미 최대 레벨이에요."; return false; }
-            if (TruckUpgradeRules.IsTurretStat(stat) && !HasTurret) { message = "포탑을 장착해야 포탑을 강화할 수 있어요."; return false; }
+            if (TruckUpgradeRules.IsTurretStat(stat) && !AnyTurret) { message = "포탑을 장착해야 포탑을 강화할 수 있어요."; return false; }
             var cost = TruckUpgradeRules.LevelCost(level);
             if (!TruckFacilities.CanAfford(truck, cost)) { message = "트럭 보관함에 재료가 부족해요."; return false; }
             TruckFacilities.Pay(truck, cost);
