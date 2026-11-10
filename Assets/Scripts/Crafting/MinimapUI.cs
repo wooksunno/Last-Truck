@@ -39,6 +39,11 @@ namespace CraftingSystem
 
         private float _refreshTimer;
 
+        // UI Toolkit 미니맵 (있으면 이쪽으로 그리고 uGUI 미니맵은 숨긴다)
+        private LastTruck.MinimapView _view;
+        /// <summary>UI Toolkit 미니맵 (만들지 못했으면 null → 예전 uGUI 미니맵).</summary>
+        public LastTruck.MinimapView ToolkitView => _view;
+
         #region 외부 표시용 (멀티플레이 동료 마커 - LastTruck.Networking.MinimapTeammateMarkers)
 
         /// <summary>점/마커를 올리는 레이어 (중앙 = 내 캐릭터). UI가 아직 없으면 null.</summary>
@@ -70,6 +75,16 @@ namespace CraftingSystem
                 else
                 {
                     BuildUI();
+                }
+            }
+
+            if (_view == null)
+            {
+                _view = LastTruck.MinimapView.Create(minimapPixelRadius);
+                if (_view != null && _dotLayer != null)
+                {
+                    Canvas canvas = _dotLayer.GetComponentInParent<Canvas>();
+                    if (canvas != null) canvas.enabled = false;
                 }
             }
 
@@ -110,11 +125,22 @@ namespace CraftingSystem
 
         private void UpdatePlayerMarker()
         {
+            if (_view != null) { _view.SetPlayerHeading(_player.eulerAngles.y); return; }
             _playerMarker.localRotation = Quaternion.Euler(0f, 0f, -_player.eulerAngles.y);
         }
 
 private void UpdateTruckArrow()
         {
+            if (_view != null)
+            {
+                if (_truck == null) { _view.SetTruck(false, false, Vector2.zero, 0f); return; }
+                Vector3 d = _truck.position - _player.position;
+                d.y = 0f;
+                bool inside = d.magnitude <= viewRadiusWorld;
+                _view.SetTruck(true, inside, new Vector2(d.x, d.z) * (minimapPixelRadius / viewRadiusWorld), Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg);
+                return;
+            }
+
             if (_truck == null)
             {
                 _truckArrow.gameObject.SetActive(false);
@@ -166,8 +192,12 @@ private void UpdateTruckArrow()
                 if (node == null)
                     continue;
 
+                // 대부분의 자원 노드는 모델(렌더러)이 자식에 있다 (예전에는 자기 자신만 봐서 점이 거의 안 찍혔다)
                 Renderer renderer = node.GetComponent<Renderer>();
-                if (renderer == null || !renderer.enabled)
+                if (renderer == null) renderer = node.GetComponentInChildren<Renderer>();
+                if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy)
+                    continue;
+                if (node is SpecialResourceNode special && special.IsDepleted)
                     continue;
 
                 Vector3 delta = node.transform.position - _player.position;
@@ -176,21 +206,51 @@ private void UpdateTruckArrow()
                 if (dist > viewRadiusWorld)
                     continue;
 
+                Vector2 uiPos = new Vector2(delta.x, delta.z) * scale;
+                Color c = DotColor(node, renderer);
+
+                if (_view != null)
+                {
+                    _view.SetDot(used, uiPos, c);
+                    used++;
+                    continue;
+                }
+
                 Image dot = GetPooledDot(used);
                 used++;
-
-                Vector2 uiPos = new Vector2(delta.x, delta.z) * scale;
                 dot.rectTransform.anchoredPosition = uiPos;
-
-                Color c = renderer.sharedMaterial.HasProperty("_BaseColor")
-                    ? renderer.sharedMaterial.GetColor("_BaseColor")
-                    : renderer.sharedMaterial.color;
                 dot.color = c;
                 dot.gameObject.SetActive(true);
             }
 
+            if (_view != null)
+            {
+                _view.HideDotsFrom(used);
+                return;
+            }
             for (int i = used; i < _dotPool.Count; i++)
                 _dotPool[i].gameObject.SetActive(false);
+        }
+
+        /// <summary>점 색: 자원 종류별로 정해 둔 색 (모르는 종류는 재질 색).</summary>
+        private static Color DotColor(Component node, Renderer renderer)
+        {
+            string id = node is SpecialResourceNode sn && sn.Item != null ? sn.Item.itemID : null;
+            switch (id)
+            {
+                case ItemIds.CopperOre: return new Color(1f, 0.52f, 0.28f);
+                case ItemIds.IronOre: return new Color(0.80f, 0.82f, 0.88f);
+                case ItemIds.PlatinumOre: return new Color(1f, 0.85f, 0.25f);
+                case ItemIds.Diamond: return new Color(0.35f, 0.75f, 1f);
+                case ItemIds.Oil: return new Color(0.55f, 0.35f, 0.75f);
+                case ItemIds.Herb: return new Color(0.45f, 0.90f, 0.40f);
+                case ItemIds.Stone: return new Color(0.62f, 0.60f, 0.58f);
+                case ItemIds.Wood: return new Color(0.70f, 0.48f, 0.26f);
+            }
+            Material m = renderer.sharedMaterial;
+            Color c = m == null ? Color.white : (m.HasProperty("_BaseColor") ? m.GetColor("_BaseColor") : m.color);
+            c.a = 1f;
+            return c;
         }
 
         private Image GetPooledDot(int index)

@@ -275,3 +275,22 @@
 .tw-gfac-name  { font-size: 15px; -unity-text-outline-width: 0; }
 .tw-gfac-sub   { font-size: 13px; color: rgb(190, 190, 205); -unity-text-outline-width: 0; -unity-font-style: normal; }
 .tw-gfac-badge { position: absolute; right: 4px; top: -9px; font-size: 12px; padding: 0 6px; border-radius: 8px; background-color: rgb(255, 196, 70); color: rgb(64, 44, 10); -unity-text-outline-width: 0; }
+
+/* ---- 작은 창 (현장 시설 / 가죽 파우치) ---- */
+.tw-window--compact { right: auto; width: 1000px; top: 150px; bottom: 140px; }
+
+/* ---- 현장 시설 ---- */
+.tw-fac-right  { width: 400px; padding: 18px 20px 16px 20px; align-items: center; }
+.tw-fac-flow   { flex-direction: row; align-items: center; justify-content: center; margin: 10px 0 18px 0; }
+.tw-fac-arrow  { font-size: 34px; margin: 0 14px; color: rgb(255, 214, 120); }
+.tw-fac-slot {
+    width: 120px; height: 140px; margin: 0; padding: 12px 4px 4px 4px;
+    align-items: center; justify-content: flex-start;
+    background-color: rgba(0, 0, 0, 0); border-width: 0; border-radius: 12px;
+}
+.tw-fac-slot-icon { width: 80px; height: 80px; -unity-background-scale-mode: scale-to-fit; }
+.tw-fac-slot-text { font-size: 18px; margin-top: 6px; }
+.tw-fac-bar    { width: 300px; height: 16px; border-radius: 8px; padding: 2px; background-color: rgba(20, 12, 6, 0.9); }
+.tw-fac-timer  { font-size: 22px; margin-top: 8px; }
+.tw-fac-status { font-size: 17px; margin-top: 4px; color: rgb(70, 44, 20); -unity-text-outline-width: 0; }
+.tw-fac-button { flex-grow: 0; width: 100%; height: 60px; margin: 0; }

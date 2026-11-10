@@ -104,6 +104,30 @@ namespace LastTruck
         {
             velocity.y = 0f;
             _knockVelocity = velocity;
+            _knockDecel = 18f;
+        }
+
+        private float _knockDecel = 18f;
+
+        /// <summary>
+        /// 크게 튕겨 나간다 (달리는 트럭에서 내릴 때). 수평 속도는 천천히 줄고, y만큼 위로 살짝 뜬다.
+        /// 싱글플레이 이동에만 적용 (멀티플레이는 NetworkPlayerMovement.Fling).
+        /// </summary>
+        public void Fling(Vector3 velocity)
+        {
+            _knockVelocity = new Vector3(velocity.x, 0f, velocity.z);
+            _knockDecel = 9f;
+            if (velocity.y > 0.1f && rigidbody != null)
+            {
+                _jumping = true;
+                _jumpStartTime = Time.time;
+                rigidbody.useGravity = true;
+#if UNITY_6000_0_OR_NEWER
+                Vector3 v = rigidbody.linearVelocity; v.y = Mathf.Min(velocity.y, LaunchVelocity); rigidbody.linearVelocity = v;
+#else
+                Vector3 v = rigidbody.velocity; v.y = Mathf.Min(velocity.y, LaunchVelocity); rigidbody.velocity = v;
+#endif
+            }
         }
 
         /// <summary>이동 속도 배율 (능력/상태 효과 × 짐 무게). 멀티플레이 이동에도 반영된다.</summary>
@@ -196,6 +220,8 @@ namespace LastTruck
 
         private void Start()
         {
+            TruckStabilizer.IgnoreCharacter(gameObject);   // 트럭이 캐릭터를 밟거나 겹쳐서 튕겨 날아가지 않게
+
             // 멀티플레이: 이동은 네트워크가 하므로 커서/카메라 입력 설정만 내 캐릭터에 한다.
             if (_networkControlled)
             {
@@ -517,7 +543,7 @@ namespace LastTruck
             if (_knockVelocity.sqrMagnitude > 0.0001f)
             {
                 targetVelocity += _knockVelocity;
-                _knockVelocity = Vector3.MoveTowards(_knockVelocity, Vector3.zero, 18f * Time.fixedDeltaTime);
+                _knockVelocity = Vector3.MoveTowards(_knockVelocity, Vector3.zero, (_grounded ? _knockDecel : _knockDecel * 0.3f) * Time.fixedDeltaTime);
             }
 
             // Unity 버전 호환성 지원 (linearVelocity / velocity)

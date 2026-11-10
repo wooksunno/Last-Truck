@@ -94,8 +94,7 @@ namespace LastTruck
             // 테두리 고리 + 북쪽 표시
             var frameRing = new VisualElement { pickingMode = PickingMode.Ignore };
             frameRing.AddToClassList("mm-ring");
-            if (skin.minimapRingBrown != null) frameRing.style.backgroundImage = new StyleBackground(skin.minimapRingBrown);
-            else frameRing.AddToClassList("mm-ring--plain");
+            frameRing.AddToClassList("mm-ring--plain");   // 시계 판과 같은 금색 고리 (Kenney 고리 그림은 파란 화살표가 있어 어울리지 않았다)
             _frame.Add(frameRing);
 
             var north = new Label("N") { pickingMode = PickingMode.Ignore };

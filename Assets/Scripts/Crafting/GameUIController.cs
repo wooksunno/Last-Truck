@@ -926,6 +926,16 @@ private void ShowPopup(string title, System.Action builder)
             RecipeData startRecipe = shown;
             m.onButton = () => StartFacilityProcessing(startRecipe);
 
+            // 현장 시설도 UI Toolkit 창으로 그린다 (만들 수 없으면 아래 uGUI 그대로)
+            if (EnsureToolkitWindow())
+            {
+                _facilityRefs = null;
+                _facilityCountdownText = null;
+                _storageView.ShowFacility(m, ClosePopup);
+                _storageToolkitActive = true;
+                return;
+            }
+
             _facilityRefs = TruckProcessView.Build(_popupBody, inner.y, m, null);
             _facilityCountdownText = processing ? _facilityRefs.timer : null;
         }
@@ -975,6 +985,10 @@ private void ShowPopup(string title, System.Action builder)
 private void BuildPouchContent()
         {
             if (_activePouch == null || _activePlayer == null)
+                return;
+
+            // 가죽 파우치도 UI Toolkit 창으로 그린다 (만들 수 없으면 아래 uGUI 그대로)
+            if (TryShowPouchToolkit())
                 return;
 
             if (_popupScrollRect != null)
@@ -1316,6 +1330,8 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             {
                 yield return null;
                 job.remaining -= Time.deltaTime;
+                if (_activeFacility == facility && IsPopupOpen && _storageToolkitActive && _storageView != null)
+                    _storageView.SetFacilityProgress($"{Mathf.Max(0f, job.remaining):0.0}초", job.total > 0.01f ? 1f - Mathf.Clamp01(job.remaining / job.total) : 0f);
                 if (_activeFacility == facility && IsPopupOpen && _facilityCountdownText != null)
                 {
                     _facilityCountdownText.text = $"{Mathf.Max(0f, job.remaining):0.0}초";

@@ -177,15 +177,13 @@ public void Interact(GameObject player)
                 truckController.enabled = false;
             }
 
-            if (TryGetComponent<Rigidbody>(out var truckRb))
-            {
-                truckRb.linearVelocity = Vector3.zero;
-                truckRb.angularVelocity = Vector3.zero;
-            }
+            // 트럭은 바로 멈추지 않고 브레이크로 미끄러지며 선다 (TruckMove.Stop_Immediately)
+            TryGetComponent<Rigidbody>(out var truckRb);
 
             driverPlayer.transform.SetParent(null);
             driverPlayer.transform.position = exitPoint != null ? exitPoint.position : transform.position + Vector3.right * 2.5f;
             driverPlayer.SetActive(true);
+            Vector3 fling = LastTruck.Networking.NetworkTruck.ExitFling(transform, truckRb, driverPlayer.transform.position);
 
             if (driverPlayer.TryGetComponent<Rigidbody>(out var rb))
             {
@@ -194,7 +192,11 @@ public void Interact(GameObject player)
                 rb.angularVelocity = Vector3.zero;
             }
 
-            if (driverPlayer.TryGetComponent<PlayerMove>(out var moveScript)) moveScript.enabled = true;
+            if (driverPlayer.TryGetComponent<PlayerMove>(out var moveScript))
+            {
+                moveScript.enabled = true;
+                if (fling != Vector3.zero) moveScript.Fling(fling);   // 달리던 속도대로 튕겨 나간다
+            }
             if (driverPlayer.TryGetComponent<PlayerAttack>(out var attackScript)) attackScript.enabled = true;
             if (driverPlayer.TryGetComponent<Collider>(out var col)) col.enabled = true;
 

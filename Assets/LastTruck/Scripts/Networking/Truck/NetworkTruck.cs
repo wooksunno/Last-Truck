@@ -292,6 +292,31 @@ namespace LastTruck.Networking
             {
                 character.transform.position = exit;
             }
+
+            // 달리는 트럭에서 내리면 그 속도대로 튕겨 나간다
+            Vector3 fling = ExitFling(_truck.transform, _truck.GetComponent<Rigidbody>(), exit);
+            if (fling != Vector3.zero && character.TryGetComponent(out NetworkPlayerMovement movement))
+                movement.Fling(fling);
+        }
+
+        /// <summary>
+        /// 달리는 트럭에서 내릴 때 캐릭터가 튕겨 나갈 속도 (멈춰 있으면 0).
+        /// 트럭 속도의 대부분 + 내리는 쪽(바깥)으로 조금 + 빠를수록 위로 살짝 뜬다.
+        /// </summary>
+        public static Vector3 ExitFling(Transform truck, Rigidbody truckRb, Vector3 exitPosition)
+        {
+            if (truck == null || truckRb == null) return Vector3.zero;
+            Vector3 v = truckRb.linearVelocity;
+            v.y = 0f;
+            float speed = v.magnitude;
+            if (speed < 3f) return Vector3.zero;
+
+            Vector3 side = exitPosition - truck.position;
+            side.y = 0f;
+            side = side.sqrMagnitude > 0.01f ? side.normalized : truck.right;
+            Vector3 fling = v * 0.85f + side * Mathf.Min(4f, speed * 0.25f);
+            fling.y = Mathf.Clamp(speed * 0.28f, 0f, 5f);
+            return fling;
         }
 
         /// <summary>내릴 위치: 트럭의 Exit Point에서 좌석 번호만큼 뒤로 벌리고, 바닥 높이에 맞춘다.</summary>

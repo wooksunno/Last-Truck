@@ -56,6 +56,9 @@ namespace LastTruck
             public List<Slot> slots = new List<Slot>();
             public string emptyText;
             public Action onClose;
+            public string mode = "storage";   // 같은 화면을 다시 그릴 때 스크롤을 이어 가는 기준 (가죽 파우치는 "pouch")
+            public string hint;               // 아래 안내 줄 (비우면 트럭 보관함 안내)
+            public bool compact;              // 작은 창 (가죽 파우치)
 
             // 꺼낼 개수 고르기 (item이 null이면 숨김)
             public ItemData withdrawItem;
@@ -163,8 +166,9 @@ namespace LastTruck
         /// <summary>창을 (다시) 그린다. 스크롤 위치는 유지한다.</summary>
         public void Show(Model m)
         {
-            VisualElement frame = BeginWindow("storage", m.title, m.onClose);
+            VisualElement frame = BeginWindow(m.mode ?? "storage", m.title, m.onClose);
             if (frame == null) return;
+            if (m.compact) _window.AddToClassList("tw-window--compact");
 
             // 도구 줄: 분류 칩 ........ 정렬 칩
             var toolbar = Row("tw-toolbar");
@@ -173,7 +177,7 @@ namespace LastTruck
             spacer.style.flexGrow = 1;
             toolbar.Add(spacer);
             foreach (Chip c in m.sorts) toolbar.Add(MakeChip(c, "tw-chip tw-chip--sort"));
-            frame.Add(toolbar);
+            if (m.categories.Count > 0 || m.sorts.Count > 0) frame.Add(toolbar);   // 가죽 파우치처럼 분류가 없으면 빈 줄을 두지 않는다
 
             // 꺼내기
             if (m.withdrawItem != null)
@@ -196,7 +200,7 @@ namespace LastTruck
             frame.Add(body);
 
             // 아래: 칸에 마우스를 올리면 이름
-            _hoverLabel = MakeLabel("칸을 누르면 인벤토리로 꺼내요. 인벤토리 칸을 누르면 보관함에 넣어요.", "tw-hint");
+            _hoverLabel = MakeLabel(m.hint ?? "칸을 누르면 인벤토리로 꺼내요. 인벤토리 칸을 누르면 보관함에 넣어요.", "tw-hint");
             frame.Add(_hoverLabel);
 
             EndWindow(m.tabs);

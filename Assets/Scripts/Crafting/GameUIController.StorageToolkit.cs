@@ -239,6 +239,68 @@ namespace CraftingSystem
             return true;
         }
 
+        /// <summary>가죽 파우치를 UI Toolkit 창으로 그렸으면 true. 칸을 누르면 내 인벤토리로 꺼낸다.</summary>
+        private bool TryShowPouchToolkit()
+        {
+            if (_activePouch == null || _activePlayer == null || !EnsureToolkitWindow()) return false;
+            PouchInventory pouch = _activePouch;
+            PlayerInventory player = _activePlayer;
+
+            var m = new LastTruck.TruckStorageView.Model
+            {
+                title = "가죽 파우치", onClose = ClosePopup, mode = "pouch", compact = true,
+                hint = "칸을 누르면 인벤토리로 꺼내요. 인벤토리 칸을 누르면 파우치에 넣어요.",
+                emptyText = "파우치가 비어 있어요. 인벤토리 칸을 누르면 여기에 넣어요",
+            };
+            foreach (InventorySlot slot in pouch.Slots)
+            {
+                if (slot == null || slot.IsEmpty || slot.item == null) continue;
+                InventorySlot captured = slot;
+                m.slots.Add(new LastTruck.TruckStorageView.Slot
+                {
+                    item = slot.item, count = slot.count, durability01 = slot.DurabilityRatio,
+                    onClick = () =>
+                    {
+                        if (captured.item.maxStack <= 1)
+                        {
+                            TransferItem(pouch.Inventory, player.Inventory, captured.item, captured.count, captured.CurrentDurability);
+                            _withdrawItem = null;
+                        }
+                        else
+                        {
+                            _withdrawItem = captured.item;
+                            _withdrawMax = captured.count;
+                        }
+                        ShowPopup("가죽 파우치", BuildPouchContent);
+                    },
+                });
+            }
+
+            if (_withdrawItem != null)
+            {
+                int have = pouch.GetItemCount(_withdrawItem);
+                if (have <= 0) _withdrawItem = null;
+                else
+                {
+                    ItemData item = _withdrawItem;
+                    m.withdrawItem = item;
+                    m.withdrawMax = have;
+                    m.withdrawDefault = Mathf.Clamp(_withdrawMax, 1, have);
+                    m.onWithdraw = amount =>
+                    {
+                        TransferItem(pouch.Inventory, player.Inventory, item, Mathf.Clamp(amount, 1, have));
+                        _withdrawItem = null;
+                        ShowPopup("가죽 파우치", BuildPouchContent);
+                    };
+                    m.onWithdrawCancel = () => { _withdrawItem = null; ShowPopup("가죽 파우치", BuildPouchContent); };
+                }
+            }
+
+            _storageView.Show(m);
+            _storageToolkitActive = true;
+            return true;
+        }
+
         private void OnStorageSlotClicked(TruckInventory truckInv, InventorySlot slot)
         {
             if (slot == null || slot.item == null) return;

@@ -27,6 +27,14 @@ namespace LastTruck
         public float decelerationForce = 150.0f; // 키 입력x => 감속
         public Accelerator driveType = Accelerator.Rear;
 
+        [Header("무게감")]
+        [Tooltip("가속 페달을 끝까지 밟는 데 걸리는 시간(초). 길수록 무거운 트럭처럼 천천히 힘이 붙는다.")]
+        public float throttleRiseTime = 0.7f;
+        [Tooltip("페달을 놓을 때 힘이 빠지는 시간(초).")]
+        public float throttleFallTime = 0.25f;
+        [Tooltip("후진할 때 힘 배율 (트럭은 후진이 느리다).")]
+        [Range(0.2f, 1f)] public float reverseTorqueFactor = 0.55f;
+
         [Header("방향")]
         public float turnSensitivity = 1.0f;
         public float maxSteerAngle = 32.0f;
@@ -105,6 +113,7 @@ namespace LastTruck
         }
 
         private float moveInput;
+        private float _throttle;      // moveInput을 천천히 따라가는 실제 페달 값
         private float steerInput;
         private bool isBrakingInput;
 
@@ -149,6 +158,28 @@ namespace LastTruck
             }
 
             if (autoSuspension) ConfigureSuspension();
+            ConfigureBodyFriction();
+
+            // 큰 나무/바위에 트럭 몸체가 막히도록 (한 번만 만든다)
+            TruckObstacleBlockers.EnsureBuilt(transform);
+        }
+
+        /// <summary>
+        /// 몸체 충돌체에 미끄럽고 튕기지 않는 재질을 씌운다. 벽이나 바위에 비스듬히 닿으면 옆으로 스치고,
+        /// 정면으로 부딪혀도 튕겨 날아가지 않는다.
+        /// </summary>
+        private void ConfigureBodyFriction()
+        {
+            var mat = new PhysicsMaterial("TruckBody")
+            {
+                dynamicFriction = 0.15f,
+                staticFriction = 0.15f,
+                bounciness = 0f,
+                frictionCombine = PhysicsMaterialCombine.Minimum,
+                bounceCombine = PhysicsMaterialCombine.Minimum,
+            };
+            foreach (Collider c in GetComponentsInChildren<Collider>(true))
+                if (!(c is WheelCollider) && !c.isTrigger) c.sharedMaterial = mat;
         }
 
         /// <summary>바퀴를 TruckWheel 레이어로 옮기고, 트럭(바퀴+몸체)이 TruckPass 레이어와 충돌하지 않게 한다.</summary>
@@ -229,6 +260,12 @@ namespace LastTruck
 
         private void Move()
         {
+            // 페달은 천천히 밟히고 빨리 풀린다 (무거운 트럭의 힘이 서서히 붙는 느낌). 방향을 바꾸면 바로 0을 지나간다.
+            float target = isBrakingInput ? 0f : moveInput;
+            bool rising = Mathf.Abs(target) > Mathf.Abs(_throttle) && target * _throttle >= 0f;
+            float rate = 1f / Mathf.Max(0.01f, rising ? throttleRiseTime : throttleFallTime);
+            _throttle = Mathf.MoveTowards(_throttle, target, rate * Time.fixedDeltaTime);
+
             if (isBrakingInput) return;
 
             foreach (var wheel in wheels)
@@ -244,7 +281,8 @@ namespace LastTruck
                         // 최고 속도를 넘으면 더 가속하지 않는다 (같은 방향으로 갈 때만)
                         bool overSpeed = carRb != null && carRb.linearVelocity.magnitude > maxSpeed &&
                                          Vector3.Dot(carRb.linearVelocity, transform.forward * moveInput) > 0f;
-                        wheel.wheelCollider.motorTorque = overSpeed ? 0f : moveInput * maxAcceleration;
+                        float torque = _throttle * maxAcceleration * (_throttle < 0f ? reverseTorqueFactor : 1f);
+                        wheel.wheelCollider.motorTorque = overSpeed ? 0f : torque;
                         wheel.wheelCollider.brakeTorque = 0f;
                     }
                     else
@@ -416,17 +454,16 @@ namespace LastTruck
             }
         }
 
+        /// <summary>
+        /// 운전을 그만둘 때: 엔진 힘을 끊고 브레이크를 건다. 달리던 트럭은 순간 정지하지 않고 무게만큼 미끄러지며 선다
+        /// (예전에는 속도를 바로 0으로 만들어 내리는 순간 트럭이 벽에 박은 듯 멈췄다).
+        /// </summary>
         public void Stop_Immediately()
         {
             moveInput = 0f;
+            _throttle = 0f;
             steerInput = 0f;
             isBrakingInput = false;
-
-            if (carRb != null)
-            {
-                carRb.linearVelocity = Vector3.zero;
-                carRb.angularVelocity = Vector3.zero;
-            }
 
             foreach (var wheel in wheels)
             {
@@ -451,11 +488,12 @@ namespace LastTruck
                     wheel.wheelCollider.steerAngle = Mathf.MoveTowards(wheel.wheelCollider.steerAngle, 0f, steerReturnSpeed * Time.fixedDeltaTime);
             }
 
-            if (carRb != null)
+            // 거의 섰을 때만 완전히 멈춘다 (경사에서 조금씩 미끄러지지 않게). 달리던 중이면 브레이크로 서서히 선다.
+            if (carRb != null && !carRb.isKinematic && carRb.linearVelocity.sqrMagnitude < 0.6f * 0.6f)
             {
                 carRb.linearVelocity = Vector3.zero;
                 carRb.angularVelocity = Vector3.zero;
             }
         }
     }
-}
+}
