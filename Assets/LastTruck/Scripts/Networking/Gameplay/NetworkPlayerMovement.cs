@@ -236,7 +236,8 @@ namespace LastTruck.Networking
             IsWalking = false;
 
             // 좌석 위치는 호스트가 정한다 (클라이언트의 내 캐릭터는 호스트 값으로 맞춰진다).
-            if (Object.HasStateAuthority && NetworkTruck.TryGetSeatPose(out Vector3 position, out Quaternion rotation))
+            // 포탑 사수는 포탑 위에 서서 포탑 방향을 따라 돈다 (다른 사람에게도 보인다).
+            if (Object.HasStateAuthority && NetworkTruck.TryGetSeatPose(Object.InputAuthority, out Vector3 position, out Quaternion rotation))
             {
                 _controller.Teleport(position, rotation);
             }

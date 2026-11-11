@@ -231,8 +231,16 @@ namespace Combat
         {
             if (target == null)
                 return;
-            FaceDirection(target.transform.position - transform.position);
-            Vector3 p = target.transform.position;
+            PlayGatherHit(target.transform, withPickaxe);
+        }
+
+        /// <summary>광물(SpecialResourceNode)도 같은 방식으로: 대상 쪽으로 돌아 곡괭이로 내려찍고(맨손이면 주먹), 광석이 흔들린다.</summary>
+        public void PlayGatherHit(Transform target, bool withPickaxe)
+        {
+            if (target == null)
+                return;
+            FaceDirection(target.position - transform.position);
+            Vector3 p = target.position;
             var inv = System.Globalization.CultureInfo.InvariantCulture;
             PlayAttackAnim(GatherTriggerPrefix + (withPickaxe ? "X" : "P") + "|" +
                            p.x.ToString("F2", inv) + "|" + p.y.ToString("F2", inv) + "|" + p.z.ToString("F2", inv));
@@ -279,10 +287,24 @@ namespace Combat
                 }
             }
 
-            if (best == null)
-                yield break;
-
             Vector3 me = transform.position;
+            if (best == null)
+            {
+                // 광물(구리/철/금/다이아): 돌처럼 짧고 빠르게 떨린다
+                SpecialResourceNode ore = null;
+                float oreDist = 0.5f * 0.5f;
+                foreach (SpecialResourceNode node in SpecialResourceNode.AllNodes)
+                {
+                    if (node == null || node.IsDepleted || !node.IsMineral)
+                        continue;
+                    float d = (node.transform.position - targetPosition).sqrMagnitude;
+                    if (d < oreDist) { oreDist = d; ore = node; }
+                }
+                if (ore != null)
+                    TreeShake.Shake(ore.gameObject, ore.transform.position, me, rockShakeAmplitudeScale, rockShakeFrequencyScale);
+                yield break;
+            }
+
             if (best.ItemId == ItemIds.Wood)
                 TreeShake.Shake(best.Root, best.transform.position, me);
             else

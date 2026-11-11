@@ -130,7 +130,8 @@ namespace CraftingSystem
         public const float SurfaceY = 2f;
         public const float DepthForDouble = 50f;
 
-        private bool IsMineral => item != null && (item.itemID == ItemIds.CopperOre || item.itemID == ItemIds.IronOre
+        /// <summary>구리/철/금/다이아 광물인가 (한 번 캐면 사라지고, 캐는 동안 곡괭이 모션이 나온다).</summary>
+        public bool IsMineral => item != null && (item.itemID == ItemIds.CopperOre || item.itemID == ItemIds.IronOre
                                                    || item.itemID == ItemIds.PlatinumOre || item.itemID == ItemIds.Diamond);
 
         public float DepthMultiplier => IsMineral ? 1f + Mathf.Clamp01((SurfaceY - transform.position.y) / DepthForDouble) : 1f;
@@ -173,8 +174,11 @@ namespace CraftingSystem
         /// <summary>클라이언트: 호스트가 알려준 고갈 상태를 화면에 반영한다.</summary>
         public void ApplyNetworkDepleted(bool depleted)
         {
+            bool wasDepleted = _depleted;
             _depleted = depleted;
-            SetVisible(!depleted);
+            if (depleted && wasDepleted) return;   // 호스트: 이미 깨지는 연출 중 (자기 RPC를 다시 받은 경우)
+            if (depleted && IsMineral && isActiveAndEnabled) StartCoroutine(BreakThenHide());
+            else SetVisible(!depleted);
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -188,15 +192,47 @@ namespace CraftingSystem
 
         private void RollRemainingHits()
         {
+            // 광물은 한 번 캐면 바로 사라진다 (재생 시간이 지나면 다시 생긴다)
+            if (IsMineral) { _remainingHits = 1; return; }
             _remainingHits = maxHits > 0 ? Random.Range(minHits, maxHits + 1) : -1;
         }
 
         private void Deplete()
         {
             _depleted = true;
-            SetVisible(false);
+            if (IsMineral && isActiveAndEnabled) StartCoroutine(BreakThenHide());
+            else SetVisible(false);
             DepletionChanged?.Invoke(this, true);
             StartCoroutine(RegenRoutine());
+        }
+
+        /// <summary>
+        /// 광물이 깨지는 연출: 충돌을 바로 끄고, 살짝 부풀었다가 납작하게 줄어들며 사라진 뒤 원래 크기로 돌려 놓는다 (재생 때 다시 보이게).
+        /// </summary>
+        private IEnumerator BreakThenHide()
+        {
+            if (_cachedColliders != null) foreach (var c in _cachedColliders) if (c != null) c.enabled = false;
+            TreeShake shake = GetComponent<TreeShake>();
+            if (shake != null) shake.enabled = false;
+
+            Transform t = transform;
+            Vector3 startScale = t.localScale;
+            const float seconds = 0.35f;
+            float time = 0f;
+            while (time < seconds)
+            {
+                time += Time.deltaTime;
+                float k = Mathf.Clamp01(time / seconds);
+                float grow = k < 0.25f ? Mathf.Lerp(1f, 1.15f, k / 0.25f) : Mathf.Lerp(1.15f, 0f, (k - 0.25f) / 0.75f);
+                float flat = k < 0.25f ? grow : grow * Mathf.Lerp(1f, 0.4f, (k - 0.25f) / 0.75f);   // 위에서 눌린 듯 납작하게
+                t.localScale = new Vector3(startScale.x * grow, startScale.y * flat, startScale.z * grow);
+                yield return null;
+            }
+
+            t.localScale = startScale;
+            if (shake != null) shake.enabled = true;
+            if (_depleted) SetVisible(false);
+            else SetVisible(true);   // 연출 도중에 다시 생겼으면 (재생 시간이 아주 짧은 경우) 그대로 보이게
         }
 
         private void SetVisible(bool on)

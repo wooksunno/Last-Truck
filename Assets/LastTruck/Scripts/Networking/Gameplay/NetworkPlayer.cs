@@ -338,10 +338,41 @@ namespace LastTruck.Networking
         /// <summary>트럭에 타 있는가 (NetworkTruck 좌석).</summary>
         public bool IsSeated => Object != null && Object.IsValid && NetworkTruck.IsSeated(Owner);
 
+        /// <summary>포탑 위에 서 있는가 (트럭에 탔지만 몸이 밖에 보인다).</summary>
+        public bool IsOnTurret => Object != null && Object.IsValid && NetworkTruck.IsOnTurret(Owner);
+
+        private bool _bodyHiddenApplied;
+
         public override void Render()
         {
             bool seated = IsSeated;
             if (seated != _seatedApplied) ApplySeated(seated);
+
+            // 몸 숨기기: 트럭 안이면 모두에게 숨김. 포탑 위면 다른 사람에겐 보이고, 내 화면(1인칭)에서만 숨긴다.
+            bool hideBody = seated && (IsLocal || !IsOnTurret);
+            if (hideBody != _bodyHiddenApplied) ApplyBodyHidden(hideBody);
+        }
+
+        private void ApplyBodyHidden(bool hide)
+        {
+            _bodyHiddenApplied = hide;
+            if (hide)
+            {
+                foreach (Renderer renderer in GetComponentsInChildren<Renderer>(true))
+                {
+                    if (renderer != null && renderer.enabled)
+                    {
+                        renderer.enabled = false;
+                        _seatHiddenRenderers.Add(renderer);
+                    }
+                }
+                return;
+            }
+            foreach (Renderer renderer in _seatHiddenRenderers)
+            {
+                if (renderer != null) renderer.enabled = true;
+            }
+            _seatHiddenRenderers.Clear();
         }
 
         /// <summary>
@@ -352,16 +383,9 @@ namespace LastTruck.Networking
         {
             _seatedApplied = seated;
 
+            // 몸(렌더러) 숨기기는 Render의 ApplyBodyHidden이 따로 한다 (포탑 위는 보여야 해서).
             if (seated)
             {
-                foreach (Renderer renderer in GetComponentsInChildren<Renderer>(true))
-                {
-                    if (renderer != null && renderer.enabled)
-                    {
-                        renderer.enabled = false;
-                        _seatHiddenRenderers.Add(renderer);
-                    }
-                }
                 foreach (Collider collider in GetComponentsInChildren<Collider>(true))
                 {
                     if (collider != null && collider.enabled && !(collider is CharacterController))
@@ -384,10 +408,6 @@ namespace LastTruck.Networking
                 return;
             }
 
-            foreach (Renderer renderer in _seatHiddenRenderers)
-            {
-                if (renderer != null) renderer.enabled = true;
-            }
             foreach (Collider collider in _seatDisabledColliders)
             {
                 if (collider != null) collider.enabled = true;
@@ -407,7 +427,6 @@ namespace LastTruck.Networking
                     if (behaviour != null && !_downDisabledBehaviours.Contains(behaviour)) _downDisabledBehaviours.Add(behaviour);
                 }
             }
-            _seatHiddenRenderers.Clear();
             _seatDisabledColliders.Clear();
             _seatDisabledBehaviours.Clear();
         }

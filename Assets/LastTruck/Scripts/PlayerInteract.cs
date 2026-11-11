@@ -79,7 +79,13 @@ namespace LastTruck
         /// </summary>
         private void UpdateGatherPunch()
         {
-            if (!(currentInteractable is CraftingSystem.GatherableProp prop) || !Combat.WeaponController.IsPunchGatherItem(prop.ItemId))
+            // 나무/돌(GatherableProp) 또는 광물(구리/철/금/다이아 - SpecialResourceNode)
+            Transform target = null;
+            if (currentInteractable is CraftingSystem.GatherableProp prop && Combat.WeaponController.IsPunchGatherItem(prop.ItemId))
+                target = prop.transform;
+            else if (currentInteractable is CraftingSystem.SpecialResourceNode ore && ore.IsMineral && !ore.IsDepleted)
+                target = ore.transform;
+            if (target == null)
                 return;
             if (Time.time < _nextGatherPunch)
                 return;
@@ -95,7 +101,7 @@ namespace LastTruck
             bool withPickaxe = hand != null && Combat.WeaponController.IsPickaxe(hand.itemID);
 
             _nextGatherPunch = Time.time + (withPickaxe ? gatherPickaxeInterval : gatherPunchInterval);
-            _weapon.PlayGatherHit(prop, withPickaxe);
+            _weapon.PlayGatherHit(target, withPickaxe);
         }
 
         private void ResetHoldState()

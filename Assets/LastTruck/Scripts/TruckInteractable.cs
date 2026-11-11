@@ -121,7 +121,7 @@ public void Interact(GameObject player)
             if (truckController != null) truckController.isDriving = !on;
             var turret = GetComponent<CraftingSystem.TruckTurret>();
             if (turret != null && !on) turret.StopLocalGunner();
-            if (on) HudToast.Show("포탑 사수   마우스: 조준   좌클릭: 발사   R: 탄환 만들기   T: 운전석으로");
+            if (on) HudToast.Show("포탑에 올랐습니다 (1인칭)   마우스: 조준   좌클릭: 레이저   R: 탄환 만들기   T: 운전석으로");
         }
 
         private void GetIn_Truck(GameObject player)
