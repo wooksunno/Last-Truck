@@ -362,6 +362,10 @@ namespace CraftingSystem
             return p;
         }
 
+        /// <summary>delay초 뒤 at에 박격포 범위 피해 (자동 박격포도 이걸 쓴다).</summary>
+        public void StartMortarImpact(Vector3 at, int damage, float area, float delay) =>
+            StartCoroutine(MortarImpactRoutine(at, damage, area, delay));
+
         private System.Collections.IEnumerator MortarImpactRoutine(Vector3 at, int damage, float area, float delay)
         {
             yield return new WaitForSeconds(delay);
@@ -755,6 +759,11 @@ namespace CraftingSystem
         /// <summary>포탑 종류(수동 포탑 id)에 맞는 탄도/폭발 연출. 자동 포탑도 이것을 쓴다.</summary>
         public void ShowShotFor(string id, float area, Vector3 from, Vector3 to)
         {
+            if (id == ItemIds.MortarTurret)
+            {
+                TurretMortarShell.Launch(from, to, area);   // 자동 박격포도 돌 포탄이 포물선으로 날아간다
+                return;
+            }
             if (_tracerMat == null)
             {
                 var sh = Shader.Find("Sprites/Default") ?? Shader.Find("Universal Render Pipeline/Unlit");

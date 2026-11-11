@@ -161,6 +161,7 @@ namespace CraftingSystem
         /// <summary>총구에서 목표까지 사이에 몬스터가 아닌 지형/구조물이 끼어 있지 않은가.</summary>
         private bool HasClearShot(Combat.Damageable target)
         {
+            if (IsMortar) return true;   // 박격포는 포물선으로 나무/바위를 넘어간다
             Vector3 from = _muzzle.position;
             Vector3 aim = target.transform.position + Vector3.up * 0.9f;
             Vector3 dir = aim - from;
@@ -235,13 +236,49 @@ namespace CraftingSystem
             _nextShot = Time.time + 1f / CurrentRate(kind);
 
             Vector3 from = _muzzle.position;
-            Vector3 aim = _target.transform.position + Vector3.up * 0.9f;
             int damage = Mathf.RoundToInt(_state.StatValueFor(TruckStat.TurretAttack, kind) + ammoDamage);
+
+            if (IsMortar && _manual != null)
+            {
+                // 박격포: 적이 포탄이 떨어질 때쯤 있을 자리(발밑)를 노려 포물선으로 쏘고, 비행 시간 뒤에 그 자리에 범위 피해
+                Vector3 land = PredictFeet(_target, from);
+                float area = _state.StatValueFor(TruckStat.TurretArea, kind);
+                _manual.StartMortarImpact(land, damage, area, MortarArc.FlightTime(from, land));
+                if (Online) LastTruck.Networking.NetworkTruck.BroadcastAutoTurretShot(from, land);
+                else ShowShot(from, land);
+                return;
+            }
+
+            Vector3 aim = _target.transform.position + Vector3.up * 0.9f;
             TruckTurret.ApplyShot(transform, from, aim, _yawAngle, kind,
                 _state.StatValueFor(TruckStat.TurretRange, kind), damage, _state.StatValueFor(TruckStat.TurretArea, kind), out Vector3 to);
 
             if (Online) LastTruck.Networking.NetworkTruck.BroadcastAutoTurretShot(from, to);
             else ShowShot(from, to);
+        }
+
+        private bool IsMortar
+        {
+            get
+            {
+                string autoId = _state != null ? _state.PartAt(TruckPartSlot.Bed) : null;
+                return autoId != null && autoId == TruckUpgradeRules.AutoPrefix + ItemIds.MortarTurret;
+            }
+        }
+
+        /// <summary>포탄이 떨어질 때 목표가 있을 발밑 위치 (움직이는 속도만큼 앞을 노린다).</summary>
+        private static Vector3 PredictFeet(Combat.Damageable target, Vector3 from)
+        {
+            Vector3 at = target.transform.position;
+            Vector3 vel = Vector3.zero;
+            var agent = target.GetComponent<UnityEngine.AI.NavMeshAgent>();
+            if (agent != null && agent.enabled) vel = agent.velocity;
+            else if (target.TryGetComponent(out Rigidbody rb) && !rb.isKinematic) vel = rb.linearVelocity;
+            vel.y = 0f;
+            // 비행 시간은 착탄 지점 거리로 정해지므로 두 번 맞춰 본다
+            Vector3 land = at + vel * MortarArc.FlightTime(from, at);
+            land = at + vel * MortarArc.FlightTime(from, land);
+            return land;
         }
 
         /// <summary>탄도/폭발 연출 (모든 컴퓨터). 수동 포탑과 같은 종류별 연출을 쓴다.</summary>

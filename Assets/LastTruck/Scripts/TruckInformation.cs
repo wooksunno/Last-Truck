@@ -28,6 +28,7 @@ namespace LastTruck
             if (GetComponent<CraftingSystem.TruckTurret>() == null) gameObject.AddComponent<CraftingSystem.TruckTurret>();
             if (GetComponent<CraftingSystem.TruckPartVisuals>() == null) gameObject.AddComponent<CraftingSystem.TruckPartVisuals>();
             if (GetComponent<CraftingSystem.TruckAutoTurret>() == null) gameObject.AddComponent<CraftingSystem.TruckAutoTurret>();
+            if (GetComponent<CraftingSystem.VehicleWeathering>() == null) gameObject.AddComponent<CraftingSystem.VehicleWeathering>();
         }
 
         void Start()
