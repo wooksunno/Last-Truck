@@ -142,6 +142,7 @@ namespace LastTruck.Networking
 
         private static bool IsBlockedByUI()
         {
+            if (ChatHud.IsTyping) return true;
             return CraftingSystem.GameUIController.Instance != null && CraftingSystem.GameUIController.Instance.IsPopupOpen;
         }
 

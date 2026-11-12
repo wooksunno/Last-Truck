@@ -326,13 +326,30 @@ namespace LastTruck.Networking
 
             if (!result.Ok)
             {
-                SystemUI.Alert("방 참가 실패", result.Message);
+                string message = result.Message;
+                if (message == RefusedMessage)
+                {
+                    // 호스트가 거절한 이유는 전달되지 않는다 → 상황으로 짐작해서 알려 준다.
+                    bool rejoining = CanReconnect && sessionName == _lastSessionName;
+                    if (rejoining) message = "방장이 재접속을 받아 주지 않았습니다.\n(재접속 대기 시간이 지났거나, 내 캐릭터를 찾지 못했습니다)";
+                    else if (!isPrivate) message = "들어갈 수 없는 방입니다.\n(이미 게임이 진행 중이거나 버전이 다릅니다)";
+                }
+                SystemUI.Alert("방 참가 실패", message);
                 await ReturnToLobbyAsync();
                 return;
             }
 
             RememberSession(sessionName, title, isPrivate, password);
             _wasHostInSession = false;
+
+            // 재접속: 이미 게임 중인 방이면 접속하는 동안 게임 씬이 먼저 불러와졌을 수 있다 → 대기실 화면으로 돌리지 않는다.
+            bool gameSceneLoaded = SceneManager.GetSceneByName(gameSceneName).isLoaded;
+            if (_state == LauncherState.StartingGame || _state == LauncherState.InGame || gameSceneLoaded)
+            {
+                if (_state != LauncherState.InGame && gameSceneLoaded) OnSceneLoadDone(_runner);
+                return;
+            }
+
             SetState(LauncherState.InRoom);
             SystemUI.HideLoading();
         }
@@ -456,10 +473,28 @@ namespace LastTruck.Networking
         {
             if (_state != LauncherState.InRoom && _state != LauncherState.InGame) return;
             // 게임 도중 (게임 오버 전에) 직접 나간 참가자는 3분 안에 다시 들어올 수 있다. 방장은 나가면 방장이 바뀐다.
-            MarkLeftGame(_state == LauncherState.InGame && !_gameOver && !NetworkGameState.IsGameOver);
-            BeginOperation();
+            bool inGame = _state == LauncherState.InGame && !_gameOver && !NetworkGameState.IsGameOver;
+            MarkLeftGame(inGame);
+            int op = BeginOperation();
             SetState(LauncherState.Leaving);
             SystemUI.ShowLoading("방에서 나가는 중...");
+
+            // 방장이 게임 도중 나가면: 나가기 직전 상태를 올려 두어 새 방장이 되돌아감 없이 바로 이어받게 한다 (최대 2초 기다림).
+            if (inGame && IsHost && RoomPlayerCount > 1 && IsRunnerAlive())
+            {
+                try
+                {
+                    Task<bool> push = _runner.PushHostMigrationSnapshot();
+                    await Task.WhenAny(push, Task.Delay(2000));
+                    LogSession(push.IsCompleted && push.Result ? "나가기 전 상태 저장 완료" : "나가기 전 상태 저장 실패 (마지막 자동 저장으로 이어감)");
+                }
+                catch (Exception e)
+                {
+                    Debug.LogException(e);
+                }
+                if (op != _operationId) return;
+            }
+
             await ReturnToLobbyAsync();
         }
 
@@ -664,6 +699,8 @@ namespace LastTruck.Networking
             }
         }
 
+        private const string RefusedMessage = "비밀번호가 올바르지 않습니다.";
+
         private static string DescribeFailure(ShutdownReason reason)
         {
             switch (reason)
@@ -675,8 +712,8 @@ namespace LastTruck.Networking
                 case ShutdownReason.GameNotFound:
                     return "방을 찾을 수 없습니다.\n방이 사라졌을 수 있어요.";
                 case ShutdownReason.ConnectionRefused:
-                    // 호스트가 접속을 거절하는 경우는 현재 비밀번호 불일치뿐이다.
-                    return "비밀번호가 올바르지 않습니다.";
+                    // 비공개 방이면 대부분 비밀번호 불일치. 공개 방/재접속이면 JoinSessionByName이 문구를 바꾼다.
+                    return RefusedMessage;
                 case ShutdownReason.PhotonCloudTimeout:
                 case ShutdownReason.ConnectionTimeout:
                 case ShutdownReason.OperationTimeout:
@@ -878,8 +915,11 @@ namespace LastTruck.Networking
         public void OnSceneLoadStart(NetworkRunner runner)
         {
             if (runner != _runner) return;
+            if (_reRegisteringScene) return; // 새 방장이 떠 있는 게임 씬을 다시 등록하는 중 (실제로 불러오지 않음)
+            if (_state == LauncherState.InGame) return; // 이미 게임 중 (방장 변경 뒤 떠 있는 씬 이어받기) → 로딩 화면을 띄우지 않는다
             // 호스트가 시작을 누르면 모든 참가자(호스트 포함)에게 불린다 → 로딩 패널로 조작을 막는다.
-            if (_state == LauncherState.InRoom) SetState(LauncherState.StartingGame);
+            // 재접속(게임 중인 방에 들어가는 중)이면 접속이 끝나기 전에 불릴 수 있다 → 같이 게임 불러오기 단계로.
+            if (_state == LauncherState.InRoom || _state == LauncherState.JoiningSession) SetState(LauncherState.StartingGame);
             SystemUI.ShowLoading("게임을 불러오는 중...");
             if (_state == LauncherState.StartingGame) StartCoroutine(SceneLoadWatchdog(runner));
         }
@@ -903,6 +943,26 @@ namespace LastTruck.Networking
         public void OnSceneLoadDone(NetworkRunner runner)
         {
             if (runner != _runner) return;
+            if (_reRegisteringScene)
+            {
+                _reRegisteringScene = false;
+                LogSession("새 방장: 게임 씬 등록 완료");
+                return;
+            }
+
+            // 재접속(방장 변경 뒤 방) 등에서 게임 씬이 메뉴 위에 덧붙여(Additive) 불러와지는 경우가 있다
+            // → 게임 씬을 활성 씬으로 만들고 메뉴 씬(대기실 화면/카메라)을 내린다.
+            Scene gameScene = SceneManager.GetSceneByName(gameSceneName);
+            if (gameScene.IsValid() && gameScene.isLoaded && SceneManager.GetActiveScene() != gameScene)
+            {
+                SceneManager.SetActiveScene(gameScene);
+                Scene menuScene = SceneManager.GetSceneByName(menuSceneName);
+                if (menuScene.IsValid() && menuScene.isLoaded)
+                {
+                    LogSession("메뉴 씬이 남아 있어 내림");
+                    SceneManager.UnloadSceneAsync(menuScene);
+                }
+            }
             if (SceneManager.GetActiveScene().name != gameSceneName) return;
 
             SetState(LauncherState.InGame);
@@ -1033,6 +1093,13 @@ namespace LastTruck.Networking
             if (_state != LauncherState.InGame) return;
 
             var data = new NetworkInputData();
+
+            // 채팅 입력 중이면 아무 입력도 보내지 않는다 (WASD/스페이스가 글자로만 들어가게).
+            if (ChatHud.IsTyping)
+            {
+                input.Set(data);
+                return;
+            }
 
             // 내 캐릭터 상태: 트럭에 타는 등으로 PlayerMove가 꺼져 있으면 이동 입력을 보내지 않는다.
             NetworkPlayer localPlayer = NetworkPlayer.Local;

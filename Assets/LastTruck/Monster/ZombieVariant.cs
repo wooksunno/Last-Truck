@@ -18,9 +18,38 @@ namespace LastTruck
         [Tooltip("0 이상이면 이 번호의 외형으로 고정한다 (-1 = 무작위/네트워크 번호).")]
         [SerializeField] private int forcedIndex = -1;
 
+        private bool _appliedByType;
+
         private void Start()
         {
+            if (_appliedByType) return; // 몬스터 종류가 이미 외형을 정했다
             Apply();
+        }
+
+        /// <summary>
+        /// 몬스터 종류(NetworkMonster)가 부른다: names 목록에 있는 몸 메시 중에서만 seed로 고른다 (모든 화면에서 같은 결과).
+        /// 목록이 비었거나 맞는 메시가 없으면 전체에서 고른다.
+        /// </summary>
+        public void ApplyNames(System.Collections.Generic.IList<string> names, int seed)
+        {
+            _appliedByType = true;
+            var bodies = new System.Collections.Generic.List<Renderer>();
+            var allowed = new System.Collections.Generic.List<Renderer>();
+            foreach (Renderer r in GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            {
+                if (r == null || !r.name.StartsWith(bodyPrefix)) continue;
+                bodies.Add(r);
+                if (names != null && names.Contains(r.name)) allowed.Add(r);
+            }
+            if (bodies.Count == 0) return;
+
+            var pool = allowed.Count > 0 ? allowed : bodies;
+            Renderer chosen = pool[((seed % pool.Count) + pool.Count) % pool.Count];
+            foreach (Renderer body in bodies)
+                body.gameObject.SetActive(body == chosen);
+
+            var damageable = GetComponent<Combat.Damageable>();
+            if (damageable != null) damageable.RefreshRenderers();
         }
 
         public void Apply()

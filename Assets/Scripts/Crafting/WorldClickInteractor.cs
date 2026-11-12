@@ -78,6 +78,10 @@ namespace CraftingSystem
             if (LastTruck.TruckRadialMenu.IsOpen)
                 return;
 
+            // 멀티플레이 채팅 입력 중에는 Esc/Tab/클릭을 채팅창이 쓴다
+            if (LastTruck.Networking.ChatHud.IsTyping)
+                return;
+
             if (Input.GetKeyDown(KeyCode.Escape) && ui != null)
             {
                 ui.ClosePopup();

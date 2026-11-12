@@ -15,6 +15,7 @@ namespace LastTruck.Networking
         private void Update()
         {
             if (!Input.GetKeyDown(KeyCode.Escape)) return;
+            if (ChatHud.ConsumedEscape) return; // Esc로 채팅창을 닫았다
 
             // 같은 프레임에 ESC로 제작 창이 닫히는 경우(WorldClickInteractor)와 겹치지 않게 지난 프레임 상태도 본다.
             if (_popupWasOpen || IsGamePopupOpen) return;

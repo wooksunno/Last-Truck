@@ -79,6 +79,9 @@ namespace LastTruck.Networking
         }
 
         public bool IsPlayer => isPlayer;
+
+        /// <summary>호스트: 스폰 직전(onBeforeSpawned)에 넣으면 이 값을 최대 체력으로 쓴다 (몬스터 종류별 체력).</summary>
+        public float SpawnMaxOverride { get; set; }
         public bool IsAlive => Object != null && Object.IsValid && !IsDead;
 
         private INetworkHealthListener[] _listeners = new INetworkHealthListener[0];
@@ -99,12 +102,19 @@ namespace LastTruck.Networking
             if (HasStateAuthority && !Object.IsResume)
             {
                 float max = fallbackMaxHealth;
-                foreach (INetworkHealthListener listener in _listeners)
+                if (SpawnMaxOverride > 0f)
                 {
-                    if (listener != null && listener.NetworkMaxHealth > 0f)
+                    max = SpawnMaxOverride;
+                }
+                else
+                {
+                    foreach (INetworkHealthListener listener in _listeners)
                     {
-                        max = listener.NetworkMaxHealth;
-                        break;
+                        if (listener != null && listener.NetworkMaxHealth > 0f)
+                        {
+                            max = listener.NetworkMaxHealth;
+                            break;
+                        }
                     }
                 }
                 Max = max;

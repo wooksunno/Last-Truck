@@ -9,7 +9,7 @@ namespace LastTruck.Networking
     ///
     ///  - Time.timeScale = 0: 낮/밤 시간, 물리(트럭), 애니메이션, 각자 컴퓨터의 타이머(채집/먹기 등)가 모두 멈춘다.
     ///    Fusion은 실제 시간(Unscaled)으로 돌아가서 재접속은 계속 진행된다.
-    ///  - 소리 정지, UI 클릭 막기(EventSystem 끄기), 화면에 안내 문구.
+    ///  - 소리 정지, UI 클릭 막기(EventSystem 끄기), 화면을 덮는 안내 패널(NetworkPauseOverlay: 로딩 점 + 경과 시간).
     ///  - 이동/조작 입력은 NetworkGameState.AllowPlayerControl이, 몬스터는 NetworkGameState.IsHeld가 막는다.
     ///  - 여러 이유(reason)가 겹칠 수 있다. 모든 이유가 끝나야 풀린다.
     /// </summary>
@@ -30,7 +30,7 @@ namespace LastTruck.Networking
 
         #region 시작 / 끝
 
-        public static void Begin(string reason, string message)
+        public static void Begin(string reason, string message, string title = "방장이 바뀌는 중")
         {
             if (string.IsNullOrEmpty(reason)) reason = MigrationReason;
             bool wasPaused = IsPaused;
@@ -48,7 +48,7 @@ namespace LastTruck.Networking
                     _disabledEventSystem = eventSystem;
                 }
             }
-            SystemUI.ShowLoading(message);
+            NetworkPauseOverlay.Show(title, message);
         }
 
         public static void End(string reason)
@@ -71,7 +71,7 @@ namespace LastTruck.Networking
             AudioListener.pause = false;
             if (_disabledEventSystem != null) _disabledEventSystem.enabled = true;
             _disabledEventSystem = null;
-            SystemUI.HideLoading();
+            NetworkPauseOverlay.Hide();
         }
 
         #endregion

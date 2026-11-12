@@ -150,7 +150,8 @@ namespace LastTruck.Networking
             if (!HasStateAuthority) return;
 
             HostUpdateInterest();
-            Held = AnyCharacterReclaiming();
+            Held = HostResolveReclaiming();
+            if (!Held) HostFlushPendingAnnouncement();
 
             GameManager gm = GameManager.Instance;
             if (gm != null) gm.PlayerCount = Mathf.Max(1, Runner.ActivePlayers.Count());
@@ -183,12 +184,28 @@ namespace LastTruck.Networking
             }
         }
 
-        /// <summary>방장 변경 뒤 아직 주인을 찾지 못한(되찾기 대기 중인) 캐릭터가 있는가.</summary>
-        private static bool AnyCharacterReclaiming()
+        /// <summary>
+        /// 방장 변경 뒤 주인을 기다리는 캐릭터 처리. 멈춰야 하면 true.
+        ///  - 지금 방에 있는 사람이 모두 자기 캐릭터를 받았으면, 남은 주인 없는 캐릭터(나간 방장 등)는 바로 "자리 비움"(3분 재접속 대기)으로 → 바로 이어서 진행.
+        ///  - 아직 캐릭터를 못 받은 사람이 있으면 멈춘 채 기다린다 (각 캐릭터의 되찾기 대기 시간이 지나면 자동으로 자리 비움).
+        /// </summary>
+        private bool HostResolveReclaiming()
         {
-            foreach (NetworkPlayer player in NetworkPlayer.AllIncludingDeparted)
+            bool anyUnclaimed = false;
+            foreach (NetworkPlayer character in NetworkPlayer.AllIncludingDeparted)
             {
-                if (player != null && player.IsUnclaimed) return true;
+                if (character != null && character.IsUnclaimed) { anyUnclaimed = true; break; }
+            }
+            if (!anyUnclaimed) return false;
+
+            foreach (PlayerRef player in Runner.ActivePlayers)
+            {
+                if (NetworkPlayer.Find(player) == null) return true; // 아직 자기 캐릭터를 못 받은 사람이 있다
+            }
+
+            foreach (NetworkPlayer character in NetworkPlayer.AllIncludingDeparted)
+            {
+                if (character != null && character.IsUnclaimed) character.HostMarkDeparted(GameLauncher.ReconnectWindowSeconds);
             }
             return false;
         }
@@ -249,7 +266,7 @@ namespace LastTruck.Networking
             if (Held && !_holdShown)
             {
                 _holdShown = true;
-                NetworkPause.Begin(NetworkPause.HoldReason, "방장이 바뀌었습니다.\n다른 플레이어가 다시 연결되기를 기다리는 중...");
+                NetworkPause.Begin(NetworkPause.HoldReason, "새 방장에게 다시 연결하는 중입니다.\n모든 플레이어가 연결되면 바로 이어집니다.");
             }
             else if (!Held && _holdShown)
             {
@@ -296,6 +313,94 @@ namespace LastTruck.Networking
                 GameLauncher current = GameLauncher.Instance;
                 if (current != null) current.LeaveAfterGameOver();
             }, "방 목록으로");
+        }
+
+        #endregion
+
+        #region 채팅 / 시스템 메시지 / 배너
+
+        public const int ChatMaxLength = 80;
+
+        /// <summary>내 채팅을 보낸다 (호스트가 확인 후 모두에게 뿌린다).</summary>
+        public static void SendChat(string text)
+        {
+            text = ChatHud.Sanitize(text, ChatMaxLength);
+            if (string.IsNullOrEmpty(text)) return;
+            if (Instance == null || Instance.Object == null || !Instance.Object.IsValid)
+            {
+                ChatHud.AddLocal(PlayerProfile.Nickname, text, ChatKind.Player); // 혼자(오프라인)
+                return;
+            }
+            Instance.RPC_SendChat(text);
+        }
+
+        /// <summary>호스트: 모두에게 시스템 메시지 (채팅창 노란 글자).</summary>
+        public static void HostSystemMessage(string text, ChatKind kind = ChatKind.System)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            if (Instance == null || Instance.Object == null || !Instance.Object.IsValid || !Instance.HasStateAuthority)
+            {
+                if (!GameLauncher.IsOnlineSession) ChatHud.AddLocal(string.Empty, text, kind);
+                return;
+            }
+            Instance.RPC_Chat(string.Empty, text, (int)kind);
+        }
+
+        /// <summary>호스트: 모두에게 화면 가운데 배너 + 채팅 경고.</summary>
+        public static void HostAnnounce(string title, string description)
+        {
+            if (Instance == null || Instance.Object == null || !Instance.Object.IsValid || !Instance.HasStateAuthority)
+            {
+                if (!GameLauncher.IsOnlineSession)
+                {
+                    WaveBanner.Show(title, description);
+                    ChatHud.AddLocal(string.Empty, title, ChatKind.Warning);
+                }
+                return;
+            }
+            Instance.RPC_Banner(title, description ?? string.Empty);
+            Instance.RPC_Chat(string.Empty, title, (int)ChatKind.Warning);
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_SendChat(string text, RpcInfo info = default)
+        {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_SendChat), 3)) return;
+            text = ChatHud.Sanitize(text, ChatMaxLength);
+            if (string.IsNullOrEmpty(text)) return;
+
+            string sender;
+            if (info.Source == PlayerRef.None || info.Source == Runner.LocalPlayer)
+            {
+                sender = PlayerProfile.Nickname;
+            }
+            else
+            {
+                NetworkPlayer character = NetworkPlayer.Find(info.Source);
+                sender = character != null ? character.Nickname.ToString() : $"플레이어{info.Source.PlayerId}";
+            }
+            RPC_Chat(ChatHud.Sanitize(sender, 32), text, (int)ChatKind.Player);
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_Chat(string sender, string text, int kind)
+        {
+            ChatHud.AddLocal(sender, text, (ChatKind)kind);
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_Banner(string title, string description)
+        {
+            WaveBanner.Show(title, description);
+        }
+
+        /// <summary>호스트: 방장 변경 등으로 미뤄 둔 알림을, 모두가 다시 연결된 뒤(멈춤이 풀린 뒤) 보낸다.</summary>
+        private void HostFlushPendingAnnouncement()
+        {
+            GameLauncher launcher = GameLauncher.Instance;
+            if (launcher == null) return;
+            string message = launcher.TakePendingAnnouncement();
+            if (!string.IsNullOrEmpty(message)) HostSystemMessage(message);
         }
 
         #endregion

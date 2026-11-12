@@ -1,5 +1,6 @@
 using System;
 using System.Text;
+using System.Threading;
 using UnityEngine;
 
 namespace LastTruck.Networking
@@ -44,9 +45,40 @@ namespace LastTruck.Networking
                     PlayerPrefs.SetString(DeviceIdPrefKey, saved);
                     PlayerPrefs.Save();
                 }
-                _deviceId = saved;
+                // 같은 컴퓨터에서 게임을 여러 개 띄우면(에디터 + 빌드, ParrelSync 복제, 빌드 2개) PlayerPrefs가 같아
+                // 모두 같은 ID가 된다 → 실행 순서대로 슬롯 번호를 붙여 서로 구분한다 (하나만 띄우면 번호 없음 = 항상 같은 ID).
+                int slot = AcquireInstanceSlot();
+                _deviceId = slot > 0 ? $"{saved}-{slot}" : saved;
                 return _deviceId;
             }
+        }
+
+        private static Mutex _instanceMutex; // 프로세스가 끝날 때까지 잡고 있는다 (같은 슬롯을 다른 실행이 못 쓰게)
+        private static int _instanceSlot;    // 플레이를 다시 눌러도(정적 값 초기화) 같은 번호를 쓴다
+
+        /// <summary>이 컴퓨터에서 몇 번째로 실행된 게임인가 (0 = 처음).</summary>
+        private static int AcquireInstanceSlot()
+        {
+            if (_instanceMutex != null) return _instanceSlot;
+            for (int slot = 0; slot < 8; slot++)
+            {
+                try
+                {
+                    var mutex = new Mutex(false, $"LastTruck.Instance.{slot}", out bool createdNew);
+                    if (createdNew)
+                    {
+                        _instanceMutex = mutex;
+                        _instanceSlot = slot;
+                        return slot;
+                    }
+                    mutex.Dispose();
+                }
+                catch (Exception)
+                {
+                    return 0; // 지원 안 되는 환경이면 구분하지 않는다
+                }
+            }
+            return 0;
         }
 
         #endregion

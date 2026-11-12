@@ -1,0 +1,322 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e8f9f6d8867f4ab4bc0a3ce976ce2892, type: 3}
+  m_Name: MonsterCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::LastTruck.Networking.MonsterCatalog
+  speedScale: 0.2
+  healthPerNight: 0.12
+  damagePerNight: 0.08
+  types:
+  - kind: 0
+    displayName: "\uC6CC\uCEE4"
+    maxHealth: 50
+    damage: 8
+    attacksPerSecond: 0.7
+    moveSpeed: 10
+    hitShape: 0
+    attackRange: 1.5
+    hitRadius: 0
+    truckDamageMultiplier: 1
+    ranged: 0
+    projectileSpeed: 16
+    projectileHitRadius: 1.1
+    prefersTruck: 0
+    detectionRange: 12
+    leavesPool: 0
+    poolDuration: 3
+    poolRadius: 2.2
+    poolDamagePerSecond: 5
+    selfDestruct: 0
+    fuseSeconds: 6
+    scale: 1
+    tint: {r: 1, g: 1, b: 1, a: 1}
+    bodies:
+    - Zombie_Businessman_Male_01
+    - Zombie_Hoodie_Male_01
+    - Zombie_Jacket_Female_01
+    - Zombie_Father_Male_01
+    - Zombie_Mother_Female_01
+    - Zombie_Tourist_Male_01
+    - Zombie_Hobo_Male_01
+    - Zombie_ShopKeeper_Male_01
+    - Zombie_Coat_Female_01
+    - Zombie_Hipster_Male_01
+    - Zombie_SchoolBoy_Male_01
+    - Zombie_Grandpa_Male_01
+    animationSpeed: 1
+  - kind: 1
+    displayName: "\uD0F1\uCEE4"
+    maxHealth: 200
+    damage: 15
+    attacksPerSecond: 1
+    moveSpeed: 15
+    hitShape: 1
+    attackRange: 1.9
+    hitRadius: 2.4
+    truckDamageMultiplier: 1
+    ranged: 0
+    projectileSpeed: 16
+    projectileHitRadius: 1.1
+    prefersTruck: 0
+    detectionRange: 12
+    leavesPool: 0
+    poolDuration: 3
+    poolRadius: 2.2
+    poolDamagePerSecond: 5
+    selfDestruct: 0
+    fuseSeconds: 6
+    scale: 1.3
+    tint: {r: 0.8, g: 0.85, b: 1, a: 1}
+    bodies:
+    - Zombie_Footballer_Male_01
+    - Zombie_RiotCop_Male_01
+    - Zombie_Firefighter_Male_01
+    animationSpeed: 0.85
+  - kind: 2
+    displayName: "\uBD90\uBC84"
+    maxHealth: 30
+    damage: 30
+    attacksPerSecond: 0
+    moveSpeed: 20
+    hitShape: 2
+    attackRange: 1.2
+    hitRadius: 4.5
+    truckDamageMultiplier: 1.5
+    ranged: 0
+    projectileSpeed: 16
+    projectileHitRadius: 1.1
+    prefersTruck: 0
+    detectionRange: 14
+    leavesPool: 0
+    poolDuration: 3
+    poolRadius: 2.2
+    poolDamagePerSecond: 5
+    selfDestruct: 1
+    fuseSeconds: 6
+    scale: 1
+    tint: {r: 1, g: 0.85, b: 0.5, a: 1}
+    bodies:
+    - Zombie_HotDogSuit_Male_01
+    - Zombie_Roadworker_Male_01
+    - Zombie_FastfoodWorker_Male_01
+    animationSpeed: 1.3
+  - kind: 3
+    displayName: "\uBC84\uC11C\uCEE4"
+    maxHealth: 90
+    damage: 14
+    attacksPerSecond: 1.3
+    moveSpeed: 20
+    hitShape: 0
+    attackRange: 1.6
+    hitRadius: 0
+    truckDamageMultiplier: 1
+    ranged: 0
+    projectileSpeed: 16
+    projectileHitRadius: 1.1
+    prefersTruck: 0
+    detectionRange: 16
+    leavesPool: 0
+    poolDuration: 3
+    poolRadius: 2.2
+    poolDamagePerSecond: 5
+    selfDestruct: 0
+    fuseSeconds: 6
+    scale: 1.1
+    tint: {r: 1, g: 0.55, b: 0.55, a: 1}
+    bodies:
+    - Zombie_Military_Male_01
+    - Zombie_Gangster_Male_01
+    - Zombie_Punk_Male_01
+    - Zombie_Prisinor_Male_01
+    animationSpeed: 1.25
+  - kind: 4
+    displayName: "\uBE45 \uBCF4\uC774"
+    maxHealth: 400
+    damage: 40
+    attacksPerSecond: 1.6
+    moveSpeed: 25
+    hitShape: 1
+    attackRange: 2.6
+    hitRadius: 4
+    truckDamageMultiplier: 1.5
+    ranged: 0
+    projectileSpeed: 16
+    projectileHitRadius: 1.1
+    prefersTruck: 0
+    detectionRange: 18
+    leavesPool: 0
+    poolDuration: 3
+    poolRadius: 2.2
+    poolDamagePerSecond: 5
+    selfDestruct: 0
+    fuseSeconds: 6
+    scale: 1.8
+    tint: {r: 0.75, g: 1, b: 0.7, a: 1}
+    bodies:
+    - Zombie_Biker_Male_01
+    - Zombie_Jock_Male_01
+    animationSpeed: 0.9
+  - kind: 5
+    displayName: "\uC2A4\uB098\uC774\uD37C"
+    maxHealth: 40
+    damage: 12
+    attacksPerSecond: 0.8
+    moveSpeed: 13
+    hitShape: 0
+    attackRange: 13
+    hitRadius: 0
+    truckDamageMultiplier: 1
+    ranged: 1
+    projectileSpeed: 18
+    projectileHitRadius: 1.1
+    prefersTruck: 0
+    detectionRange: 18
+    leavesPool: 0
+    poolDuration: 3
+    poolRadius: 2.2
+    poolDamagePerSecond: 5
+    selfDestruct: 0
+    fuseSeconds: 6
+    scale: 1
+    tint: {r: 0.75, g: 0.8, b: 1, a: 1}
+    bodies:
+    - Zombie_Police_Male_01
+    - Zombie_Police_Female_01
+    - Zombie_Diver_Male_01
+    animationSpeed: 1
+  - kind: 6
+    displayName: "\uD0C0\uAC9F\uD130"
+    maxHealth: 60
+    damage: 14
+    attacksPerSecond: 0.8
+    moveSpeed: 15
+    hitShape: 0
+    attackRange: 12
+    hitRadius: 0
+    truckDamageMultiplier: 1.2
+    ranged: 1
+    projectileSpeed: 16
+    projectileHitRadius: 1.1
+    prefersTruck: 1
+    detectionRange: 12
+    leavesPool: 0
+    poolDuration: 3
+    poolRadius: 2.2
+    poolDamagePerSecond: 5
+    selfDestruct: 0
+    fuseSeconds: 6
+    scale: 1
+    tint: {r: 1, g: 0.75, b: 0.4, a: 1}
+    bodies:
+    - Zombie_Bellboy_Male_01
+    - Zombie_Clown_Male_01
+    - Zombie_Cheerleader_Female_01
+    animationSpeed: 1
+  - kind: 7
+    displayName: "\uC624\uC5FC\uCCB4"
+    maxHealth: 70
+    damage: 5
+    attacksPerSecond: 0.5
+    moveSpeed: 10
+    hitShape: 2
+    attackRange: 9
+    hitRadius: 0
+    truckDamageMultiplier: 1
+    ranged: 1
+    projectileSpeed: 11
+    projectileHitRadius: 1.1
+    prefersTruck: 0
+    detectionRange: 12
+    leavesPool: 1
+    poolDuration: 3
+    poolRadius: 2.2
+    poolDamagePerSecond: 5
+    selfDestruct: 0
+    fuseSeconds: 6
+    scale: 1
+    tint: {r: 0.6, g: 1, b: 0.5, a: 1}
+    bodies:
+    - Zombie_BioHazardSuit_Male_01
+    - Zombie_Patient_Female_01
+    - Zombie_Paramedic_Female_01
+    animationSpeed: 1
+  waves:
+  - fromNight: 1
+    title: "\uCCAB \uBC88\uC9F8 \uBC24"
+    description: "\uC880\uBE44 \uBB34\uB9AC\uAC00 \uBAB0\uB824\uC635\uB2C8\uB2E4.
+      \uD2B8\uB7ED\uC744 \uC9C0\uD0A4\uC138\uC694."
+    weights:
+    - 100
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    bossCount: 0
+  - fromNight: 2
+    title: "\uBB34\uAC70\uC6B4 \uBC1C\uC18C\uB9AC"
+    description: "\uD0F1\uCEE4\uC640 \uBD90\uBC84\uAC00 \uC11E\uC5EC \uC788\uC2B5\uB2C8\uB2E4.
+      \uBD90\uBC84\uB294 \uBA40\uB9AC\uC11C \uCC98\uB9AC\uD558\uC138\uC694."
+    weights:
+    - 65
+    - 15
+    - 20
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    bossCount: 0
+  - fromNight: 3
+    title: "\uC6D0\uAC70\uB9AC \uC2B5\uACA9"
+    description: "\uC6D0\uAC70\uB9AC \uACF5\uACA9\uC744 \uC870\uC2EC\uD558\uC138\uC694.
+      \uD0C0\uAC9F\uD130\uB294 \uD2B8\uB7ED\uC744 \uB178\uB9BD\uB2C8\uB2E4."
+    weights:
+    - 45
+    - 10
+    - 10
+    - 0
+    - 0
+    - 20
+    - 15
+    - 0
+    bossCount: 1
+  - fromNight: 4
+    title: "\uC624\uC5FC\uB41C \uBC24"
+    description: "\uC624\uC5FC\uCCB4\uAC00 \uBC14\uB2E5\uC744 \uC624\uC5FC\uC2DC\uD0B5\uB2C8\uB2E4.
+      \uCD08\uB85D\uC0C9 \uC9C0\uB300\uB97C \uD53C\uD558\uC138\uC694."
+    weights:
+    - 35
+    - 12
+    - 12
+    - 12
+    - 0
+    - 12
+    - 9
+    - 8
+    bossCount: 0
+  - fromNight: 5
+    title: "\uAD11\uB780\uC758 \uBC24"
+    description: "\uBC84\uC11C\uCEE4\uC640 \uBE45 \uBCF4\uC774\uAC00 \uB098\uD0C0\uB0A9\uB2C8\uB2E4.
+      \uB05D\uAE4C\uC9C0 \uBC84\uD2F0\uC138\uC694!"
+    weights:
+    - 25
+    - 14
+    - 12
+    - 18
+    - 0
+    - 12
+    - 10
+    - 9
+    bossCount: 1

@@ -29,6 +29,12 @@ namespace LastTruck.Networking
         /// </summary>
         public static GameObject Spawn(Vector3 position, Quaternion rotation)
         {
+            return Spawn(position, rotation, null);
+        }
+
+        /// <summary>종류를 정해서 스폰한다 (null이면 이번 밤 웨이브 구성으로 고른다).</summary>
+        public static GameObject Spawn(Vector3 position, Quaternion rotation, MonsterKind? kind)
+        {
             GameLauncher launcher = GameLauncher.Instance;
             NetworkRunner runner = launcher != null ? launcher.Runner : null;
             if (runner == null || !runner.IsRunning || !runner.IsServer) return null;
@@ -42,8 +48,15 @@ namespace LastTruck.Networking
             }
 
             // 몬스터만 관심 영역(AOI) 대상: 멀리 있는 몬스터는 그 플레이어에게 보내지 않는다.
+            MonsterKind pickedKind = kind ?? MonsterWaveDirector.HostPickKind();
+            int night = MonsterWaveDirector.CurrentNight;
             NetworkObject spawned = runner.Spawn(registry.monsterPrefab, position, rotation, PlayerRef.None,
-                (r, obj) => NetworkInterest.Apply(r, obj, true));
+                (r, obj) =>
+                {
+                    NetworkInterest.Apply(r, obj, true);
+                    NetworkMonster monster = obj.GetComponent<NetworkMonster>();
+                    if (monster != null) monster.InitializeBeforeSpawn(pickedKind, night);
+                });
             if (spawned == null) return null;
 
             // 킬 집계: 체력이 0이 되는 순간 호스트의 GameManager에 알린다

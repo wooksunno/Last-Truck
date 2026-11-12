@@ -760,6 +760,7 @@ namespace LastTruck.Networking
 
             if (seat < 0 || Time.time - _localSeatChangedTime < exitCooldown) return;
             if (SystemUI.Instance != null && SystemUI.Instance.IsPopupVisible) return;
+            if (ChatHud.IsTyping) return; // 채팅 입력 중
 
             if (Input.GetKeyDown(KeyCode.E))
             {

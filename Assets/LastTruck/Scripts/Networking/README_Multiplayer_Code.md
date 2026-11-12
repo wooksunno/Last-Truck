@@ -459,3 +459,59 @@ InRoom/InGame ─(RequestLeaveSession 또는 연결 끊김)─> Leaving ─> (Me
 ### 13-7. 그 외
 - 로비 버그: 방 만들기 창을 다시 열 때 토글은 `SetIsOnWithoutNotify`라 "공개/비공개" 글자가 안 바뀌던 문제 → `RefreshPasswordFieldState`에서 글자도 갱신.
 - 트럭 클라이언트 운전자 예측: 호스트가 `TruckVelocity/AngularVelocity`를 올리고, 운전자 화면만 RTT+2틱(최대 0.35초)만큼 앞당겨 그림.
+
+### 13-8. 2PC 테스트 후 수정
+- 새 방장이 자기 캐릭터를 못 붙이던 문제: 복원 콜백 시점엔 내 플레이어가 아직 방에 없음 → `StartGame` 완료 직후 `HostAttachReturningPlayer(LocalPlayer)` 한 번 더. 기기 ID로 못 찾으면 닉네임으로.
+- 한 사람에게 캐릭터 2개가 붙어 같이 움직이던 문제: 이미 캐릭터가 있는 플레이어에게는 다시 붙이지 않음.
+- 같은 PC에서 여러 개 실행(에디터+빌드, ParrelSync)하면 PlayerPrefs가 같아 기기 ID가 겹침 → 이름 있는 Mutex로 실행 슬롯 번호를 붙여 구분 (`SessionTicket.AcquireInstanceSlot`).
+- 카메라: `LocalPlayerBinder`가 다른 네트워크 캐릭터를 보고 있던 카메라도 새 내 캐릭터로 바꿈.
+- 접속 거절 문구: 공개 방/재접속이면 "비밀번호" 대신 실제 상황에 맞는 문구.
+- 새 방장 화면에서 내 캐릭터가 사라지고 "캐릭터를 찾지 못했습니다"가 뜨던 문제: Fusion은 `IInputAuthorityGained/Lost`를 **클라이언트가 복제 받을 때만** 부르고,
+  호스트가 자기 캐릭터에 `AssignInputAuthority`하면 부르지 않는다 → `NetworkPlayer.HostSetInputAuthority`가 로컬 플레이어면 직접 `OnLocalAuthorityGained/Lost` 호출 (카메라/HUD/입력 다시 연결).
+- 복원 직후 주인 없는 캐릭터에 되찾기 대기가 안 걸리는 경우 대비: `StartGame` 완료 뒤 `HostEnsureClaimWait`.
+- 재접속한 사람이 게임 위에 대기실 화면이 뜬 채 멈추던 문제: 게임 중인 방에 들어가면 접속이 끝나기 전에 씬 로딩이 시작됨 → `OnSceneLoadStart`에서 JoiningSession도 StartingGame으로, `JoinSessionByName` 성공 후 게임 씬이면 InRoom으로 돌리지 않음.
+- 재접속자 화면에 대기실이 남던 문제(2차): 방장 변경 뒤 방에 들어가면 게임 씬이 메뉴 위에 덧붙여 불러와짐 → `OnSceneLoadDone`이 게임 씬을 활성화하고 메뉴 씬을 내림.
+- 방장 변경 시간 단축: 지금 방에 있는 모두가 캐릭터를 받으면 남은 주인 없는 캐릭터(나간 방장)는 바로 자리 비움 → 멈춤 즉시 해제 (`NetworkGameState.HostResolveReclaiming`).
+  되찾기 대기 20→10초, 스냅샷 주기 5→2초, 방장이 ESC로 나갈 땐 `PushHostMigrationSnapshot()`으로 직전 상태를 올리고 나감(최대 2초).
+- 재접속자가 여전히 대기실에 남던 진짜 원인(3차): 방장이 바뀐 뒤 새 방장의 **네트워크 씬 목록이 비어** 있어서 재접속자가 게임 씬을 아예 불러오지 않음
+  (네트워크 오브젝트만 메뉴 씬에 생김). → `EnsureGameSceneRegistered`: 새 방장이 떠 있는 게임 씬을 `LoadScene(Additive)` + 씬 이어받기로 목록에 올림(다시 불러오지 않음, Single은 런타임 오브젝트를 지우므로 금지).
+  재접속자는 Additive로 받으므로 `OnSceneLoadDone`이 게임 씬 활성화 + 메뉴 씬 내림. 이미 게임 중이면 `OnSceneLoadStart` 로딩 화면 생략.
+- 멈춤 안내 UI: `UI/NetworkPauseOverlay.cs` (반투명 배경 + 카드 + 회전 로딩 점 + 경과 시간, unscaled 시간, sortingOrder 90). `NetworkPause.Begin(reason, message, title)`.
+- 참고(Fusion 소스 확인): `Shutdown`은 `destroyGameObject=false`여도 네트워크 오브젝트를 모두 파괴한다. `GetResumeSnapshotNetworkObjects`는 씬 오브젝트를 돌려주지 않는다(씬 오브젝트는 `GetResumeSnapshotNetworkSceneObjects`). 게임 시스템은 모두 NetworkGameState 프리팹에 있어 영향 없음.
+
+## 14. 몬스터 종류 / 웨이브 / 채팅 / 배너
+
+### 14-1. 몬스터 종류 (`Monsters/MonsterCatalog.cs`, `NetworkMonster.cs`)
+- 프리팹은 그대로 1개(Monster_Network, 원본 `LastTruck/Monster/Prefab/Zombie.prefab` = Synty City Zombies). 종류는 `[Networked] KindValue`(MonsterKind 번호)로 구분하고 수치/모습은 표에서 읽는다.
+- 표: `Resources/MonsterCatalog.asset` (메뉴 `LastTruck > Multiplayer > 2. 몬스터 종류·웨이브 표 만들기`). 에셋이 없으면 코드 기본값(기획표)을 쓴다.
+- 기획표 → 코드: 이동 속도 값 × `speedScale`(0.2) = m/s, 공격 속도는 "초당 횟수" (쿨다운 = 1/값), 밤마다 체력 +12% / 공격력 +8% (`healthPerNight`, `damagePerNight`).
+- 스폰: `NetworkMonsterSpawning.Spawn` → `MonsterWaveDirector.HostPickKind()`(이번 밤 비율, 보스 수) → onBeforeSpawned에서 `NetworkMonster.InitializeBeforeSpawn(kind, night)` (체력은 `NetworkHealth.SpawnMaxOverride`).
+- 모습: `ZombieVariant.ApplyNames`(종류별 몸 메시 목록에서 NetworkId로 선택 → 모든 화면 같음), 크기, 색(_BaseColor 곱), 애니메이션 속도.
+
+| 종류 | 체력 | 공격 | 공격/초 | 속도 | 범위 / 특징 | Synty 몸 |
+|---|---|---|---|---|---|---|
+| 워커 | 50 | 8 | 0.7 | 10 | 단일 | 일반 시민들 |
+| 탱커 | 200 | 15 | 1.0 | 15 | 앞쪽 반원 2.4m, 크기 1.3 | Footballer, RiotCop, Firefighter |
+| 붐버 | 30 | 30 | - | 20 | 플레이어를 본 뒤(14m) 6초 후 4.5m 원 폭발(트럭 ×1.5), 깜빡임 | HotDogSuit, Roadworker, FastfoodWorker |
+| 버서커 | 90 | 14 | 1.3 | 20 | 단일, 인식 16m, 붉은색 | Military, Gangster, Punk, Prisoner |
+| 빅 보이 | 400 | 40 | 1.6 | 25 | 앞쪽 반원 4m, 크기 1.8, 웨이브 bossCount | Biker, Jock |
+| 스나이퍼 | 40 | 12 | 0.8 | 13 | 13m에서 투사체(떨어진 곳 1.1m 안이면 맞음) | Police, Diver |
+| 타겟터 | 60 | 14 | 0.8 | 15 | 12m, 트럭 우선 | Bellboy, Clown, Cheerleader |
+| 오염체 | 70 | 5 | 0.5 | 10 | 9m 포물선 → 오염 지대 3초(반경 2.2m, 1초마다 5) | BioHazardSuit, Patient, Paramedic |
+
+- 원거리/오염/폭발 연출은 `MonsterEffects`(코드로 만든 구슬·바닥 원·폭발, Sprites/Default 셰이더), RPC로 모두에게. 피해 판정은 호스트.
+
+### 14-2. 웨이브 (구조만, `MonsterWaveData`)
+- `fromNight` 이상인 밤 중 가장 큰 항목을 쓴다: 제목, 설명, 종류별 비율(weights), 보스 수(bossCount).
+- 기본: 1밤 워커만 / 2밤 탱커·붐버 / 3밤 원거리 + 빅 보이 1 / 4밤 오염체·버서커 / 5밤~ 전부 + 빅 보이 1.
+- 밤 시작: `WaveAnnouncer`가 각 컴퓨터에서 배너 + 채팅 경고 (GameManager.OnNightStarted는 클라이언트도 불림 → 네트워크 불필요).
+- 빅 보이 등장: 호스트 `NetworkGameState.HostAnnounce` → 모두에게 배너 + 경고.
+
+### 14-3. 채팅 (`UI/ChatHud.cs`, `NetworkGameState` RPC)
+- 좌하단, Enter로 열고 Enter 보내기 / Esc 닫기. 10초 뒤 흐려지고 열면 다시 보임. 최대 80자, `<`/`>`는 전각으로 바꿔 리치 텍스트 막음.
+- 보내기: `RPC_SendChat`(호스트, 초당 3회 제한) → `RPC_Chat(보낸 사람, 내용, 종류)` → 모두. 색: 플레이어 닉네임 하늘색 + 흰 글자 / 시스템 노랑 / 경고 주황.
+- 시스템 메시지: 나감(3분 재접속), 다시 들어옴, 3분 지나 가방 → 트럭, 새 방장(멈춤이 풀린 뒤 `TakePendingAnnouncement`), 방장 나감(각자), 밤/아침.
+- 입력 중 조작 막기: `GameLauncher.OnInput`이 빈 입력, 내 캐릭터의 키 읽는 스크립트를 잠시 끔(`NetworkPlayer.SetChatSuspended`), ESC 메뉴/트럭 키/부활/WorldClickInteractor(Esc·Tab·클릭)에 `ChatHud.IsTyping` 확인.
+
+### 14-4. 배너 (`UI/WaveBanner.cs`)
+- 화면 가운데 위쪽(+230), 제목 60 / 설명 28, 0.35초 나타남 → 4초 → 0.6초 사라짐 (실제 시간).

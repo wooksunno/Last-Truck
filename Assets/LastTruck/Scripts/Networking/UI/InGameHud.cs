@@ -25,6 +25,8 @@ namespace LastTruck.Networking
             root.AddComponent<TeammateNameplates>();
             root.AddComponent<MinimapTeammateMarkers>();
             root.AddComponent<NetworkStatsHud>(); // F3 네트워크 상태 창
+            root.AddComponent<ChatHud>();         // 좌하단 채팅 (Enter)
+            root.AddComponent<WaveAnnouncer>();   // 밤 시작 웨이브 배너
             PlayerStatusHud.Ensure(); // 피격/기절/동료 살리기 화면
         }
 

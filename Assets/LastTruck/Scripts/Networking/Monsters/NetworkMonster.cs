@@ -34,6 +34,14 @@ namespace LastTruck.Networking
     ///
     /// 사망: 사망 클립을 끝까지 재생한 뒤 사라진다 (그동안 충돌 끔).
     ///
+    /// 종류 (MonsterCatalog, 호스트가 스폰 직전에 [Networked] KindValue로 정함)
+    ///  - 체력/공격력/공격속도/이동속도/사거리/피해 범위를 종류 표에서 읽는다 (밤이 지날수록 체력/공격력 증가).
+    ///  - 근접 반원(탱커/빅 보이): 앞쪽 반원 안의 모두에게 피해.
+    ///  - 원거리(스나이퍼/타겟터/오염체): 사거리에서 멈춰 투사체를 던진다. 떨어진 곳 근처에 있으면 맞는다(피할 수 있음).
+    ///    타겟터는 트럭을 먼저 노리고, 오염체의 투사체는 바닥에 오염 지대(3초, 1초마다 피해)를 남긴다.
+    ///  - 붐버: 빠르게 다가가며, 플레이어를 처음 본 뒤 fuseSeconds초 뒤 주변에 폭발 피해를 주고 죽는다.
+    ///  - 모습: 크기/색/Synty 좀비 몸 메시 목록/애니메이션 속도.
+    ///
     /// 싱글플레이(오프라인)에서는 이 스크립트가 아무것도 하지 않고 기존 MonsterAI가 동작한다.
     /// </summary>
     [RequireComponent(typeof(NavMeshAgent))]
@@ -109,6 +117,36 @@ namespace LastTruck.Networking
         /// <summary>호스트가 정한 이동 속도 (애니메이션 Idle/Walk용).</summary>
         [Networked] private float MoveSpeed { get; set; }
 
+        /// <summary>몬스터 종류 (MonsterKind 번호).</summary>
+        [Networked] public int KindValue { get; private set; }
+        /// <summary>스폰된 밤 번호 (체력/공격력 배율).</summary>
+        [Networked] private int SpawnNight { get; set; }
+        /// <summary>붐버: 터지는 시각.</summary>
+        [Networked] private TickTimer FuseTimer { get; set; }
+
+        public MonsterKind Kind => (MonsterKind)KindValue;
+        public MonsterTypeData TypeData => _type ?? MonsterCatalog.Instance.Get(Kind);
+
+        private MonsterTypeData _type;
+        private float _loseRangeExtra = 3f;
+        private Vector3 _baseScale = Vector3.one;
+        private bool _fuseFlashOn;
+
+        // 원거리 투사체 / 오염 지대 (호스트)
+        private struct PendingShot
+        {
+            public float ImpactTime;
+            public Vector3 Point;
+        }
+        private struct Pool
+        {
+            public float EndTime;
+            public float NextTick;
+            public Vector3 Center;
+        }
+        private readonly List<PendingShot> _shots = new List<PendingShot>();
+        private readonly List<Pool> _pools = new List<Pool>();
+
         #endregion
 
         #region 생명주기
@@ -155,8 +193,62 @@ namespace LastTruck.Networking
             attackCooldown = Mathf.Max(attackCooldown, _attackDuration);
         }
 
+        /// <summary>호스트: 스폰 직전(onBeforeSpawned)에 종류와 밤 번호를 정한다.</summary>
+        public void InitializeBeforeSpawn(MonsterKind kind, int night)
+        {
+            KindValue = (int)kind;
+            SpawnNight = Mathf.Max(1, night);
+            MonsterCatalog catalog = MonsterCatalog.Instance;
+            NetworkHealth health = GetComponent<NetworkHealth>();
+            if (health != null) health.SpawnMaxOverride = catalog.Get(kind).maxHealth * catalog.HealthScale(SpawnNight);
+        }
+
+        /// <summary>모든 컴퓨터: 종류에 맞게 모습을 바꾸고, 호스트는 수치도 넣는다.</summary>
+        private void ApplyType()
+        {
+            MonsterCatalog catalog = MonsterCatalog.Instance;
+            _type = catalog.Get(Kind);
+
+            // 모습: 크기 / 몸 메시 / 색 / 애니메이션 속도
+            _baseScale = Vector3.one * Mathf.Max(0.2f, _type.scale);
+            transform.localScale = _baseScale;
+            ZombieVariant variant = GetComponent<ZombieVariant>();
+            if (variant != null) variant.ApplyNames(_type.bodies, (int)(Object.Id.Raw % 100000));
+            if (_type.tint != Color.white) SetBodyColor(_type.tint);
+            if (_damageable != null) _damageable.RefreshRenderers();
+            if (_animator != null) _animator.speed = Mathf.Max(0.1f, _type.animationSpeed);
+            gameObject.name = $"Monster_{_type.kind}";
+
+            // 수치 (호스트만 쓰지만 모두 넣어도 무방)
+            float damageScale = catalog.DamageScale(SpawnNight);
+            playerDamage = _type.damage * damageScale;
+            truckDamage = playerDamage * _type.truckDamageMultiplier;
+            attackRange = Mathf.Max(0.5f, _type.attackRange);
+            detectionRange = Mathf.Max(attackRange, _type.detectionRange);
+            loseRange = detectionRange + _loseRangeExtra;
+
+            float animSpeed = Mathf.Max(0.1f, _type.animationSpeed);
+            _attackDuration /= animSpeed;
+            _hitDelay /= animSpeed;
+            float interval = _type.attacksPerSecond > 0.01f ? 1f / _type.attacksPerSecond : 999f;
+            attackCooldown = Mathf.Max(interval, _attackDuration);
+        }
+
+        private void SetBodyColor(Color tint)
+        {
+            foreach (Renderer renderer in GetComponentsInChildren<Renderer>())
+            {
+                if (renderer == null || renderer is ParticleSystemRenderer) continue;
+                Material material = renderer.material;
+                if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", material.GetColor("_BaseColor") * tint);
+                if (material.HasProperty("_Color")) material.SetColor("_Color", material.GetColor("_Color") * tint);
+            }
+        }
+
         public override void Spawned()
         {
+            ApplyType();
+
             // 기존 싱글플레이 AI는 멀티플레이에서 쓰지 않는다 (모든 컴퓨터에서 끔).
             MonsterAI legacy = GetComponent<MonsterAI>();
             if (legacy != null) legacy.enabled = false;
@@ -183,7 +275,9 @@ namespace LastTruck.Networking
             _agent.updatePosition = false;
             _agent.updateRotation = false;
             _agent.Warp(transform.position);
-            _agent.stoppingDistance = attackRange * 0.9f;
+            _agent.speed = Mathf.Max(0.5f, _type.moveSpeed * MonsterCatalog.Instance.speedScale);
+            _agent.acceleration = Mathf.Max(_agent.acceleration, _agent.speed * 3f);
+            _agent.stoppingDistance = _type.ranged ? attackRange * 0.85f : attackRange * 0.9f;
             _truck = FindFirstObjectByType<LastTruck.TruckInformation>();
             if (_truck != null)
             {
@@ -241,6 +335,10 @@ namespace LastTruck.Networking
                 return;
             }
 
+            // 이미 날아간 투사체 / 깔린 오염 지대는 몬스터가 죽어도 마저 처리한다.
+            UpdateShots();
+            UpdatePools();
+
             bool dead = _health != null && _health.IsDead;
             if (dead || NetworkGameState.IsGameOver)
             {
@@ -249,6 +347,9 @@ namespace LastTruck.Networking
                 MoveSpeed = 0f;
                 return;
             }
+
+            // 붐버: 플레이어를 보면 도화선에 불이 붙고, 시간이 되면 터진다.
+            if (_type != null && _type.selfDestruct && UpdateFuse()) return;
 
             // 경직 중: 제자리 (공격/이동 없음)
             if (Time.time < _stunUntil)
@@ -309,6 +410,13 @@ namespace LastTruck.Networking
         {
             Vector3 position = transform.position;
 
+            // 타겟터: 트럭이 멀쩡하면 플레이어를 무시하고 트럭만 노린다.
+            if (_type != null && _type.prefersTruck && _truck != null && !_truck.IsBroken)
+            {
+                _targetPlayer = null;
+                return;
+            }
+
             // 쫓던 플레이어 유지 여부
             if (_targetPlayer != null)
             {
@@ -361,6 +469,7 @@ namespace LastTruck.Networking
         private void TryAttack()
         {
             if (Time.time < _nextAttackTime) return;
+            if (_type != null && _type.selfDestruct) return; // 붐버는 때리지 않고 터진다
 
             if (_targetPlayer != null && _targetPlayer.IsSeated) _targetPlayer = null; // 방금 트럭에 탔으면 트럭을 노린다
 
@@ -404,7 +513,22 @@ namespace LastTruck.Networking
             _pendingPlayer = null;
             if (!HasStateAuthority || (_health != null && _health.IsDead) || NetworkGameState.IsGameOver) return;
 
+            // 원거리: 지금 목표 위치로 투사체를 던진다 (떨어지는 곳 근처에 있으면 맞는다).
+            if (_type != null && _type.ranged)
+            {
+                FireAt(target, player);
+                return;
+            }
+
             float reach = attackRange + (_agent != null ? _agent.radius : 0.5f) + hitRangeTolerance;
+
+            // 반원/원 공격: 범위 안의 모두
+            if (_type != null && _type.hitShape != MonsterHitShape.Single)
+            {
+                AreaHit(transform.position, Mathf.Max(reach, _type.hitRadius), _type.hitShape == MonsterHitShape.FrontArc, playerDamage, truckDamage);
+                return;
+            }
+
             if (target == AttackTarget.Player)
             {
                 if (player == null || !player.IsAlive || player.IsSeated) return;
@@ -419,6 +543,205 @@ namespace LastTruck.Networking
                 if (_truck == null || _truck.IsBroken) return;
                 if (HorizontalDistance(transform.position, ClosestPointOnTruck(transform.position)) > reach) return;
                 _truck.Take_Damage(truckDamage);
+            }
+        }
+
+        #endregion
+
+        #region 호스트: 종류별 특수 공격
+
+        /// <summary>붐버: 도화선 처리. 터졌으면 true (이번 틱 나머지 처리 안 함).</summary>
+        private bool UpdateFuse()
+        {
+            if (!FuseTimer.IsRunning)
+            {
+                bool seen = false;
+                IReadOnlyList<NetworkPlayer> players = NetworkPlayer.All;
+                for (int i = 0; i < players.Count && !seen; i++)
+                {
+                    NetworkPlayer player = players[i];
+                    if (player != null && player.IsAlive && HorizontalDistance(transform.position, player.transform.position) <= detectionRange) seen = true;
+                }
+                // 트럭 바로 옆까지 왔으면 (트럭에 탄 사람만 있을 때 등) 그때 불을 붙인다.
+                if (!seen && _truck != null && HorizontalDistance(transform.position, ClosestPointOnTruck(transform.position)) <= 4f) seen = true;
+                if (seen) FuseTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(0.5f, _type.fuseSeconds));
+                return false;
+            }
+
+            if (!FuseTimer.Expired(Runner)) return false;
+            Explode();
+            return true;
+        }
+
+        /// <summary>붐버: 주변 원 범위에 피해를 주고 죽는다.</summary>
+        private void Explode()
+        {
+            FuseTimer = TickTimer.None;
+            float radius = Mathf.Max(1f, _type.hitRadius);
+            RPC_Explode(transform.position, radius);
+            AreaHit(transform.position, radius, false, playerDamage, truckDamage);
+
+            if (_agent != null && !_agent.isStopped) _agent.isStopped = true;
+            MoveSpeed = 0f;
+            if (_health != null && !_health.IsDead) _health.ApplyDamage(_health.Current + 1f, transform.position + Vector3.up, false);
+        }
+
+        /// <summary>
+        /// 범위 피해: center에서 radius 안의 플레이어(트럭에 탄 사람 제외)와 트럭.
+        /// frontArc면 몬스터 앞쪽 반원(180도)만.
+        /// </summary>
+        private void AreaHit(Vector3 center, float radius, bool frontArc, float damageToPlayer, float damageToTruck)
+        {
+            Vector3 forward = transform.forward;
+            forward.y = 0f;
+            forward.Normalize();
+
+            IReadOnlyList<NetworkPlayer> players = NetworkPlayer.All;
+            for (int i = 0; i < players.Count; i++)
+            {
+                NetworkPlayer player = players[i];
+                if (player == null || !player.IsAlive || player.IsSeated) continue;
+                Vector3 offset = player.transform.position - center;
+                offset.y = 0f;
+                if (offset.magnitude > radius) continue;
+                if (frontArc && offset.sqrMagnitude > 0.04f && Vector3.Dot(forward, offset.normalized) < 0f) continue;
+
+                NetworkHealth health = player.Health;
+                if (health != null && !health.IsDead) health.ApplyDamage(damageToPlayer, player.transform.position + Vector3.up, false);
+            }
+
+            if (_truck != null && !_truck.IsBroken && damageToTruck > 0f)
+            {
+                Vector3 closest = ClosestPointOnTruck(center);
+                Vector3 offset = closest - center;
+                offset.y = 0f;
+                bool inArc = !frontArc || offset.sqrMagnitude < 0.04f || Vector3.Dot(forward, offset.normalized) >= 0f;
+                if (offset.magnitude <= radius && inArc) _truck.Take_Damage(damageToTruck);
+            }
+        }
+
+        /// <summary>원거리: 목표의 지금 위치로 투사체를 던진다.</summary>
+        private void FireAt(AttackTarget target, NetworkPlayer player)
+        {
+            Vector3 aim;
+            if (target == AttackTarget.Player && player != null && player.IsAlive && !player.IsSeated)
+            {
+                aim = player.transform.position;
+            }
+            else if (_truck != null && !_truck.IsBroken)
+            {
+                aim = ClosestPointOnTruck(transform.position);
+            }
+            else
+            {
+                return;
+            }
+
+            Vector3 from = transform.position + Vector3.up * (1.4f * _baseScale.y);
+            aim.y = Mathf.Min(aim.y, transform.position.y + 3f);
+            float distance = Vector3.Distance(from, aim);
+            float speed = Mathf.Max(1f, _type.projectileSpeed);
+            _shots.Add(new PendingShot { ImpactTime = Time.time + distance / speed, Point = aim });
+            RPC_FireProjectile(from, aim);
+        }
+
+        private void UpdateShots()
+        {
+            for (int i = _shots.Count - 1; i >= 0; i--)
+            {
+                if (Time.time < _shots[i].ImpactTime) continue;
+                Vector3 point = _shots[i].Point;
+                _shots.RemoveAt(i);
+                if (NetworkGameState.IsGameOver || _type == null) continue;
+
+                if (_type.leavesPool)
+                {
+                    _pools.Add(new Pool { EndTime = Time.time + _type.poolDuration, NextTick = Time.time, Center = point });
+                    RPC_SpawnPool(point, _type.poolRadius, _type.poolDuration);
+                }
+                else
+                {
+                    AreaHit(point, Mathf.Max(0.3f, _type.projectileHitRadius), false, playerDamage, truckDamage);
+                }
+            }
+        }
+
+        private void UpdatePools()
+        {
+            for (int i = _pools.Count - 1; i >= 0; i--)
+            {
+                Pool pool = _pools[i];
+                if (Time.time >= pool.EndTime)
+                {
+                    _pools.RemoveAt(i);
+                    continue;
+                }
+                if (Time.time < pool.NextTick) continue;
+                pool.NextTick = Time.time + 1f;
+                _pools[i] = pool;
+
+                float tick = _type.poolDamagePerSecond * MonsterCatalog.Instance.DamageScale(SpawnNight);
+                AreaHit(pool.Center, _type.poolRadius, false, tick, 0f); // 오염 지대는 사람만 (트럭 바퀴는 버틴다)
+            }
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_FireProjectile(Vector3 from, Vector3 to)
+        {
+            MonsterTypeData type = TypeData;
+            Color color = type.leavesPool ? MonsterEffects.PoisonColor
+                        : type.prefersTruck ? MonsterEffects.TargeterColor
+                        : MonsterEffects.SniperColor;
+            float arc = type.leavesPool ? 2.5f : 0.3f;
+            MonsterEffects.Projectile(from, to, color, type.projectileSpeed, arc);
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_SpawnPool(Vector3 center, float radius, float duration)
+        {
+            MonsterEffects.Pool(center, radius, duration);
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_Explode(Vector3 center, float radius)
+        {
+            MonsterEffects.Explosion(center, radius);
+        }
+
+        /// <summary>모든 화면: 붐버 도화선이 타는 동안 점점 빠르게 깜빡이고 부풀었다 줄었다 한다.</summary>
+        private void RenderFuse(bool dead)
+        {
+            if (_type == null || !_type.selfDestruct) return;
+            bool burning = !dead && Runner != null && FuseTimer.IsRunning;
+            if (!burning)
+            {
+                if (_fuseFlashOn) SetFuseFlash(false);
+                transform.localScale = _baseScale;
+                return;
+            }
+
+            float remaining = FuseTimer.RemainingTime(Runner) ?? 0f;
+            float speed = Mathf.Lerp(14f, 3f, Mathf.Clamp01(remaining / Mathf.Max(0.5f, _type.fuseSeconds)));
+            bool on = Mathf.Sin(Time.time * speed * Mathf.PI) > 0f;
+            if (on != _fuseFlashOn) SetFuseFlash(on);
+            transform.localScale = _baseScale * (1f + (on ? 0.08f : 0f));
+        }
+
+        private void SetFuseFlash(bool on)
+        {
+            _fuseFlashOn = on;
+            foreach (Renderer renderer in GetComponentsInChildren<Renderer>())
+            {
+                if (renderer == null || !renderer.enabled || renderer is ParticleSystemRenderer) continue;
+                Material material = renderer.material;
+                Color color = on ? new Color(1f, 0.25f, 0.15f) : _type.tint;
+                if (material.HasProperty("_EmissionColor"))
+                {
+                    material.EnableKeyword("_EMISSION");
+                    material.SetColor("_EmissionColor", on ? new Color(0.9f, 0.15f, 0.05f) : Color.black);
+                }
+                if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", color);
+                else if (material.HasProperty("_Color")) material.SetColor("_Color", color);
             }
         }
 
@@ -444,6 +767,7 @@ namespace LastTruck.Networking
         {
             bool dead = _health != null && _health.IsDead;
             if (dead && !_deathApplied) ApplyDeath();
+            RenderFuse(dead);
 
             if (_animator == null || !_animator.isActiveAndEnabled) return;
             float target = dead ? 0f : MoveSpeed;

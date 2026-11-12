@@ -2443,6 +2443,12 @@ MonoBehaviour:
       m_LigatureGlyphID: 553
     - m_ComponentGlyphIDs: 19020000b3380000
       m_LigatureGlyphID: 544
+    - m_ComponentGlyphIDs: 5e33000005370000
+      m_LigatureGlyphID: 14518
+    - m_ComponentGlyphIDs: 5e33000006370000
+      m_LigatureGlyphID: 14541
+    - m_ComponentGlyphIDs: 5e33000060330000
+      m_LigatureGlyphID: 13169
     m_GlyphPairAdjustmentRecords:
     - m_FirstAdjustmentRecord:
         m_GlyphIndex: 13149
@@ -157214,6 +157220,36 @@ MonoBehaviour:
           m_XAdvance: 0
           m_YAdvance: 0
       m_FeatureLookupFlags: -1111202883
+    - m_FirstAdjustmentRecord:
+        m_GlyphIndex: 13150
+        m_GlyphValueRecord:
+          m_XPlacement: 0
+          m_YPlacement: 0
+          m_XAdvance: 15.556641
+          m_YAdvance: 0
+      m_SecondAdjustmentRecord:
+        m_GlyphIndex: 14085
+        m_GlyphValueRecord:
+          m_XPlacement: 0
+          m_YPlacement: 0
+          m_XAdvance: 0
+          m_YAdvance: 0
+      m_FeatureLookupFlags: 786719677
+    - m_FirstAdjustmentRecord:
+        m_GlyphIndex: 13150
+        m_GlyphValueRecord:
+          m_XPlacement: 0
+          m_YPlacement: 0
+          m_XAdvance: 15.556641
+          m_YAdvance: 0
+      m_SecondAdjustmentRecord:
+        m_GlyphIndex: 14086
+        m_GlyphValueRecord:
+          m_XPlacement: 0
+          m_YPlacement: 0
+          m_XAdvance: 0
+          m_YAdvance: 0
+      m_FeatureLookupFlags: 786719677
     m_MarkToBaseAdjustmentRecords:
     - m_BaseGlyphID: 147
       m_BaseGlyphAnchorPoint:

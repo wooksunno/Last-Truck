@@ -201,7 +201,9 @@ namespace LastTruck.Networking
         }
 
         /// <summary>재접속 / 방장 변경으로 이 캐릭터의 조종 권한을 받았다.</summary>
-        void IInputAuthorityGained.InputAuthorityGained()
+        void IInputAuthorityGained.InputAuthorityGained() => OnLocalAuthorityGained();
+
+        private void OnLocalAuthorityGained()
         {
             // 다른 사람 캐릭터로 보이던 동안 꺼 둔 입력 스크립트를 다시 켠다 (기절해 있으면 OnDied 규칙대로 다시 끈다).
             foreach (UnityEngine.Behaviour behaviour in GetLocalOnlyBehaviours())
@@ -213,7 +215,9 @@ namespace LastTruck.Networking
             if (_health != null && _health.IsDead) OnDied(_health);
         }
 
-        void IInputAuthorityLost.InputAuthorityLost()
+        void IInputAuthorityLost.InputAuthorityLost() => OnLocalAuthorityLost();
+
+        private void OnLocalAuthorityLost()
         {
             UnsubscribeBag();
             if (Local == this)
@@ -425,20 +429,83 @@ namespace LastTruck.Networking
             if (owner != PlayerRef.None && NetworkTruck.IsReady) NetworkTruck.Instance.HostForceExit(owner);
             ClearReviver();
 
-            Object.AssignInputAuthority(PlayerRef.None);
+            HostSetInputAuthority(PlayerRef.None);
             Departed = true;
             DepartTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(1f, seconds));
             ClaimTimer = TickTimer.None;
             Debug.Log($"[NetworkPlayer] {Nickname} 나감 → {seconds:0}초 동안 재접속 대기");
+            NetworkGameState.HostSystemMessage($"{Nickname}님이 나갔습니다. {seconds / 60f:0}분 안에 돌아오면 이어서 할 수 있습니다.");
+        }
+
+        /// <summary>
+        /// 호스트: 조종 권한을 바꾼다. Fusion은 InputAuthorityGained/Lost를 클라이언트(복제 받을 때)에서만 부르고
+        /// 호스트 자신의 캐릭터에는 부르지 않는다 → 방장 변경 뒤 새 방장이 자기 캐릭터를 받을 때 직접 불러 준다.
+        /// </summary>
+        private void HostSetInputAuthority(PlayerRef player)
+        {
+            PlayerRef before = Object.InputAuthority;
+            if (before == player) return;
+            Object.AssignInputAuthority(player);
+
+            PlayerRef local = Runner.LocalPlayer;
+            if (local == PlayerRef.None) return;
+            if (player == local) OnLocalAuthorityGained();
+            else if (before == local) OnLocalAuthorityLost();
+        }
+
+        // ---------------- 채팅 입력 중 조작 막기 (내 캐릭터) ----------------
+
+        private readonly List<UnityEngine.Behaviour> _chatDisabledBehaviours = new List<UnityEngine.Behaviour>();
+
+        /// <summary>채팅 입력 중: 키를 직접 읽는 내 캐릭터 스크립트(상호작용/인벤토리/무기 등)를 잠시 끈다.</summary>
+        public void SetChatSuspended(bool suspended)
+        {
+            if (suspended)
+            {
+                if (!IsLocal) return;
+                foreach (UnityEngine.Behaviour behaviour in GetLocalOnlyBehaviours())
+                {
+                    if (behaviour == null || !behaviour.enabled) continue;
+                    behaviour.enabled = false;
+                    _chatDisabledBehaviours.Add(behaviour);
+                }
+                return;
+            }
+
+            // 그사이 기절했거나 트럭에 탔으면, 부활/하차할 때 켜지도록 그쪽 목록으로 넘긴다.
+            foreach (UnityEngine.Behaviour behaviour in _chatDisabledBehaviours)
+            {
+                if (behaviour == null || !IsLocal) continue;
+                if (!IsAlive)
+                {
+                    if (!_downDisabledBehaviours.Contains(behaviour)) _downDisabledBehaviours.Add(behaviour);
+                }
+                else if (IsSeated)
+                {
+                    if (!_seatDisabledBehaviours.Contains(behaviour)) _seatDisabledBehaviours.Add(behaviour);
+                }
+                else
+                {
+                    behaviour.enabled = true;
+                }
+            }
+            _chatDisabledBehaviours.Clear();
         }
 
         /// <summary>호스트: 방장 변경 직후 이 캐릭터의 주인이 다시 붙기를 seconds초 기다린다.</summary>
         public void HostBeginClaimWait(float seconds)
         {
             if (!HasStateAuthority) return;
-            Object.AssignInputAuthority(PlayerRef.None);
+            HostSetInputAuthority(PlayerRef.None);
             ClearReviver();
             ClaimTimer = TickTimer.CreateFromSeconds(Runner, Mathf.Max(1f, seconds));
+        }
+
+        /// <summary>호스트: 주인 없는 캐릭터인데 되찾기 대기 시간이 안 걸려 있으면 건다 (복원 직후 놓친 경우 대비).</summary>
+        public void HostEnsureClaimWait(float seconds)
+        {
+            if (!HasStateAuthority || !IsUnclaimed || ClaimTimer.IsRunning) return;
+            HostBeginClaimWait(seconds);
         }
 
         /// <summary>호스트: 같은 사람이 돌아왔다 → 조종 권한을 돌려주고 가방을 복구하게 한다.</summary>
@@ -446,7 +513,7 @@ namespace LastTruck.Networking
         {
             if (!HasStateAuthority || player == PlayerRef.None) return;
 
-            Object.AssignInputAuthority(player);
+            HostSetInputAuthority(player);
             Runner.SetPlayerObject(player, Object);
             Departed = false;
             DepartTimer = TickTimer.None;
@@ -472,6 +539,7 @@ namespace LastTruck.Networking
                 }
             }
             Debug.Log($"[NetworkPlayer] {Nickname} 재접속 시간 초과 → 가방 아이템 {moved}개를 트럭으로 옮기고 캐릭터 제거");
+            NetworkGameState.HostSystemMessage($"{Nickname}님이 돌아오지 않아 가방 아이템 {moved}개를 트럭으로 옮겼습니다.");
             Runner.Despawn(Object);
         }
 

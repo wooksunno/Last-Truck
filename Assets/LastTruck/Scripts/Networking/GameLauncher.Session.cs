@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Fusion;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace LastTruck.Networking
 {
@@ -31,7 +32,7 @@ namespace LastTruck.Networking
         public const float ReconnectWindowSeconds = 180f;
 
         /// <summary>방장 변경 직후, 각 캐릭터의 주인이 새 방에 다시 붙기를 기다리는 시간(초). 넘으면 "나감"으로 본다.</summary>
-        public const float ClaimWaitSeconds = 20f;
+        public const float ClaimWaitSeconds = 10f;
 
         /// <summary>방장 변경 뒤 내 캐릭터를 다시 받을 때까지 멈춰서 기다리는 최대 시간(초).</summary>
         private const float MigrationLocalWaitSeconds = 15f;
@@ -44,6 +45,16 @@ namespace LastTruck.Networking
 
         private bool _migrating;        // 방장 변경 진행 중 (러너를 다시 만드는 중)
         private bool _resumeDone = true; // 새 방장: 스냅샷 복원이 끝났는가
+        private bool _reRegisteringScene; // 새 방장: 이미 떠 있는 게임 씬을 네트워크 씬으로 다시 등록하는 중
+        private string _pendingAnnouncement; // 새 방장: 멈춤이 풀리면 모두에게 보낼 알림
+
+        /// <summary>미뤄 둔 알림을 꺼낸다 (한 번만).</summary>
+        public string TakePendingAnnouncement()
+        {
+            string message = _pendingAnnouncement;
+            _pendingAnnouncement = null;
+            return message;
+        }
 
         private string _lastSessionName;
         private string _lastSessionTitle;
@@ -128,6 +139,23 @@ namespace LastTruck.Networking
             return FindReturningCharacter(deviceId) != null;
         }
 
+        private static NetworkPlayer FindUnclaimedByNickname(string nickname)
+        {
+            if (string.IsNullOrEmpty(nickname)) return null;
+            foreach (NetworkPlayer player in NetworkPlayer.AllIncludingDeparted)
+            {
+                if (player == null || player.Object == null || !player.Object.IsValid) continue;
+                if (player.IsUnclaimed && player.Nickname.ToString() == nickname) return player;
+            }
+            return null;
+        }
+
+        private static string ShortId(string deviceId)
+        {
+            if (string.IsNullOrEmpty(deviceId)) return "-";
+            return deviceId.Length <= 6 ? deviceId : deviceId.Substring(0, 4) + ".." + deviceId.Substring(deviceId.Length - 2);
+        }
+
         private static NetworkPlayer FindReturningCharacter(string deviceId)
         {
             if (string.IsNullOrEmpty(deviceId)) return null;
@@ -148,11 +176,31 @@ namespace LastTruck.Networking
         {
             if (_migrating && !_resumeDone) return true;
 
-            NetworkPlayer character = FindReturningCharacter(DeviceIdOf(runner, player));
-            if (character == null) return false;
+            // 이미 캐릭터가 붙어 있으면 또 붙이지 않는다 (한 사람에게 캐릭터 2개 → 같이 움직이던 문제).
+            if (_characterObjects.TryGetValue(player, out NetworkObject owned) && owned != null && owned.IsValid) return true;
+            foreach (NetworkPlayer existing in NetworkPlayer.AllIncludingDeparted)
+            {
+                if (existing != null && existing.Object != null && existing.Object.IsValid && existing.Object.InputAuthority == player)
+                {
+                    _characterObjects[player] = existing.Object;
+                    return true;
+                }
+            }
 
+            string deviceId = DeviceIdOf(runner, player);
+            NetworkPlayer character = FindReturningCharacter(deviceId);
+            // 새 방장 자신: 기기 ID로 못 찾으면 닉네임으로 한 번 더 찾는다.
+            if (character == null && player == runner.LocalPlayer) character = FindUnclaimedByNickname(PlayerProfile.ClampForNetwork(PlayerProfile.Nickname));
+            if (character == null)
+            {
+                LogSession($"돌려줄 캐릭터 없음 ({player}, 기기 {ShortId(deviceId)})");
+                return false;
+            }
+
+            bool wasAway = character.IsAwaitingReturn; // 재접속 (방장 변경 직후 되찾기는 알리지 않는다)
             character.HostReattach(player);
             _characterObjects[player] = character.Object;
+            if (wasAway) NetworkGameState.HostSystemMessage($"{character.Nickname}님이 다시 들어왔습니다.");
             LogSession($"{character.Nickname} 다시 연결 ({player})");
             return true;
         }
@@ -182,7 +230,8 @@ namespace LastTruck.Networking
             _migrating = true;
             _resumeDone = hostMigrationToken.GameMode != GameMode.Host;
             SystemUI.Dismiss(LeaveGamePopupTag);
-            NetworkPause.Begin(NetworkPause.MigrationReason, "방장이 나갔습니다.\n새 방장으로 게임을 이어가는 중...");
+            ChatHud.AddLocal(string.Empty, "방장이 나갔습니다. 새 방장에게 연결하는 중...", ChatKind.Warning);
+            NetworkPause.Begin(NetworkPause.MigrationReason, "방장이 나갔습니다.\n다른 플레이어가 방장이 되어 게임을 이어갑니다. 잠시만 기다려 주세요.");
 
             // 1. 내 가방은 내 컴퓨터의 최신 상태를 붙잡아 둔다 (새 캐릭터에 그대로 넣는다).
             NetworkPlayer local = NetworkPlayer.Local;
@@ -242,8 +291,22 @@ namespace LastTruck.Networking
 
             _wasHostInSession = _runner.IsServer;
             _resumeDone = true; // (스냅샷이 없어 복원 콜백이 안 불린 경우 대비)
+
+            // 새 방장: 복원 콜백 때는 아직 내 플레이어가 방에 없어서 못 붙였을 수 있다 → 지금 내 캐릭터를 붙인다.
+            if (_runner.IsServer)
+            {
+                if (_runner.LocalPlayer != PlayerRef.None) HostAttachReturningPlayer(_runner, _runner.LocalPlayer);
+                // 아직 주인이 안 온 캐릭터는 되찾기 대기 시간을 건다 (안 오면 자리 비움 → 3분 재접속 대기).
+                foreach (NetworkPlayer character in NetworkPlayer.AllIncludingDeparted)
+                {
+                    if (character != null && character.Object != null && character.Object.IsValid) character.HostEnsureClaimWait(ClaimWaitSeconds);
+                }
+                EnsureGameSceneRegistered(_runner);
+            }
             if (_state != LauncherState.InGame) SetState(LauncherState.InGame);
             LogSession(becomeHost ? "내가 새 방장이 되었습니다." : "새 방장에게 다시 연결했습니다.");
+            // 모두 다시 연결되어 멈춤이 풀릴 때 NetworkGameState가 모두에게 보낸다.
+            if (becomeHost) _pendingAnnouncement = $"방장이 나갔습니다. {PlayerProfile.Nickname}님이 새 방장이 되었습니다.";
 
             // 4. 내 캐릭터를 다시 받을 때까지(최대 MigrationLocalWaitSeconds) 멈춘 채 기다린 뒤 이어서 진행한다.
             float deadline = Time.realtimeSinceStartup + MigrationLocalWaitSeconds;
@@ -260,6 +323,43 @@ namespace LastTruck.Networking
             {
                 LogSession("방장 변경 후 내 캐릭터를 찾지 못했습니다.");
                 SystemUI.Alert("방장 변경", "새 방장에게 연결됐지만 내 캐릭터를 찾지 못했습니다.");
+            }
+        }
+
+        /// <summary>
+        /// 새 방장: 방장이 바뀐 뒤에는 네트워크 씬 목록이 비어 있을 수 있다.
+        /// 그러면 나중에 재접속하는 사람이 게임 씬을 불러오지 않아 메뉴(대기실) 화면에 남는다
+        /// → 이미 떠 있는 게임 씬을 다시 불러오지 않고 그대로 "이어받기"(Additive + 씬 이어받기)로 목록에 올린다.
+        /// (Single로 부르면 Fusion이 씬의 런타임 오브젝트(캐릭터/몬스터)를 지우므로 Additive를 쓴다)
+        /// </summary>
+        private void EnsureGameSceneRegistered(NetworkRunner runner)
+        {
+            int index = FindBuildIndex(gameSceneName);
+            if (runner == null || !runner.IsServer || index < 0) return;
+
+            SceneRef sceneRef = SceneRef.FromIndex(index);
+            int count = 0;
+            bool listed = false;
+            if (runner.TryGetSceneInfo(out NetworkSceneInfo info))
+            {
+                count = info.SceneCount;
+                for (int i = 0; i < count; i++)
+                {
+                    if (info.Scenes[i] == sceneRef) listed = true;
+                }
+            }
+            LogSession($"새 방장: 네트워크 씬 {count}개{(listed ? string.Empty : " → 게임 씬 다시 등록")}");
+            if (listed) return;
+
+            try
+            {
+                _reRegisteringScene = true;
+                runner.LoadScene(sceneRef, LoadSceneMode.Additive);
+            }
+            catch (Exception e)
+            {
+                _reRegisteringScene = false;
+                Debug.LogException(e);
             }
         }
 
