@@ -20,6 +20,9 @@ namespace CraftingSystem
 
         private static Sprite _cachedCircleSprite;
 
+        // UI Toolkit 이름표/게이지 (있으면 이쪽으로 그리고 uGUI는 숨긴다)
+        private LastTruck.GatherHudView _hud;
+
         [Header("에디터에서 미리 그려둔 UI (비워두면 코드로 생성)")]
         [SerializeField] private GameObject authoredGaugeRoot;
         [SerializeField] private Image authoredFill;
@@ -49,6 +52,16 @@ public void Initialize(LastTruck.PlayerInteract playerInteract, EatController ea
                 else
                 {
                     BuildUI();
+                }
+            }
+
+            if (_hud == null)
+            {
+                _hud = LastTruck.GatherHudView.Create();
+                if (_hud != null)
+                {
+                    if (_root != null) _root.SetActive(false);
+                    if (_labelRoot != null) _labelRoot.SetActive(false);
                 }
             }
         }
@@ -141,6 +154,14 @@ private void Update()
             bool trapping = _trap != null && _trap.IsHolding;
             bool holding = gathering || eating || trapping;
 
+            if (_hud != null)
+            {
+                UpdateLabel();
+                float p = !holding ? 0f : gathering ? _playerInteract.HoldProgress01 : eating ? _eat.HoldProgress01 : _trap.HoldProgress01;
+                _hud.SetGauge(holding, p);
+                return;
+            }
+
             if (_root.activeSelf != holding)
                 _root.SetActive(holding);
 
@@ -224,6 +245,13 @@ private void Update()
                     sp = cam.WorldToScreenPoint(LabelAnchor());
                     if (sp.z <= 0.1f) show = false;
                 }
+            }
+            if (_hud != null)
+            {
+                if (!show && comp == null) _labelTarget = null;
+                _hud.SetLabel(show, show ? label.InteractLabel : null, show ? label.InteractLabelColor : Color.white,
+                    show ? label.InteractSubLabel : null, new Vector2(sp.x, sp.y));
+                return;
             }
             if (_labelRoot.activeSelf != show) _labelRoot.SetActive(show);
             if (!show) { if (comp == null) _labelTarget = null; _labelPosValid = false; return; }

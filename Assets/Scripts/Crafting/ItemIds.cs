@@ -16,6 +16,7 @@ namespace CraftingSystem
         public const string PoisonHerb = "poison_herb"; // 독약초
         public const string Fish = "fish";
         public const string Meat = "meat";
+        public const string RottenMeat = "rotten_meat"; // 썩은 고기 (몬스터 전리품, 약초와 합치면 고기)
         public const string WetHide = "wet_hide"; // 젖은 가죽
 
         // 1차 가공된 재료
@@ -94,6 +95,7 @@ namespace CraftingSystem
         public const string SpikeBumper = "spike_bumper"; // 강철가시 범퍼
         public const string GrinderWheel = "grinder_wheel"; // 초진동 회전 분쇄 휠
         public const string TunedEngine = "tuned_engine"; // 개조 엔진 (트럭 파츠: 엔진)
+        public const string FishingRod = "fishing_rod"; // 낚싯대 (물가에서 왼쪽 클릭으로 던진다)
         public const string MiniTurret = "mini_turret"; // 미니 포탑 (트럭 파츠: 지붕)
 
         // 포탑 탄환 (자원 1개 → 5발)
@@ -123,6 +125,15 @@ namespace CraftingSystem
         public const string MortarTurret = "mortar_turret"; // 박격포 포탑: 넓은 범위 폭발
         public const string FlameTurret = "flame_turret"; // 화염 포탑: 가까이 불바다
         public const string RailTurret = "rail_turret"; // 레일 포탑: 일직선 관통 (최종)
+
+        // 자동 포탑 (트럭 적재함 파츠). 위 포탑을 재료로 쓰고 첨단 부품이 더 들어가는 상위 버전: 사수 없이 가까운 적을 알아서 쏜다.
+        // id는 항상 "auto_" + 수동 포탑 id (TruckUpgradeRules가 이 규칙으로 수치를 만든다)
+        public const string AutoMiniTurret = "auto_mini_turret";
+        public const string AutoGatlingTurret = "auto_gatling_turret";
+        public const string AutoSniperTurret = "auto_sniper_turret";
+        public const string AutoMortarTurret = "auto_mortar_turret";
+        public const string AutoFlameTurret = "auto_flame_turret";
+        public const string AutoRailTurret = "auto_rail_turret";
 
         // 트럭 파츠 (상위)
         public const string TurboEngine = "turbo_engine"; // 터보 엔진 (엔진 자리, 최종)

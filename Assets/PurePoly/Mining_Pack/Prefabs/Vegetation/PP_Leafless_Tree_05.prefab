@@ -12,7 +12,6 @@ GameObject:
   - component: {fileID: 9083879386466999995}
   - component: {fileID: 6481976624048450161}
   - component: {fileID: 4824594443671997349}
-  - component: {fileID: 1174664106849362035}
   m_Layer: 0
   m_Name: PP_Leafless_Tree_05
   m_TagString: Untagged
@@ -114,19 +113,3 @@ MeshCollider:
   m_Convex: 1
   m_CookingOptions: 30
   m_Mesh: {fileID: -5180232183553885590, guid: 80b71bca4b96cb4498bebb1759b3b9ea, type: 3}
---- !u!114 &1174664106849362035
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4824594443671997348}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 90cde8a7b7bf84e4a8d618936abb29a4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FadingObject
-  Renderers: []
-  Position: {x: 0, y: 0, z: 0}
-  Materials: []
-  InitialAlpha: 0

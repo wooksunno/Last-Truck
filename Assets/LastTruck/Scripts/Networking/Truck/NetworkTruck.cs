@@ -65,6 +65,7 @@ namespace LastTruck.Networking
         [Networked, Capacity(CraftingSystem.TruckUpgradeRules.StatCount)] private NetworkArray<int> UpgradeLevels => default;
         [Networked] private int UpgradeRevision { get; set; }
         [Networked] public float TurretYaw { get; set; }
+        [Networked] public float TurretPitch { get; set; }
 
         #endregion
 
@@ -92,6 +93,19 @@ namespace LastTruck.Networking
             rotation = Quaternion.Euler(0f, seat.eulerAngles.y, 0f);
             return true;
         }
+
+        /// <summary>이 플레이어의 좌석 위치. 포탑 사수는 포탑 위에 서 있고(모두에게 보임), 나머지는 운전석 안.</summary>
+        public static bool TryGetSeatPose(PlayerRef player, out Vector3 position, out Quaternion rotation)
+        {
+            if (SeatOfPlayer(player) == TurretSeat && CraftingSystem.TruckTurret.Instance != null &&
+                CraftingSystem.TruckTurret.Instance.TryGetStandPose(out position, out rotation))
+                return true;
+            return TryGetSeatPose(out position, out rotation);
+        }
+
+        /// <summary>포탑 위에 서 있는가 (포탑 사수 자리 + 포탑이 달려 있음).</summary>
+        public static bool IsOnTurret(PlayerRef player) =>
+            SeatOfPlayer(player) == TurretSeat && Instance.HasTurret;
 
         /// <summary>트럭 Transform (없으면 null).</summary>
         public static Transform TruckTransform => IsReady && Instance.FindTruck() ? Instance._truck.transform : null;
@@ -337,6 +351,31 @@ namespace LastTruck.Networking
             {
                 character.transform.position = exit;
             }
+
+            // 달리는 트럭에서 내리면 그 속도대로 튕겨 나간다
+            Vector3 fling = ExitFling(_truck.transform, _truck.GetComponent<Rigidbody>(), exit);
+            if (fling != Vector3.zero && character.TryGetComponent(out NetworkPlayerMovement movement))
+                movement.Fling(fling);
+        }
+
+        /// <summary>
+        /// 달리는 트럭에서 내릴 때 캐릭터가 튕겨 나갈 속도 (멈춰 있으면 0).
+        /// 트럭 속도의 대부분 + 내리는 쪽(바깥)으로 조금 + 빠를수록 위로 살짝 뜬다.
+        /// </summary>
+        public static Vector3 ExitFling(Transform truck, Rigidbody truckRb, Vector3 exitPosition)
+        {
+            if (truck == null || truckRb == null) return Vector3.zero;
+            Vector3 v = truckRb.linearVelocity;
+            v.y = 0f;
+            float speed = v.magnitude;
+            if (speed < 3f) return Vector3.zero;
+
+            Vector3 side = exitPosition - truck.position;
+            side.y = 0f;
+            side = side.sqrMagnitude > 0.01f ? side.normalized : truck.right;
+            Vector3 fling = v * 0.85f + side * Mathf.Min(4f, speed * 0.25f);
+            fling.y = Mathf.Clamp(speed * 0.28f, 0f, 5f);
+            return fling;
         }
 
         /// <summary>내릴 위치: 트럭의 Exit Point에서 좌석 번호만큼 뒤로 벌리고, 바닥 높이에 맞춘다.</summary>
@@ -359,6 +398,33 @@ namespace LastTruck.Networking
                 }
             }
             return position;
+        }
+
+        /// <summary>T: 포탑에 오르기 ↔ 포탑에서 좌석으로 (운전석이 비었고 낮이면 운전석, 아니면 빈 동승석).</summary>
+        private void HostToggleTurret(PlayerRef player)
+        {
+            int seat = SeatOf(player);
+            if (seat < 0 || !FindTruck()) return;
+
+            if (seat == TurretSeat)
+            {
+                int target = -1;
+                if (!GameManager.IsNight && Seats[DriverSeat] == PlayerRef.None) target = DriverSeat;
+                else
+                {
+                    for (int i = 1; i < SeatCount; i++)
+                        if (i != TurretSeat && Seats[i] == PlayerRef.None) { target = i; break; }
+                }
+                if (target < 0) { RPC_Notify(player, "옮겨 갈 빈 좌석이 없습니다."); return; }
+                Seats.Set(TurretSeat, PlayerRef.None);
+                Seats.Set(target, player);
+                return;
+            }
+
+            if (!HasTurret) { RPC_Notify(player, "트럭에 포탑이 없습니다."); return; }
+            if (Seats[TurretSeat] != PlayerRef.None) { RPC_Notify(player, "이미 다른 사람이 포탑을 잡고 있습니다."); return; }
+            Seats.Set(seat, PlayerRef.None);
+            Seats.Set(TurretSeat, player);
         }
 
         private void HostTakeDriverSeat(PlayerRef player)
@@ -486,7 +552,7 @@ namespace LastTruck.Networking
             Instance.RPC_Upgrade((int)stat);
         }
 
-        public static void SendTurretAim(float yaw) { if (IsReady) Instance.RPC_TurretAim(yaw); }
+        public static void SendTurretAim(float yaw, float pitch) { if (IsReady) Instance.RPC_TurretAim(yaw, pitch); }
         public static void SendTurretFire(Vector3 aimPoint) { if (IsReady) Instance.RPC_TurretFire(aimPoint); }
         public static void SendTurretCraftAmmo() { if (IsReady) Instance.RPC_TurretCraftAmmo(); }
 
@@ -525,10 +591,12 @@ namespace LastTruck.Networking
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-        private void RPC_TurretAim(float yaw, RpcInfo info = default)
+        private void RPC_TurretAim(float yaw, float pitch, RpcInfo info = default)
         {
             if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_TurretAim), 60)) return;
-            if (Seats[TurretSeat] == SourceOf(info)) TurretYaw = yaw;
+            if (Seats[TurretSeat] != SourceOf(info)) return;
+            TurretYaw = yaw;
+            TurretPitch = Mathf.Clamp(pitch, -60f, 60f);
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
@@ -555,6 +623,19 @@ namespace LastTruck.Networking
         private void RPC_TurretShot(Vector3 from, Vector3 to)
         {
             if (CraftingSystem.TruckTurret.Instance != null) CraftingSystem.TruckTurret.Instance.ShowShot(from, to);
+        }
+
+        /// <summary>호스트: 자동 포탑 발사 연출을 모두에게.</summary>
+        public static void BroadcastAutoTurretShot(Vector3 from, Vector3 to)
+        {
+            if (IsReady) Instance.RPC_AutoTurretShot(from, to);
+            else if (CraftingSystem.TruckAutoTurret.Instance != null) CraftingSystem.TruckAutoTurret.Instance.ShowShot(from, to);
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_AutoTurretShot(Vector3 from, Vector3 to)
+        {
+            if (CraftingSystem.TruckAutoTurret.Instance != null) CraftingSystem.TruckAutoTurret.Instance.ShowShot(from, to);
         }
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
@@ -616,6 +697,9 @@ namespace LastTruck.Networking
             if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestDriverSeat), 15)) return;
             HostTakeDriverSeat(SourceOf(info));
         }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_ToggleTurret(RpcInfo info = default) => HostToggleTurret(SourceOf(info));
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_ToggleLights(RpcInfo info = default)
@@ -770,9 +854,13 @@ namespace LastTruck.Networking
             {
                 RPC_ToggleLights();
             }
-            else if (seat > DriverSeat && Input.GetKeyDown(KeyCode.F) && Seats[DriverSeat] == PlayerRef.None)
+            else if (seat > DriverSeat && seat != TurretSeat && Input.GetKeyDown(KeyCode.F) && Seats[DriverSeat] == PlayerRef.None)
             {
                 RPC_RequestDriverSeat();
+            }
+            else if (Input.GetKeyDown(KeyCode.T) && (seat == TurretSeat || HasTurret))
+            {
+                RPC_ToggleTurret();
             }
         }
 
@@ -813,10 +901,12 @@ namespace LastTruck.Networking
         private void OnGUI()
         {
             if (_localSeat < 0 || !IsReady) return;
+            if (_localSeat == TurretSeat && HasTurret) return;   // 포탑 사수 안내는 TruckTurret이 그린다
 
+            string turretHint = HasTurret && Seats[TurretSeat] == PlayerRef.None ? "   T: 포탑에 오르기" : "";
             string text = _localSeat == DriverSeat
-                ? (GameManager.IsNight ? "밤에는 운전할 수 없습니다   E: 내리기" : "운전 중   W/S: 전진·후진   A/D: 핸들   Space: 브레이크   L: 라이트   E: 내리기")
-                : (Seats[DriverSeat] == PlayerRef.None ? "동승 중   F: 운전석으로 이동   E: 내리기" : "동승 중   E: 내리기");
+                ? (GameManager.IsNight ? "밤에는 운전할 수 없습니다" + turretHint + "   E: 내리기" : "운전 중   W/S: 전진·후진   A/D: 핸들   Space: 브레이크   L: 라이트" + turretHint + "   E: 내리기")
+                : (Seats[DriverSeat] == PlayerRef.None ? "동승 중   F: 운전석으로 이동" + turretHint + "   E: 내리기" : "동승 중" + turretHint + "   E: 내리기");
 
             var style = new GUIStyle(GUI.skin.box) { fontSize = Mathf.Max(14, Screen.height / 45), alignment = TextAnchor.MiddleCenter };
             style.normal.textColor = Color.white;

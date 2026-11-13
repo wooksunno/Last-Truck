@@ -82,6 +82,21 @@ namespace LastTruck.Networking
 
         #region 초기화
 
+        private void Awake()
+        {
+            // UI Toolkit 로비가 만들어지면 예전 uGUI 화면(이 캔버스)은 끄고, 이 스크립트도 멈춘다.
+            if (LobbyToolkitView.TryCreate() == null) return;
+            Canvas canvas = sessionListPanel != null ? sessionListPanel.GetComponentInParent<Canvas>(true) : GetComponentInParent<Canvas>(true);
+            if (canvas != null)
+            {
+                canvas = canvas.rootCanvas;
+                canvas.enabled = false;
+                var raycaster = canvas.GetComponent<GraphicRaycaster>();
+                if (raycaster != null) raycaster.enabled = false;
+            }
+            enabled = false;
+        }
+
         private void Start()
         {
             _launcher = GameLauncher.Instance;

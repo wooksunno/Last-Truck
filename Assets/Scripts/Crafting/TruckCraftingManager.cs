@@ -148,6 +148,15 @@ namespace CraftingSystem
             Debug.Log(
                 $"[TruckCrafting] 제작 성공: {recipe.GetDisplayName()} → " +
                 $"{recipe.output.item.itemName} x{recipe.output.count}");
+
+            // 포탑/엔진/전면/장갑 파츠는 만들자마자 트럭에 붙는다 (설비가 만들어지면 바로 설치되는 것과 같다).
+            // 그 자리에 있던 파츠는 트럭 보관함으로 돌아온다. 효과(포탑 사격, 속도, 방어)는 장착과 함께 바로 켜진다.
+            if (TruckUpgradeRules.IsPart(outputItem.itemID))
+            {
+                var upgrades = GetComponent<TruckUpgradeState>();
+                if (upgrades != null && upgrades.TryInstall(outputItem, inv, out string installMessage) && !TruckInventory.IsHandlingRemoteRequest)
+                    LastTruck.HudToast.Show(installMessage);
+            }
             return true;
         }
 

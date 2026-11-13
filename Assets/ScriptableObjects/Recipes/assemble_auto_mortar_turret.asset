@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 390686697781ce44e929a2c7da880592, type: 3}
+  m_Name: assemble_auto_mortar_turret
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
+  recipeID: assemble_auto_mortar_turret
+  displayName: "\uC790\uB3D9 \uBC15\uACA9\uD3EC \uD3EC\uD0D1 \uC870\uB9BD"
+  requiredFacility: 0
+  inputs:
+  - item: {fileID: 11400000, guid: ad9a5e40872c52c46ade24779f5f22ff, type: 2}
+    count: 1
+  - item: {fileID: 11400000, guid: ea27a103f6f1b6b41883814ca3596c40, type: 2}
+    count: 2
+  - item: {fileID: 11400000, guid: 49ac97b3f12290b4e9cd0300952649c2, type: 2}
+    count: 3
+  - item: {fileID: 11400000, guid: 6bdf6c9d006460340a6224f0b9e97755, type: 2}
+    count: 2
+  - item: {fileID: 11400000, guid: 7829404e4fd1b7643ad62dab01fdf92a, type: 2}
+    count: 2
+  - item: {fileID: 11400000, guid: d48049d05c578934ab869df6057fd170, type: 2}
+    count: 1
+  output:
+    item: {fileID: 11400000, guid: d3dff554db506d845ac231453c20eb37, type: 2}
+    count: 1
+  processingSeconds: 2

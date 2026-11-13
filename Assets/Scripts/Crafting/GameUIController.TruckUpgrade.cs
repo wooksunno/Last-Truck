@@ -20,7 +20,7 @@ namespace CraftingSystem
         private static readonly Color UpgradeAccent = new Color(0.52f, 0.86f, 0.62f);
 
         // 자리/스탯에 쓰는 그림 이름 (TruckPartSlot / TruckStat 순서)
-        private static readonly string[] SlotIconNames = { "engine", "bumper", "plate", "turret" };
+        private static readonly string[] SlotIconNames = { "engine", "bumper", "plate", "turret", "turret" };
         private static readonly string[] StatIconNames = { "shield", "speed", "bulb", "sword", "turret", "rate", "crosshair", "burst" };
 
         private Text _upgradeInfo;
@@ -80,6 +80,11 @@ namespace CraftingSystem
             TruckInventory truckInv = ActiveTruckInventory;
             TruckUpgradeState state = TruckUpgradeState.Instance;
             WatchUpgrades(state);
+
+            // 강화 탭은 UI Toolkit 창으로 그린다 (만들 수 없으면 아래 uGUI 그대로)
+            if (TryShowUpgradeToolkit())
+                return;
+
             Vector2 inner = PopupInnerSize();
 
             var rootGo = new GameObject("TruckUpgrade", typeof(RectTransform), typeof(LayoutElement));
@@ -201,7 +206,8 @@ namespace CraftingSystem
             }
 
             // 장착 가능한 파츠 (트럭 보관함에 있는 것): 그림 + 개수, 누르면 장착
-            float cy2 = gap + 2f * (cardH + gap) + 6f;
+            int slotRows = (TruckUpgradeRules.SlotCount + 1) / 2;
+            float cy2 = gap + slotRows * (cardH + gap) + 6f;
             var line = CraftUI.Mk("Line", panel); CraftUI.TopLeft(line, 12f, cy2 - 6f, w - 24f, 3f);
             CraftUI.Img(line, null, new Color(1f, 0.9f, 0.7f, 0.18f));
 
@@ -250,6 +256,7 @@ namespace CraftingSystem
                 case TruckPartSlot.Engine: return "개조 엔진 +25% / 터보 엔진 +50% → 이동속도·가속";
                 case TruckPartSlot.Front: return "강철가시 범퍼 / 분쇄 휠 → 좀비 밀치기·로드킬";
                 case TruckPartSlot.Armor: return "복합 장갑 (내구도 +25%, 피해 -25%) / 합금 장갑 (내구도 +50%, 피해 -40%)";
+                case TruckPartSlot.Bed: return "자동 포탑 6종 (수동 포탑 + 첨단 부품으로 제작) → 사수 없이 가까운 적을 알아서 조준·사격";
                 default: return "포탑 6종 (미니·기관포·저격·박격포·화염·레일) → 동승석 1번에서 마우스로 조준 사격";
             }
         }
@@ -266,7 +273,7 @@ namespace CraftingSystem
             {
                 var stat = (TruckStat)i;
                 bool turret = TruckUpgradeRules.IsTurretStat(stat);
-                bool locked = turret && !state.HasTurret;
+                bool locked = turret && !state.AnyTurret;
                 int level = state.LevelOf(stat);
                 bool max = level >= TruckUpgradeRules.MaxLevel;
 

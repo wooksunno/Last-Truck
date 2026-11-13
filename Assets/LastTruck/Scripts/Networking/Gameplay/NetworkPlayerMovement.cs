@@ -45,6 +45,30 @@ namespace LastTruck.Networking
         [Networked] private NetworkButtons PreviousButtons { get; set; }
         [Networked] private int JumpCount { get; set; }
 
+        [Header("튕겨 나가기 (달리는 트럭에서 내릴 때)")]
+        [Tooltip("땅에서 튕겨 나가는 속도가 줄어드는 정도 (m/s²). 작을수록 멀리 미끄러진다.")]
+        [SerializeField] private float flingGroundDecel = 11f;
+        [Tooltip("공중에서 줄어드는 정도 (m/s²).")]
+        [SerializeField] private float flingAirDecel = 2.5f;
+        [Tooltip("튕겨 나가는 속도가 이만큼(m/s) 이상이면 방향키가 거의 듣지 않는다 (몸을 못 가누는 느낌).")]
+        [SerializeField] private float flingNoControlSpeed = 7f;
+
+        /// <summary>트럭에서 튕겨 나갈 때 남은 수평 속도 (모든 컴퓨터가 같은 값으로 예측한다).</summary>
+        [Networked] private Vector3 FlingVelocity { get; set; }
+        /// <summary>이번에 위로 튀어 오를 속도 (한 번 쓰고 0).</summary>
+        [Networked] private float FlingUp { get; set; }
+
+        /// <summary>호스트 전용: 캐릭터를 velocity로 튕겨 보낸다 (y는 위로 튀는 속도).</summary>
+        public void Fling(Vector3 velocity)
+        {
+            if (Object == null || !Object.IsValid || !Object.HasStateAuthority) return;
+            FlingVelocity = new Vector3(velocity.x, 0f, velocity.z);
+            FlingUp = Mathf.Max(0f, velocity.y);
+        }
+
+        /// <summary>지금 튕겨 나가는 중인가 (넘어진 듯한 연출용).</summary>
+        public bool IsFlung => Object != null && Object.IsValid && FlingVelocity.sqrMagnitude > 1f;
+
         private int _shownJumpCount = -1;
         private int _lastJumpTick;
 
@@ -110,6 +134,7 @@ namespace LastTruck.Networking
             if (_animator != null) _animator.applyRootMotion = false;
             if (_controller != null) { _controller.jumpImpulse = jumpImpulse; _controller.gravity = jumpGravity; }
             _shownJumpCount = JumpCount; // 늦게 보이기 시작한 사람이 지난 점프를 다시 재생하지 않게
+            TruckStabilizer.IgnoreCharacter(gameObject);   // 트럭이 캐릭터를 밟거나 겹쳐서 튕겨 날아가지 않게
         }
 
         #endregion
@@ -156,6 +181,23 @@ namespace LastTruck.Networking
             velocity.x = direction.x * speed;
             velocity.z = direction.z * speed;
 
+            // 트럭에서 튕겨 나가는 중이면 그 속도를 더하고, 빠를수록 방향키가 덜 듣는다. 땅에 닿으면 빠르게 줄어든다.
+            Vector3 fling = FlingVelocity;
+            if (fling.sqrMagnitude > 0.0001f)
+            {
+                float control = Mathf.Clamp01(1f - fling.magnitude / Mathf.Max(0.1f, flingNoControlSpeed));
+                velocity.x = velocity.x * control + fling.x;
+                velocity.z = velocity.z * control + fling.z;
+                float decel = _controller.Grounded ? flingGroundDecel : flingAirDecel;
+                FlingVelocity = Vector3.MoveTowards(fling, Vector3.zero, decel * Runner.DeltaTime);
+            }
+            if (FlingUp > 0f)
+            {
+                velocity.y = Mathf.Max(velocity.y, Mathf.Min(FlingUp, jumpImpulse));
+                FlingUp = 0f;
+                _lastJumpTick = Runner.Tick;   // 아래에서 땅에 붙이는 처리가 위로 튀는 속도를 지우지 않게
+            }
+
             // NetworkCharacterController는 다음 틱의 속도를 "실제로 움직인 거리"로 다시 계산한다.
             // 경사면을 오르면 움직인 거리에 위쪽 성분이 생기고, 그게 다음 틱 속도로 더해져서 점점 쌓이며 하늘로 튀어 올랐다.
             // 땅에 붙어 있는 동안은 위로 가는 속도를 0으로 눌러 두고(점프 임펄스는 이 다음에 더해진다),
@@ -194,7 +236,8 @@ namespace LastTruck.Networking
             IsWalking = false;
 
             // 좌석 위치는 호스트가 정한다 (클라이언트의 내 캐릭터는 호스트 값으로 맞춰진다).
-            if (Object.HasStateAuthority && NetworkTruck.TryGetSeatPose(out Vector3 position, out Quaternion rotation))
+            // 포탑 사수는 포탑 위에 서서 포탑 방향을 따라 돈다 (다른 사람에게도 보인다).
+            if (Object.HasStateAuthority && NetworkTruck.TryGetSeatPose(Object.InputAuthority, out Vector3 position, out Quaternion rotation))
             {
                 _controller.Teleport(position, rotation);
             }

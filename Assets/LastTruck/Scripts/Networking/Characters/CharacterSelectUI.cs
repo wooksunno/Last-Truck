@@ -72,6 +72,8 @@ namespace LastTruck.Networking
 
         private void Start()
         {
+            // UI Toolkit 로비(LobbyToolkitView)가 캐릭터 선택까지 맡는다.
+            if (LobbyToolkitView.Instance != null) { enabled = false; return; }
             _launcher = GameLauncher.Instance;
 
             selectPanel.SetActive(false);

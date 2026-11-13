@@ -36,6 +36,74 @@ namespace CraftingSystem
             }
         }
 
+        // ───── Ctrl+A: 설비 전체 + 트럭 부착물 전체 (개발/테스트용) ─────
+
+        /// <summary>개발 빌드(에디터 포함)에서만 치트 단축키(Ctrl+A)가 동작한다.</summary>
+
+        // 자리마다 약한 것 → 강한 것 순서. 순서대로 끼우므로 마지막(가장 좋은) 파츠가 최종 장착되고 나머지는 보관함에 남는다.
+        private static readonly string[] PartOrder =
+        {
+            ItemIds.MiniTurret, ItemIds.GatlingTurret, ItemIds.SniperTurret, ItemIds.MortarTurret, ItemIds.FlameTurret, ItemIds.RailTurret,
+            ItemIds.AutoMiniTurret, ItemIds.AutoGatlingTurret, ItemIds.AutoSniperTurret, ItemIds.AutoMortarTurret, ItemIds.AutoFlameTurret, ItemIds.AutoRailTurret,
+            ItemIds.TunedEngine, ItemIds.TurboEngine,
+            ItemIds.SpikeBumper, ItemIds.GrinderWheel,
+            ItemIds.TruckCompositeArmor, ItemIds.AlloyArmor,
+        };
+
+        /// <summary>
+        /// 설비 전부 + 트럭에 붙일 수 있는 부착물(포탑/엔진/전면/장갑) 전부 + 포탑 탄환을 트럭 보관함에 넣고,
+        /// 자리마다 가장 좋은 부착물을 바로 장착한다. 나머지는 보관함에 남아서 "트럭 강화" 화면에서 갈아 끼울 수 있다.
+        /// 결과를 한 줄 문장으로 돌려준다.
+        /// </summary>
+        public static string GrantFacilitiesAndParts()
+        {
+            if (LastTruck.Networking.TruckInventorySync.IsRemoteClient)
+                return "멀티플레이에서는 방장(호스트)만 쓸 수 있어요.";
+
+            TruckInventory truckInv = Object.FindFirstObjectByType<TruckInventory>();
+            if (truckInv == null)
+                return "트럭을 찾지 못했어요.";
+
+            ItemCatalog catalog = ItemCatalog.GetOrCreate();
+            TruckUpgradeState upgrades = TruckUpgradeState.Instance != null ? TruckUpgradeState.Instance : truckInv.GetComponent<TruckUpgradeState>();
+
+            int facilities = 0;
+            foreach (FacilityType type in TruckFacilities.All)
+            {
+                ItemData item = TruckFacilities.ItemOf(type);
+                if (item == null || TruckFacilities.IsBuilt(truckInv, type)) continue;
+                if (truckInv.AddItem(item, 1)) facilities++;
+            }
+
+            int parts = 0;
+            foreach (string id in PartOrder)
+            {
+                ItemData item = catalog.GetItem(id);
+                if (item == null || !TruckUpgradeRules.TryGetSlot(id, out TruckPartSlot slot)) continue;
+                bool installed = upgrades != null && upgrades.PartAt(slot) == id;
+                if (installed || truckInv.GetItemCount(item) > 0) continue;
+                if (truckInv.AddItem(item, 1)) parts++;
+            }
+
+            if (upgrades != null)
+            {
+                foreach (string id in PartOrder)
+                {
+                    ItemData item = catalog.GetItem(id);
+                    if (item != null && truckInv.GetItemCount(item) > 0)
+                        upgrades.TryInstall(item, truckInv, out _);
+                }
+            }
+
+            foreach (TruckUpgradeRules.Ammo ammo in TruckUpgradeRules.AmmoTypes)
+            {
+                ItemData round = catalog.GetItem(ammo.id);
+                if (round != null) truckInv.AddItem(round, 30);
+            }
+
+            return $"설비 {facilities}개, 트럭 부착물 {parts}개를 받았어요 (자리마다 가장 좋은 것을 장착했고 탄환 30발씩 넣었어요)";
+        }
+
         /// <summary>패널 맨 아래에 눈에 덜 띄는 "개발용" 줄을 붙인다.</summary>
         public static void BuildFooter(RectTransform parent, TruckInventory truckInv, System.Action afterGrant)
         {

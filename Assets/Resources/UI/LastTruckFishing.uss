@@ -1,0 +1,52 @@
+/* 낚시 미니게임 (UI Toolkit). 캐릭터 오른쪽에 세로로 긴 물길이 뜬다. */
+.lt-root { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+.lt-text {
+    color: rgb(255, 244, 220);
+    -unity-font-style: bold;
+    font-size: 20px;
+    -unity-text-outline-width: 1.2px;
+    -unity-text-outline-color: rgba(38, 22, 8, 0.95);
+}
+
+.fm-frame {
+    position: absolute; left: 50%; top: 50%;
+    translate: 140px -54%;
+    width: 250px; padding: 16px 18px 14px 18px;
+    align-items: center;
+    opacity: 0; scale: 0.85 0.85;
+    transition-property: opacity, scale; transition-duration: 0.18s;
+}
+.fm-frame--in { opacity: 1; scale: 1 1; }
+.fm-title { font-size: 26px; margin-bottom: 8px; color: rgb(255, 214, 120); }
+
+.fm-row { flex-direction: row; height: 440px; }
+.fm-track {
+    width: 92px; height: 100%;
+    background-color: rgb(46, 112, 168);
+    border-width: 4px; border-color: rgb(58, 34, 16); border-radius: 12px;
+    overflow: hidden;
+}
+.fm-wave { position: absolute; left: 10%; right: 10%; height: 2px; background-color: rgba(190, 230, 255, 0.25); border-radius: 1px; }
+
+.fm-bar {
+    position: absolute; left: 4px; right: 4px;
+    background-color: rgba(120, 210, 96, 0.55);
+    border-width: 3px; border-color: rgb(160, 236, 120); border-radius: 8px;
+}
+.fm-bar--on { background-color: rgba(150, 240, 110, 0.78); border-color: rgb(220, 255, 170); }
+
+.fm-fish {
+    position: absolute; left: 50%; width: 54px; height: 54px; margin-left: -27px;
+    -unity-background-scale-mode: scale-to-fit;
+}
+.fm-fish--big { width: 68px; height: 68px; margin-left: -34px; }
+
+.fm-progress {
+    width: 26px; height: 100%; margin-left: 12px; justify-content: flex-end;
+    background-color: rgba(30, 18, 8, 0.9);
+    border-width: 3px; border-color: rgb(58, 34, 16); border-radius: 10px;
+    overflow: hidden;
+}
+.fm-progress-fill { width: 100%; border-radius: 6px; }
+
+.fm-hint { margin-top: 10px; font-size: 16px; color: rgb(232, 210, 170); -unity-text-align: middle-center; white-space: normal; }

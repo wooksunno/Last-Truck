@@ -99,6 +99,9 @@ public void FillDefaultResources()
         /// <summary>suppress가 true인 동안은 재료를 트럭에서만 찾는다 (using으로 감싸서 쓴다).</summary>
         public static BagScope SuppressBag(bool suppress) => new BagScope(suppress);
 
+        /// <summary>호스트가 다른 사람의 요청을 대신 처리하는 중인가 (이때는 내 화면에 알림을 띄우지 않는다).</summary>
+        public static bool IsHandlingRemoteRequest => _bagSuppress > 0;
+
         private PlayerInventory _bag;
 
         /// <summary>

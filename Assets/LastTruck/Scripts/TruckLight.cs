@@ -47,12 +47,6 @@ namespace LastTruck
         public void SetDrivingState(bool driving)
         {
             isDriving = driving;
-
-            // 내릴 때 자동 꺼짐 옵션이 활성화되어 있다면 꺼줌
-            if (!isDriving && autoTurnOffOnExit)
-            {
-                SetLightState(false);
-            }
         }
 
         private void ApplyLightState(bool state)

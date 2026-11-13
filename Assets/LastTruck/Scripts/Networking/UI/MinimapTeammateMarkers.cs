@@ -28,9 +28,23 @@ namespace LastTruck.Networking
             float scale = _minimap.PixelRadius / Mathf.Max(1f, _minimap.ViewRadiusWorld);
             float edge = _minimap.PixelRadius - markerSize;
 
+            LastTruck.MinimapView view = _minimap.ToolkitView;
             foreach (NetworkPlayer player in NetworkPlayer.All)
             {
                 if (player == null || player.IsLocal) continue;
+
+                // UI Toolkit 미니맵이면 그쪽에 표시한다
+                if (view != null)
+                {
+                    Vector3 d = player.transform.position - center.position;
+                    Vector2 p = new Vector2(d.x, d.z) * scale;
+                    if (p.magnitude > edge) p = p.normalized * edge;
+                    int key = player.GetInstanceID();
+                    if (!_viewKeys.Contains(key)) _viewKeys.Add(key);
+                    view.SetMarker(key, p, player.IsDowned ? DownedMarkerColor : markerColor, !player.IsSeated);
+                    continue;
+                }
+
                 if (!_markers.TryGetValue(player, out Image marker))
                 {
                     marker = CreateMarker();
@@ -50,6 +64,20 @@ namespace LastTruck.Networking
                 marker.transform.SetAsLastSibling(); // 자원 점보다 위에
             }
 
+            // 나간 동료의 UI Toolkit 표시 지우기
+            if (view != null)
+            {
+                _liveKeys.Clear();
+                foreach (NetworkPlayer player in NetworkPlayer.All)
+                    if (player != null && player.Object != null && player.Object.IsValid) _liveKeys.Add(player.GetInstanceID());
+                for (int i = _viewKeys.Count - 1; i >= 0; i--)
+                {
+                    if (_liveKeys.Contains(_viewKeys[i])) continue;
+                    view.RemoveMarker(_viewKeys[i]);
+                    _viewKeys.RemoveAt(i);
+                }
+            }
+
             _removeBuffer.Clear();
             foreach (KeyValuePair<NetworkPlayer, Image> pair in _markers)
             {
@@ -61,6 +89,9 @@ namespace LastTruck.Networking
                 _markers.Remove(player);
             }
         }
+
+        private readonly List<int> _viewKeys = new List<int>();
+        private readonly HashSet<int> _liveKeys = new HashSet<int>();
 
         private static readonly Color DownedMarkerColor = new Color(1f, 0.25f, 0.2f);
 

@@ -38,7 +38,33 @@ Shader "LastTruck/ToonWorld"
         _EmissionMap ("Emission Map", 2D) = "white" {}
         [HDR] _EmissionColor ("Emission", Color) = (0,0,0,1)
 
+        [Header(Military Weathering (vehicles))]
+        // 군용차 도장: 위장 무늬 + 페인트 벗겨짐 + 아래쪽 진흙 + 윗면 먼지 + 빗물 얼룩. 켜진 재질만 계산한다 (다른 재질엔 영향 없음)
+        [Toggle(_WEATHERING_ON)] _Weathering ("Enable Weathering", Float) = 0
+        _CamoScale ("Camo Scale", Float) = 0.55
+        _CamoStrength ("Camo Strength", Range(0,1)) = 0.9
+        _CamoDark ("Camo Dark Multiplier", Color) = (0.55, 0.6, 0.5, 1)
+        _CamoBrown ("Camo Brown", Color) = (0.11, 0.075, 0.04, 1)
+        _ChipColor ("Paint Chip Color (bare metal)", Color) = (0.2, 0.2, 0.19, 1)
+        _ChipAmount ("Paint Chip Amount", Range(0,1)) = 0.5
+        _MudColor ("Mud Color", Color) = (0.09, 0.06, 0.035, 1)
+        _MudHeight ("Mud Height (local)", Float) = 0.95
+        _MudStrength ("Mud Strength", Range(0,1)) = 0.85
+        _DustColor ("Top Dust Color", Color) = (0.32, 0.27, 0.19, 1)
+        _DustStrength ("Top Dust Strength", Range(0,1)) = 0.45
+        _StreakStrength ("Rain Streak Strength", Range(0,1)) = 0.35
+        _Grain ("Surface Grain", Range(0,0.5)) = 0.12
+        // VehicleWeathering 스크립트가 매 프레임 넣는 트럭 기준 좌표 (트럭이 움직여도 무늬가 따라 다닌다). 0이면 월드 좌표를 쓴다
+        [HideInInspector] _VehRow0 ("", Vector) = (0,0,0,0)
+        [HideInInspector] _VehRow1 ("", Vector) = (0,0,0,0)
+        [HideInInspector] _VehRow2 ("", Vector) = (0,0,0,0)
+
         [HideInInspector] _Cull ("Cull", Float) = 2
+        // 카메라 가림 투명 처리(CameraOcclusionFader)가 바꾸는 값. 평소엔 불투명 그대로
+        [HideInInspector] _Surface ("Surface", Float) = 0
+        [HideInInspector] _SrcBlend ("Src Blend", Float) = 1
+        [HideInInspector] _DstBlend ("Dst Blend", Float) = 0
+        [HideInInspector] _ZWrite ("ZWrite", Float) = 1
     }
 
     HLSLINCLUDE
@@ -69,11 +95,30 @@ Shader "LastTruck/ToonWorld"
         half _RimPower;
         half4 _EmissionColor;
         half _Cull;
+        float _CamoScale;
+        half _CamoStrength;
+        half4 _CamoDark;
+        half4 _CamoBrown;
+        half4 _ChipColor;
+        half _ChipAmount;
+        half4 _MudColor;
+        float _MudHeight;
+        half _MudStrength;
+        half4 _DustColor;
+        half _DustStrength;
+        half _StreakStrength;
+        half _Grain;
+        float4 _VehRow0;
+        float4 _VehRow1;
+        float4 _VehRow2;
     CBUFFER_END
 
     // AtmosphereController가 매 프레임 설정 (낮 0 ~ 밤 1 / 날씨 안개 0 ~ 1)
     float _GameNightFactor;
     float _GameWeatherFog;
+    // 공기 원근감 (AtmosphereController가 설정): 색 / (시작 m, 끝 m, 세기, 채도 빼기)
+    float4 _LT_HazeColor;
+    float4 _LT_HazeParams;
     ENDHLSL
 
     SubShader
@@ -85,7 +130,8 @@ Shader "LastTruck/ToonWorld"
             Name "ForwardLit"
             Tags { "LightMode"="UniversalForward" }
             Cull [_Cull]
-            ZWrite On
+            Blend [_SrcBlend] [_DstBlend]
+            ZWrite [_ZWrite]
 
             HLSLPROGRAM
             #pragma target 3.0
@@ -99,8 +145,79 @@ Shader "LastTruck/ToonWorld"
             #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
             #pragma multi_compile_fog
             #pragma multi_compile_instancing
+            #pragma shader_feature_local_fragment _ _WEATHERING_ON
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+
+            #if defined(_WEATHERING_ON)
+            // ── 군용차 도장 (텍스처 없이 3D 노이즈로 계산) ──
+            float WHash(float3 p)
+            {
+                p = frac(p * 0.3183099 + 0.1);
+                p *= 17.0;
+                return frac(p.x * p.y * p.z * (p.x + p.y + p.z));
+            }
+            float WNoise(float3 x)
+            {
+                float3 i = floor(x);
+                float3 f = frac(x);
+                f = f * f * (3.0 - 2.0 * f);
+                return lerp(lerp(lerp(WHash(i), WHash(i + float3(1,0,0)), f.x),
+                                 lerp(WHash(i + float3(0,1,0)), WHash(i + float3(1,1,0)), f.x), f.y),
+                            lerp(lerp(WHash(i + float3(0,0,1)), WHash(i + float3(1,0,1)), f.x),
+                                 lerp(WHash(i + float3(0,1,1)), WHash(i + float3(1,1,1)), f.x), f.y), f.z);
+            }
+            float WFbm(float3 p)
+            {
+                return WNoise(p) * 0.55 + WNoise(p * 2.03 + 7.1) * 0.3 + WNoise(p * 4.1 + 13.7) * 0.15;
+            }
+
+            half3 ApplyWeathering(half3 albedo, float3 posWS, half3 N)
+            {
+                // 트럭 기준 좌표 (스크립트가 안 넣었으면 월드 좌표)
+                float3 p = posWS;
+                if (dot(abs(_VehRow0.xyz), 1.0.xxx) > 0.001)
+                    p = float3(dot(_VehRow0, float4(posWS, 1)), dot(_VehRow1, float4(posWS, 1)), dot(_VehRow2, float4(posWS, 1)));
+
+                // 도색된 부분(올리브색)만 위장/벗겨짐을 받는다. 타이어/쇠붙이(회색)는 진흙/먼지만
+                half g = albedo.g;
+                half paint = saturate((g - max(albedo.r, albedo.b)) / max(g, 0.001h) * 4.0h);
+
+                // 표면 결: 면마다 미세한 밝기 차이로 평평한 단색을 깬다
+                albedo *= 1.0h + ((half)WNoise(p * 5.0) - 0.5h) * _Grain * 2.0h;
+
+                // 위장 무늬 (우드랜드 3색): 짙은 녹색 반점 + 갈색 반점, 경계는 만화처럼 또렷하게
+                float c1 = WFbm(p * _CamoScale);
+                float c2 = WFbm(p * _CamoScale * 1.3 + 31.7);
+                half dark = (half)smoothstep(0.55, 0.565, c1);
+                half brown = (half)smoothstep(0.56, 0.575, c2) * (1.0h - dark);
+                half3 camo = albedo;
+                camo = lerp(camo, albedo * _CamoDark.rgb, dark);
+                camo = lerp(camo, _CamoBrown.rgb, brown);
+                albedo = lerp(albedo, camo, paint * _CamoStrength);
+
+                // 빗물 얼룩: 위에서 아래로 흘러내린 세로 줄무늬
+                half streak = (half)smoothstep(0.55, 0.85, WNoise(float3(p.x * 7.0, p.y * 0.5, p.z * 7.0)));
+                albedo *= 1.0h - streak * _StreakStrength * 0.5h * paint;
+
+                // 페인트 벗겨짐: 작은 반점에서 쇠 색이 드러난다
+                half chipN = (half)(WNoise(p * 6.0 + 5.3) * WNoise(p * 21.0 + 2.1));
+                half chip = (half)smoothstep(0.5h - _ChipAmount * 0.22h, 0.52h - _ChipAmount * 0.22h, chipN) * paint;
+                albedo = lerp(albedo, _ChipColor.rgb, chip);
+
+                // 윗면 먼지: 하늘을 향한 면에 흙먼지가 얇게 앉는다
+                half up = saturate((N.y - 0.55h) * 3.0h);
+                half dustN = (half)smoothstep(0.35, 0.75, WFbm(p * 1.7 + 11.0));
+                albedo = lerp(albedo, _DustColor.rgb, up * dustN * _DustStrength);
+
+                // 아래쪽 진흙: 바퀴/차체 하단이 울퉁불퉁한 경계로 흙탕물을 뒤집어쓴다
+                float edge = (WFbm(p * 2.6 + 3.0) - 0.5) * 0.7;
+                half mud = (half)saturate((_MudHeight + edge - p.y) / 0.22);
+                half splat = (half)smoothstep(0.62, 0.66, WNoise(p * 9.0 + 1.7)) * (half)saturate((_MudHeight + 0.6 - p.y) / 0.5);
+                albedo = lerp(albedo, _MudColor.rgb * (0.8h + 0.4h * (half)WNoise(p * 20.0)), saturate(mud + splat) * _MudStrength);
+                return albedo;
+            }
+            #endif
 
             struct Attributes
             {
@@ -145,7 +262,8 @@ Shader "LastTruck/ToonWorld"
             half4 frag(Varyings i, bool frontFace : SV_IsFrontFace) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(i);
-                half3 albedo = (SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv) * _BaseColor).rgb;
+                half4 baseTex = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv) * _BaseColor;
+                half3 albedo = baseTex.rgb;
                 // 색 빼기: 밝기는 유지한 채 회색(+색조)쪽으로
                 half luma = dot(albedo, half3(0.299h, 0.587h, 0.114h));
                 albedo = lerp(albedo, luma * _DesaturateTint.rgb, _Desaturate);
@@ -156,6 +274,9 @@ Shader "LastTruck/ToonWorld"
                 float3 faceN = normalize(cross(ddy(i.positionWS), ddx(i.positionWS)));
                 faceN *= sign(dot(faceN, smoothN) + 1e-4);
                 half3 N = normalize(lerp(smoothN, (half3)faceN, _FlatShading));
+                #if defined(_WEATHERING_ON)
+                    albedo = ApplyWeathering(albedo, i.positionWS, N);
+                #endif
 
                 float4 shadowCoord = TransformWorldToShadowCoord(i.positionWS);
                 half4 shadowMask = unity_ProbesOcclusion;
@@ -165,6 +286,12 @@ Shader "LastTruck/ToonWorld"
                 half sharpW = lerp(0.5h, 0.08h, _ShadowSharpness);
                 half shadow = smoothstep(0.5h - sharpW, 0.5h + sharpW, mainLight.shadowAttenuation);
                 half lit = Band(dot(N, mainLight.direction) * 0.5h + 0.5h) * shadow * mainLight.distanceAttenuation;
+
+                // 멀수록 면 하나하나의 밝기 차이를 줄여 디테일을 뭉갠다 (먼 산은 덩어리로만 읽힌다)
+                float viewDist = distance(i.positionWS, _WorldSpaceCameraPos);
+                half far = (half)saturate((viewDist - _LT_HazeParams.x) / max(_LT_HazeParams.y - _LT_HazeParams.x, 1.0));
+                far = far * far * (3.0h - 2.0h * far) * (half)step(0.5, _LT_HazeParams.y);   // 값이 설정되지 않았으면(에디터) 끈다
+                lit = lerp(lit, 0.45h + 0.4h * shadow, far * 0.6h);
 
                 half3 ambient = SampleSH(N) * _AmbientStrength;
                 // 그림자 면도 빛 색을 조금 받아 새까맣게 꺼지지 않는다 (노을엔 주황빛, 밤엔 푸른빛 그림자)
@@ -183,7 +310,7 @@ Shader "LastTruck/ToonWorld"
                 half3 H = normalize(mainLight.direction + V);
                 half sheenT = pow(saturate(dot(N, H)), 12.0h);
                 half sheen = smoothstep(1.0h - _MoonSheenSize, 1.0h - _MoonSheenSize + 0.08h, sheenT);
-                light += mainLight.color * sheen * lit * _MoonSheen * moonContrast;
+                light += mainLight.color * sheen * lit * _MoonSheen * moonContrast * (1.0h - far);
 
                 // 추가 라이트(횃불, 헤드라이트 등)도 단계로 비춘다
                 #if defined(_ADDITIONAL_LIGHTS)
@@ -215,12 +342,19 @@ Shader "LastTruck/ToonWorld"
                 #endif
 
                 half3 color = albedo * light;
+
+                // 공기 원근감: 멀수록 채도가 빠지고 하늘/안개 색으로 옅어진다
+                half haze = far * (half)_LT_HazeParams.z;
+                half lum = dot(color, half3(0.299h, 0.587h, 0.114h));
+                color = lerp(color, lum.xxx, haze * (half)_LT_HazeParams.w);
+                color = lerp(color, (half3)_LT_HazeColor.rgb, haze);
                 // 가장자리 빛: 시선과 비스듬한 면(윤곽)을 밝혀서 배경과 색이 비슷해도 형태가 읽히게 한다 (밤엔 약하게)
                 half rim = pow(1.0h - saturate(dot(smoothN, V)), _RimPower);
                 color += _RimColor.rgb * rim * _RimStrength * lerp(1.0h, 0.5h, night) * saturate(light.r + 0.35h);
                 color += SAMPLE_TEXTURE2D(_EmissionMap, sampler_EmissionMap, i.uv).rgb * _EmissionColor.rgb;
                 color = MixFog(color, i.fogFactor);
-                return half4(color, 1);
+                // 불투명일 땐 Blend One Zero라 알파가 무시되고, 가림 투명 처리 중엔 _BaseColor.a 만큼 비친다
+                return half4(color, baseTex.a);
             }
             ENDHLSL
         }

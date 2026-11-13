@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace LastTruck
@@ -44,9 +44,20 @@ namespace LastTruck
         [Tooltip("최대 회전 속도 (rad/s).")]
         public float maxAngularVelocity = 3f;
         [Tooltip("위로 솟는 속도 상한 (m/s). 부딪혔을 때 하늘로 날아가지 않게.")]
-        public float maxUpwardSpeed = 2.5f;
+        public float maxUpwardSpeed = 1.5f;
         [Tooltip("바퀴가 모두 땅에서 떨어졌을 때 추가 중력 배율 (1이면 추가 없음).")]
-        public float airGravityMultiplier = 1.8f;
+        public float airGravityMultiplier = 2.6f;
+
+        [Header("부딪힘")]
+        [Tooltip("나무/바위/벽에 부딪힐 때 위로 튀는 속도를 이 값(m/s)까지 자른다 (부딪혀서 날아가지 않게).")]
+        public float impactMaxUpwardSpeed = 0.3f;
+        [Tooltip("부딪힐 때 앞뒤/좌우로 기우는 회전을 얼마나 남길지 (0 = 다 없앰, 1 = 그대로).")]
+        [Range(0f, 1f)] public float impactTiltKeep = 0.25f;
+        [Tooltip("이보다 세게(m/s) 부딪히면 화면이 흔들린다 (운전자 화면).")]
+        public float impactShakeSpeed = 5f;
+
+        [Tooltip("다른 충돌체와 겹쳤을 때 밀려 나오는 최대 속도 (m/s). 작을수록 겹쳐도 튕겨 나가지 않는다.")]
+        public float maxDepenetrationSpeed = 1f;
 
         [Header("충돌")]
         [Tooltip("몬스터와 물리 충돌하지 않는다 (몬스터에 올라타 튀거나 밀려나지 않게).")]
@@ -146,9 +157,19 @@ namespace LastTruck
             if (_rb.collisionDetectionMode == CollisionDetectionMode.Discrete)
                 _rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
-            // 이 트럭이 생기기 전에 등록된 몬스터들
+            // 이 트럭이 생기기 전에 등록된 몬스터/캐릭터들
             IgnoredObjects.RemoveAll(o => o == null);
             foreach (GameObject go in IgnoredObjects) IgnoreWith(go);
+            IgnoredCharacters.RemoveAll(o => o == null);
+            foreach (GameObject go in IgnoredCharacters) IgnoreWith(go, true);
+
+            // 무언가와 겹쳤을 때 빠져나오는 속도 상한. 기본값(초당 10m)이면 캐릭터/충돌체와 겹치는 순간 트럭이 튕겨 날아간다.
+            _rb.maxDepenetrationVelocity = maxDepenetrationSpeed;
+
+            // 회전 고정(앞뒤/좌우 기울기 잠금)이 걸려 있으면 푼다. 잠기면 트럭이 경사를 따라 눕지 못해
+            // 처음 기운 각도 그대로 비스듬히 달리고, 언덕에서 바퀴가 떠서 날아갔다. 뒤집힘은 안티롤/세우는 힘이 막는다.
+            if ((_rb.constraints & RigidbodyConstraints.FreezeRotation) != 0)
+                _rb.constraints &= ~RigidbodyConstraints.FreezeRotation;
         }
 
         /// <summary>앞/뒤 바퀴를 좌우 한 쌍씩 묶는다 (안티롤바용).</summary>
@@ -240,7 +261,57 @@ namespace LastTruck
 
         #endregion
 
-        #region 몬스터 충돌 무시
+        #region 부딪힘 (나무/바위/벽)
+
+        private void OnCollisionEnter(Collision collision) => HandleImpact(collision, true);
+        private void OnCollisionStay(Collision collision) => HandleImpact(collision, false);
+
+        /// <summary>
+        /// 옆에서 막는 물체(벽처럼 서 있는 면)에 닿으면: 위로 튀는 속도를 자르고, 앞뒤/좌우로 들리는 회전을 줄인다.
+        /// 무거운 트럭이 "쿵" 하고 막히는 느낌이 나고, 바위에 걸려 하늘로 날아가거나 뒤집히지 않는다.
+        /// </summary>
+        private void HandleImpact(Collision collision, bool first)
+        {
+            if (_rb == null || _rb.isKinematic || collision.contactCount == 0) return;
+
+            bool wall = false;
+            for (int i = 0; i < collision.contactCount; i++)
+            {
+                if (collision.GetContact(i).thisCollider is WheelCollider) continue;
+                if (Mathf.Abs(collision.GetContact(i).normal.y) < 0.55f) { wall = true; break; }
+            }
+            if (!wall) return;
+
+            Vector3 v = _rb.linearVelocity;
+            if (v.y > impactMaxUpwardSpeed)
+            {
+                v.y = impactMaxUpwardSpeed;
+                _rb.linearVelocity = v;
+            }
+
+            // 좌우 회전(핸들 방향)은 남기고, 들리는(앞뒤/옆으로 기우는) 회전만 줄인다
+            Vector3 w = _rb.angularVelocity;
+            Vector3 yaw = Vector3.Project(w, transform.up);
+            _rb.angularVelocity = yaw + (w - yaw) * impactTiltKeep;
+
+            if (first && collision.relativeVelocity.magnitude > impactShakeSpeed && LocalPlayerInTruck())
+                Combat.CameraShake.Shake(Mathf.Clamp01(collision.relativeVelocity.magnitude / 18f) * 0.6f);
+        }
+
+        /// <summary>이 컴퓨터의 플레이어가 트럭에 타 있는가 (트럭 물리는 호스트에서만 돌아서, 흔들림은 호스트/싱글 화면에만 나온다).</summary>
+        private bool LocalPlayerInTruck()
+        {
+            if (Networking.NetworkTruck.IsReady)
+            {
+                var runner = Networking.NetworkTruck.Instance.Runner;
+                return runner != null && Networking.NetworkTruck.IsSeated(runner.LocalPlayer);
+            }
+            return _move != null && _move.isDriving;
+        }
+
+        #endregion
+
+        #region 몬스터 / 캐릭터 충돌 무시
 
         /// <summary>몬스터가 생길 때 부른다. 트럭(바퀴 포함)과 이 오브젝트의 충돌을 끈다.</summary>
         public static void IgnoreMonster(GameObject monster)
@@ -253,9 +324,26 @@ namespace LastTruck
             }
         }
 
-        private void IgnoreWith(GameObject other)
+        /// <summary>
+        /// 플레이어 캐릭터가 생길 때 부른다. 캐릭터는 밀리지 않는 충돌체(CharacterController)라서,
+        /// 바퀴가 캐릭터를 밟거나 타고 내릴 때 캐릭터가 트럭 안에 겹치면 물리 엔진이 트럭을 튕겨 내 하늘로 날아갔다.
+        /// 몬스터처럼 트럭과 서로 통과하게 한다.
+        /// </summary>
+        public static void IgnoreCharacter(GameObject character)
         {
-            if (!ignoreMonsterCollision || other == null) return;
+            if (character == null) return;
+            if (!IgnoredCharacters.Contains(character)) IgnoredCharacters.Add(character);
+            foreach (TruckStabilizer truck in Active)
+            {
+                if (truck != null && truck._applied) truck.IgnoreWith(character, true);
+            }
+        }
+
+        private static readonly List<GameObject> IgnoredCharacters = new List<GameObject>();
+
+        private void IgnoreWith(GameObject other, bool always = false)
+        {
+            if ((!ignoreMonsterCollision && !always) || other == null) return;
             Collider[] others = other.GetComponentsInChildren<Collider>(true);
             foreach (Collider mine in _truckColliders)
             {
@@ -272,6 +360,7 @@ namespace LastTruck
         {
             Active.Clear();
             IgnoredObjects.Clear();
+            IgnoredCharacters.Clear();
         }
 
         #endregion

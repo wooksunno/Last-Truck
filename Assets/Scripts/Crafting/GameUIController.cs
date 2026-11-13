@@ -120,6 +120,9 @@ private int _withdrawMax;
         /// <summary>트럭 근처에서 "[Tab] 트럭 거점" 안내를 트럭 위쪽(월드 좌표)에 띄운다.</summary>
         public void SetTruckHint(bool show, Vector3 worldAnchor)
         {
+            // 원형 메뉴나 트럭 창이 열려 있으면 숨긴다 (uGUI 안내가 UI Toolkit 메뉴 위에 그려져 가렸다)
+            if (LastTruck.TruckRadialMenu.IsOpen || IsPopupOpen)
+                show = false;
             Camera cam = Camera.main;
             Vector3 screen = Vector3.zero;
             if (show)
@@ -368,6 +371,7 @@ public void OpenPouchPanel(PouchInventory pouch, PlayerInventory player)
 
         public void ClosePopup()
         {
+            HideStorageToolkit();
             if (_popupRoot != null)
                 _popupRoot.SetActive(false);
 
@@ -393,6 +397,7 @@ private void ShowPopup(string title, System.Action builder)
         {
             _lastPopupTitle = title;
             _lastPopupBuilder = builder;
+            _storageToolkitActive = false;   // 보관함 탭을 UI Toolkit으로 그리면 BuildTruckContent가 다시 켠다
             WatchTruckInventory(_activeTruck != null ? _activeTruck.TruckInventory : null);
 
             _popupRoot.SetActive(true);
@@ -420,6 +425,7 @@ private void ShowPopup(string title, System.Action builder)
                 CreateLabel(_popupBody, "화면을 그리는 중 오류가 났습니다. (콘솔 확인)", 16, FontStyle.Bold);
             }
             UpdateTruckTabs();
+            ApplyPopupLayer(popupRect);
 
             // 방금 다시 그렸으므로, 그 사이 들어온 "다시 그려 주세요" 요청은 이미 반영된 것이다
             // (재료를 빼면서 생기는 인벤토리 변경 이벤트 때문에 한 번 더 그리는 낭비를 막는다).
@@ -505,6 +511,12 @@ private void ShowPopup(string title, System.Action builder)
 
         private void ShowPopupToast(string message)
         {
+            // 보관함 탭(UI Toolkit)이 보이는 동안 uGUI 창은 투명하므로 화면 안내 토스트로 띄운다
+            if (_storageToolkitActive)
+            {
+                LastTruck.HudToast.Show(message);
+                return;
+            }
             if (_popupRoot == null)
                 return;
 
@@ -679,6 +691,10 @@ private void ShowPopup(string title, System.Action builder)
         {
             UpdateTruckProcessing();
             UpdatePopupToast();
+
+            // 창이 다른 경로로 닫혔으면 UI Toolkit 보관함 창도 같이 닫는다
+            if (_storageToolkitActive && !IsPopupOpen)
+                HideStorageToolkit();
 
             if (!_truckViewDirty)
                 return;
@@ -910,6 +926,16 @@ private void ShowPopup(string title, System.Action builder)
             RecipeData startRecipe = shown;
             m.onButton = () => StartFacilityProcessing(startRecipe);
 
+            // 현장 시설도 UI Toolkit 창으로 그린다 (만들 수 없으면 아래 uGUI 그대로)
+            if (EnsureToolkitWindow())
+            {
+                _facilityRefs = null;
+                _facilityCountdownText = null;
+                _storageView.ShowFacility(m, ClosePopup);
+                _storageToolkitActive = true;
+                return;
+            }
+
             _facilityRefs = TruckProcessView.Build(_popupBody, inner.y, m, null);
             _facilityCountdownText = processing ? _facilityRefs.timer : null;
         }
@@ -959,6 +985,10 @@ private void ShowPopup(string title, System.Action builder)
 private void BuildPouchContent()
         {
             if (_activePouch == null || _activePlayer == null)
+                return;
+
+            // 가죽 파우치도 UI Toolkit 창으로 그린다 (만들 수 없으면 아래 uGUI 그대로)
+            if (TryShowPouchToolkit())
                 return;
 
             if (_popupScrollRect != null)
@@ -1300,6 +1330,8 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             {
                 yield return null;
                 job.remaining -= Time.deltaTime;
+                if (_activeFacility == facility && IsPopupOpen && _storageToolkitActive && _storageView != null)
+                    _storageView.SetFacilityProgress($"{Mathf.Max(0f, job.remaining):0.0}초", job.total > 0.01f ? 1f - Mathf.Clamp01(job.remaining / job.total) : 0f);
                 if (_activeFacility == facility && IsPopupOpen && _facilityCountdownText != null)
                 {
                     _facilityCountdownText.text = $"{Mathf.Max(0f, job.remaining):0.0}초";
@@ -1348,6 +1380,10 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 BuildTruckProcessingPanel();
                 return;
             }
+
+            // 보관함 탭은 UI Toolkit 창으로 그린다 (만들 수 없으면 아래 uGUI 그대로)
+            if (TryShowStorageToolkit(_activeTruck.TruckInventory))
+                return;
 
             if (_popupScrollRect != null)
                 _popupScrollRect.vertical = true;
@@ -1415,6 +1451,9 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             {
                 if (slot == null || slot.IsEmpty || slot.item == null)
                     continue;
+                // 설비(모닥불 등)는 트럭에 설치된 것이라 보관함에는 보이지 않는다. 가공 탭에서 바로 쓴다.
+                if (TruckFacilities.IsFacilityItem(slot.item))
+                    continue;
                 if (_storageCategory >= 0 && TruckCodexView.CategoryOf(slot.item) != _storageCategory)
                     continue;
                 list.Add(slot);
@@ -1464,6 +1503,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 foreach (InventorySlot slot in truckInv.Slots)
                 {
                     if (slot == null || slot.IsEmpty || slot.item == null) continue;
+                    if (TruckFacilities.IsFacilityItem(slot.item)) continue;   // 설비는 보관함에 보이지 않는다
                     counts[Mathf.Clamp(TruckCodexView.CategoryOf(slot.item), 0, names.Length - 1)]++;
                     total++;
                 }
@@ -1718,6 +1758,10 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
 
         private void BuildCraftingPanel()
         {
+            // 제작 탭은 UI Toolkit 창으로 그린다 (만들 수 없으면 아래 uGUI 그대로)
+            if (TryShowCraftToolkit())
+                return;
+
             if (_popupScrollRect != null)
                 _popupScrollRect.vertical = false;
 
@@ -1745,7 +1789,10 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 onCraft: recipe =>
                 {
                     if (craft != null)
+                    {
                         LastTruck.Networking.TruckInventorySync.Craft(craft, recipe);
+                        AnnounceFacilityBuilt(recipe);
+                    }
                     ShowPopup("제작", BuildTruckContent);
                 },
                 onCodex: item =>
@@ -2008,6 +2055,14 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             m.upgrade = up;
             m.message = _truckProcessMessage;
 
+            // 가공 탭은 UI Toolkit 창으로 그린다 (만들 수 없으면 아래 uGUI 그대로)
+            if (EnsureToolkitWindow())
+            {
+                _truckRefs = null;
+                _storageView.ShowProcess(m, BuildToolkitTabs(truckInv, 2), ClosePopup);
+                _storageToolkitActive = true;
+                return;
+            }
             _truckRefs = TruckProcessView.Build(_popupBody, inner.y, m, null);   // 책갈피 탭으로 이동하므로 뒤로 버튼 없음
         }
 
@@ -2204,6 +2259,17 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             }
 
             // 가공 중인 칸의 타이머/막대
+            if (_storageToolkitActive && _storageView != null && _storageView.Mode == "process")
+            {
+                FacilityType tf = _truckProcessingFacility;
+                for (int i = 0; i < ProcSlotCount(tf); i++)
+                {
+                    ProcessSlotView sv = ProcSlot(tf, i);
+                    if (!sv.IsBusy) continue;
+                    _storageView.SetProcessSlot(i, FormatClock(sv.remaining), sv.total > 0.01f ? 1f - Mathf.Clamp01(sv.remaining / sv.total) : 0f);
+                }
+                return;
+            }
             if (_truckRefs != null && _truckRefs.slots.Count > 0)
             {
                 FacilityType fac = _truckProcessingFacility;
@@ -2291,9 +2357,20 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             CreateCraftConfirmButton(container.GetComponent<RectTransform>(), canCraft, () =>
             {
                 if (craft != null)
+                {
                     LastTruck.Networking.TruckInventorySync.Craft(craft, recipe);
+                    AnnounceFacilityBuilt(recipe);
+                }
                 ShowPopup(_craftingPanelOpen ? "제작" : "트럭 거점", BuildTruckContent);
             });
+        }
+
+        /// <summary>설비(모닥불 등)를 만들면 보관함 대신 트럭에 바로 설치된다는 안내를 띄운다.</summary>
+        private static void AnnounceFacilityBuilt(RecipeData recipe)
+        {
+            ItemData output = recipe != null && recipe.output != null ? recipe.output.item : null;
+            if (output != null && TruckFacilities.IsFacilityItem(output))
+                LastTruck.HudToast.Show(output.itemName + " 설치! 가공 탭에서 바로 쓸 수 있어요");
         }
 
         private void CreateIngredientPreviewSlot(RectTransform parent, ItemData item, int have, int need, int originalNeed = -1)
@@ -2385,6 +2462,10 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
 
         private void BuildTruckCodex()
         {
+            // 도감 탭은 UI Toolkit 창으로 그린다 (만들 수 없으면 아래 uGUI 그대로)
+            if (TryShowCodexToolkit())
+                return;
+
             // 도감은 안쪽에 자체 스크롤(분류 목록 / 제작 링크 그래프)을 가지므로 바깥 스크롤은 끈다.
             if (_popupScrollRect != null)
                 _popupScrollRect.vertical = false;

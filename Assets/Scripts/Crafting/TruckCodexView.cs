@@ -60,6 +60,8 @@ namespace CraftingSystem
             // 트럭에 끼우는 파츠 (엔진 / 장갑 / 포탑)
             ItemIds.TunedEngine, ItemIds.TurboEngine, ItemIds.AlloyArmor,
             ItemIds.MiniTurret, ItemIds.GatlingTurret, ItemIds.SniperTurret, ItemIds.MortarTurret, ItemIds.FlameTurret, ItemIds.RailTurret,
+            // 적재함 자동 포탑
+            ItemIds.AutoMiniTurret, ItemIds.AutoGatlingTurret, ItemIds.AutoSniperTurret, ItemIds.AutoMortarTurret, ItemIds.AutoFlameTurret, ItemIds.AutoRailTurret,
         };
         // 포탑 탄환 (자원 → 5발)
         static readonly HashSet<string> AmmoIds = new HashSet<string>
