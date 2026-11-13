@@ -50,6 +50,7 @@ namespace LastTruck.Networking.EditorTools
 
             registry.gameStatePrefab = EnsureGameStatePrefab(log);
             registry.monsterPrefab = EnsureMonsterPrefab(log);
+            MonsterKindPrefabBuilder.Build(registry, false, log); // 몬스터 종류별 프리팹 (없는 것만)
             registry.uiFont = EnsureUIFont(log);
             registry.tmpFont = AssetDatabase.LoadAssetAtPath<TMPro.TMP_FontAsset>(LobbyEditorUI.FontAssetPath);
             EditorUtility.SetDirty(registry);

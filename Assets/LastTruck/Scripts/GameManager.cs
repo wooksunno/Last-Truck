@@ -224,6 +224,18 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 테스트용(채팅 명령 /night): 바로 밤으로 넘긴다. night > 0이면 그 회차의 밤으로 (웨이브 구성/쿼터가 그 밤 기준).
+    /// 이미 밤이면 지금 밤을 끝내고 새 밤을 시작한다. 호스트(또는 싱글)에서만.
+    /// </summary>
+    public void DebugStartNight(int night)
+    {
+        if (IsNetworkMirror || _waitingForNetworkStart) return;
+        if (CurrentPhase == GamePhase.Night) OnNightEnded?.Invoke();
+        if (night > 0) CurrentCycle = night;
+        StartNight();
+    }
+
     private void EndNight()
     {
         OnNightEnded?.Invoke();

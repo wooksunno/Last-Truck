@@ -20,7 +20,7 @@ namespace LastTruck.Networking
         #region 버전
 
         /// <summary>네트워크 구조가 바뀌면 올린다 (같은 Application.version이라도 서로 못 들어오게).</summary>
-        public const int NetProtocol = 12;
+        public const int NetProtocol = 13;
 
         /// <summary>방 목록/접속에서 비교하는 버전 문자열.</summary>
         public static string GameVersion => $"{Application.version}/n{NetProtocol}";

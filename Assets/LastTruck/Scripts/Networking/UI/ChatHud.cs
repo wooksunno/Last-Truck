@@ -148,7 +148,7 @@ namespace LastTruck.Networking
             area.offsetMax = new Vector2(-10f, -4f);
 
             TextMeshProUGUI placeholder = NewText(area, "Placeholder", 20f);
-            placeholder.text = "메시지 입력 (Enter: 보내기, Esc: 닫기)";
+            placeholder.text = "메시지 입력 (Enter: 보내기, Esc: 닫기, /help: 테스트 명령)";
             placeholder.color = new Color(1f, 1f, 1f, 0.35f);
             Stretch(placeholder.rectTransform);
             TextMeshProUGUI inputText = NewText(area, "Text", 20f);

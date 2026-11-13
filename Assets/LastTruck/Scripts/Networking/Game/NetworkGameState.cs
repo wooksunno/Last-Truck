@@ -369,6 +369,14 @@ namespace LastTruck.Networking
             text = ChatHud.Sanitize(text, ChatMaxLength);
             if (string.IsNullOrEmpty(text)) return;
 
+            // "/"로 시작하면 테스트 명령 (호스트가 실행하고 결과를 모두에게 알린다)
+            if (text.StartsWith("/"))
+            {
+                string reply = DebugCommands.HostExecute(text, SenderName(info.Source));
+                if (!string.IsNullOrEmpty(reply)) RPC_Chat(string.Empty, reply, (int)ChatKind.System);
+                return;
+            }
+
             string sender;
             if (info.Source == PlayerRef.None || info.Source == Runner.LocalPlayer)
             {
@@ -380,6 +388,13 @@ namespace LastTruck.Networking
                 sender = character != null ? character.Nickname.ToString() : $"플레이어{info.Source.PlayerId}";
             }
             RPC_Chat(ChatHud.Sanitize(sender, 32), text, (int)ChatKind.Player);
+        }
+
+        private string SenderName(PlayerRef source)
+        {
+            if (source == PlayerRef.None || source == Runner.LocalPlayer) return PlayerProfile.Nickname;
+            NetworkPlayer character = NetworkPlayer.Find(source);
+            return character != null ? character.Nickname.ToString() : $"플레이어{source.PlayerId}";
         }
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.All)]

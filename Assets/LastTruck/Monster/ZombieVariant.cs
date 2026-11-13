@@ -18,13 +18,32 @@ namespace LastTruck
         [Tooltip("0 이상이면 이 번호의 외형으로 고정한다 (-1 = 무작위/네트워크 번호).")]
         [SerializeField] private int forcedIndex = -1;
 
+        [Tooltip("비어 있지 않으면 이 이름의 몸 메시들 중에서만 고른다 (몬스터 종류별 프리팹에서 설정).")]
+        [SerializeField] private string[] allowedBodies = new string[0];
+
+        /// <summary>고를 수 있는 몸 메시 이름 목록 (에디터 도구가 종류별 프리팹을 만들 때 넣는다).</summary>
+        public string[] AllowedBodies
+        {
+            get => allowedBodies;
+            set => allowedBodies = value ?? new string[0];
+        }
+
         private bool _appliedByType;
 
         private void Start()
         {
             if (_appliedByType) return; // 몬스터 종류가 이미 외형을 정했다
+            if (forcedIndex < 0 && allowedBodies != null && allowedBodies.Length > 0)
+            {
+                var no = GetComponent<Fusion.NetworkObject>();
+                ApplyAllowed(no != null && no.IsValid ? (int)(no.Id.Raw % 100000) : Random.Range(0, 100000));
+                return;
+            }
             Apply();
         }
+
+        /// <summary>인스펙터의 Allowed Bodies 목록 중에서 seed로 고른다 (목록이 비면 전체).</summary>
+        public void ApplyAllowed(int seed) => ApplyNames(allowedBodies, seed);
 
         /// <summary>
         /// 몬스터 종류(NetworkMonster)가 부른다: names 목록에 있는 몸 메시 중에서만 seed로 고른다 (모든 화면에서 같은 결과).

@@ -77,7 +77,7 @@ namespace LastTruck.Networking
         [Header("모습")]
         public float scale = 1f;
         public Color tint = Color.white;
-        [Tooltip("Synty 좀비 몸 메시 이름 중 이 목록에서만 고른다 (비우면 아무거나).")]
+        [Tooltip("Synty 좀비 몸 메시 이름. 종류별 프리팹을 만들 때 첫 번째 이름의 메시만 켠다 (여러 개면 실행 중 그중에서 고른다).")]
         public string[] bodies = new string[0];
         [Tooltip("애니메이션 재생 속도 배율.")]
         public float animationSpeed = 1f;
@@ -193,9 +193,7 @@ namespace LastTruck.Networking
                     kind = MonsterKind.Walker, displayName = "워커",
                     maxHealth = 50f, damage = 8f, attacksPerSecond = 0.7f, moveSpeed = 10f,
                     hitShape = MonsterHitShape.Single, attackRange = 1.5f,
-                    bodies = new[] { "Zombie_Businessman_Male_01", "Zombie_Hoodie_Male_01", "Zombie_Jacket_Female_01", "Zombie_Father_Male_01",
-                                     "Zombie_Mother_Female_01", "Zombie_Tourist_Male_01", "Zombie_Hobo_Male_01", "Zombie_ShopKeeper_Male_01",
-                                     "Zombie_Coat_Female_01", "Zombie_Hipster_Male_01", "Zombie_SchoolBoy_Male_01", "Zombie_Grandpa_Male_01" },
+                    bodies = new[] { "Zombie_Businessman_Male_01" },
                 },
                 new MonsterTypeData
                 {
@@ -203,7 +201,7 @@ namespace LastTruck.Networking
                     maxHealth = 200f, damage = 15f, attacksPerSecond = 1.0f, moveSpeed = 15f,
                     hitShape = MonsterHitShape.FrontArc, attackRange = 1.9f, hitRadius = 2.4f,
                     scale = 1.3f, tint = new Color(0.8f, 0.85f, 1f), animationSpeed = 0.85f,
-                    bodies = new[] { "Zombie_Footballer_Male_01", "Zombie_RiotCop_Male_01", "Zombie_Firefighter_Male_01" },
+                    bodies = new[] { "Zombie_Footballer_Male_01" },
                 },
                 new MonsterTypeData
                 {
@@ -212,7 +210,7 @@ namespace LastTruck.Networking
                     hitShape = MonsterHitShape.Circle, attackRange = 1.2f, hitRadius = 4.5f, truckDamageMultiplier = 1.5f,
                     selfDestruct = true, fuseSeconds = 6f, detectionRange = 14f,
                     tint = new Color(1f, 0.85f, 0.5f), animationSpeed = 1.3f,
-                    bodies = new[] { "Zombie_HotDogSuit_Male_01", "Zombie_Roadworker_Male_01", "Zombie_FastfoodWorker_Male_01" },
+                    bodies = new[] { "Zombie_Roadworker_Male_01" },
                 },
                 new MonsterTypeData
                 {
@@ -220,7 +218,7 @@ namespace LastTruck.Networking
                     maxHealth = 90f, damage = 14f, attacksPerSecond = 1.3f, moveSpeed = 20f,
                     hitShape = MonsterHitShape.Single, attackRange = 1.6f, detectionRange = 16f,
                     scale = 1.1f, tint = new Color(1f, 0.55f, 0.55f), animationSpeed = 1.25f,
-                    bodies = new[] { "Zombie_Military_Male_01", "Zombie_Gangster_Male_01", "Zombie_Punk_Male_01", "Zombie_Prisinor_Male_01" },
+                    bodies = new[] { "Zombie_Military_Male_01" },
                 },
                 new MonsterTypeData
                 {
@@ -228,7 +226,7 @@ namespace LastTruck.Networking
                     maxHealth = 400f, damage = 40f, attacksPerSecond = 1.6f, moveSpeed = 25f,
                     hitShape = MonsterHitShape.FrontArc, attackRange = 2.6f, hitRadius = 4f, truckDamageMultiplier = 1.5f,
                     detectionRange = 18f, scale = 1.8f, tint = new Color(0.75f, 1f, 0.7f), animationSpeed = 0.9f,
-                    bodies = new[] { "Zombie_Biker_Male_01", "Zombie_Jock_Male_01" },
+                    bodies = new[] { "Zombie_Biker_Male_01" },
                 },
                 new MonsterTypeData
                 {
@@ -236,7 +234,7 @@ namespace LastTruck.Networking
                     maxHealth = 40f, damage = 12f, attacksPerSecond = 0.8f, moveSpeed = 13f,
                     hitShape = MonsterHitShape.Single, attackRange = 13f, ranged = true, projectileSpeed = 18f, detectionRange = 18f,
                     tint = new Color(0.75f, 0.8f, 1f),
-                    bodies = new[] { "Zombie_Police_Male_01", "Zombie_Police_Female_01", "Zombie_Diver_Male_01" },
+                    bodies = new[] { "Zombie_Police_Male_01" },
                 },
                 new MonsterTypeData
                 {
@@ -245,7 +243,7 @@ namespace LastTruck.Networking
                     hitShape = MonsterHitShape.Single, attackRange = 12f, ranged = true, projectileSpeed = 16f,
                     prefersTruck = true, truckDamageMultiplier = 1.2f,
                     tint = new Color(1f, 0.75f, 0.4f),
-                    bodies = new[] { "Zombie_Bellboy_Male_01", "Zombie_Clown_Male_01", "Zombie_Cheerleader_Female_01" },
+                    bodies = new[] { "Zombie_Firefighter_Male_01" },
                 },
                 new MonsterTypeData
                 {
@@ -254,7 +252,7 @@ namespace LastTruck.Networking
                     hitShape = MonsterHitShape.Circle, attackRange = 9f, ranged = true, projectileSpeed = 11f,
                     leavesPool = true, poolDuration = 3f, poolRadius = 2.2f, poolDamagePerSecond = 5f,
                     tint = new Color(0.6f, 1f, 0.5f),
-                    bodies = new[] { "Zombie_BioHazardSuit_Male_01", "Zombie_Patient_Female_01", "Zombie_Paramedic_Female_01" },
+                    bodies = new[] { "Zombie_BioHazardSuit_Male_01" },
                 },
             };
         }

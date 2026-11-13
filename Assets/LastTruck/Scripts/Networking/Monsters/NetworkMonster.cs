@@ -131,6 +131,7 @@ namespace LastTruck.Networking
         private float _loseRangeExtra = 3f;
         private Vector3 _baseScale = Vector3.one;
         private bool _fuseFlashOn;
+        private Color _tint = Color.white;
 
         // 원거리 투사체 / 오염 지대 (호스트)
         private struct PendingShot
@@ -209,15 +210,32 @@ namespace LastTruck.Networking
             MonsterCatalog catalog = MonsterCatalog.Instance;
             _type = catalog.Get(Kind);
 
-            // 모습: 크기 / 몸 메시 / 색 / 애니메이션 속도
-            _baseScale = Vector3.one * Mathf.Max(0.2f, _type.scale);
-            transform.localScale = _baseScale;
+            // 모습: 종류별 프리팹(MonsterAppearance)이면 프리팹 값, 아니면(기본 프리팹) 종류 표의 값
+            MonsterAppearance appearance = GetComponent<MonsterAppearance>();
             ZombieVariant variant = GetComponent<ZombieVariant>();
-            if (variant != null) variant.ApplyNames(_type.bodies, (int)(Object.Id.Raw % 100000));
-            if (_type.tint != Color.white) SetBodyColor(_type.tint);
+            int seed = (int)(Object.Id.Raw % 100000);
+            Color tint;
+            float animSpeed;
+            if (appearance != null)
+            {
+                _baseScale = transform.localScale;
+                if (variant != null) variant.ApplyAllowed(seed);
+                tint = appearance.tint;
+                animSpeed = appearance.animationSpeed;
+            }
+            else
+            {
+                _baseScale = Vector3.one * Mathf.Max(0.2f, _type.scale);
+                transform.localScale = _baseScale;
+                if (variant != null) variant.ApplyNames(_type.bodies, seed);
+                tint = _type.tint;
+                animSpeed = _type.animationSpeed;
+            }
+            _tint = tint;
+            if (tint != Color.white) SetBodyColor(tint);
             if (_damageable != null) _damageable.RefreshRenderers();
-            if (_animator != null) _animator.speed = Mathf.Max(0.1f, _type.animationSpeed);
-            gameObject.name = $"Monster_{_type.kind}";
+            animSpeed = Mathf.Max(0.1f, animSpeed);
+            if (_animator != null) _animator.speed = animSpeed;
 
             // 수치 (호스트만 쓰지만 모두 넣어도 무방)
             float damageScale = catalog.DamageScale(SpawnNight);
@@ -227,7 +245,6 @@ namespace LastTruck.Networking
             detectionRange = Mathf.Max(attackRange, _type.detectionRange);
             loseRange = detectionRange + _loseRangeExtra;
 
-            float animSpeed = Mathf.Max(0.1f, _type.animationSpeed);
             _attackDuration /= animSpeed;
             _hitDelay /= animSpeed;
             float interval = _type.attacksPerSecond > 0.01f ? 1f / _type.attacksPerSecond : 999f;
@@ -734,7 +751,7 @@ namespace LastTruck.Networking
             {
                 if (renderer == null || !renderer.enabled || renderer is ParticleSystemRenderer) continue;
                 Material material = renderer.material;
-                Color color = on ? new Color(1f, 0.25f, 0.15f) : _type.tint;
+                Color color = on ? new Color(1f, 0.25f, 0.15f) : _tint;
                 if (material.HasProperty("_EmissionColor"))
                 {
                     material.EnableKeyword("_EMISSION");

@@ -501,6 +501,14 @@ InRoom/InGame ─(RequestLeaveSession 또는 연결 끊김)─> Leaving ─> (Me
 
 - 원거리/오염/폭발 연출은 `MonsterEffects`(코드로 만든 구슬·바닥 원·폭발, Sprites/Default 셰이더), RPC로 모두에게. 피해 판정은 호스트.
 
+### 14-1b. 종류별 프리팹 (`Monster_{종류}.prefab`)
+- 위치: `Assets/LastTruck/Multiplayer/Prefabs/Monsters/Monster_Walker.prefab` … `Monster_Polluter.prefab` (8개, `Monster_Network.prefab`의 Variant).
+- 만드는 법: 메뉴 `LastTruck > Multiplayer > 3. 몬스터 종류별 프리팹 만들기` (메뉴 1도 없는 것만 자동 생성). `NetworkPrefabRegistry.monsterKindPrefabs`에 종류 순서대로 연결, Fusion 프리팹 테이블 재빌드.
+- 프리팹에서 고치는 것: 루트 Scale(크기), `MonsterAppearance`(종류/색/애니메이션 속도), `ZombieVariant.Allowed Bodies`(Synty 몸 메시 목록). 모델을 통째로 바꿔도 된다.
+- 수치(체력/공격/속도/사거리/특수 공격)는 계속 `MonsterCatalog`에서 종류로 읽는다. 표의 모습 값(scale/tint/bodies/animationSpeed)은 프리팹을 처음 만들 때 기본값으로만 쓴다.
+- 스폰: `NetworkMonsterSpawning.Spawn` → `registry.GetMonsterPrefab(kind)` (비어 있으면 기본 프리팹 + 표 모습 값).
+- 주의: 메뉴 1이 원본 변경으로 `Monster_Network`를 다시 만들면 Variant 부모가 끊긴다 → 메뉴 3에서 다시 만들 것.
+
 ### 14-2. 웨이브 (구조만, `MonsterWaveData`)
 - `fromNight` 이상인 밤 중 가장 큰 항목을 쓴다: 제목, 설명, 종류별 비율(weights), 보스 수(bossCount).
 - 기본: 1밤 워커만 / 2밤 탱커·붐버 / 3밤 원거리 + 빅 보이 1 / 4밤 오염체·버서커 / 5밤~ 전부 + 빅 보이 1.
@@ -512,6 +520,12 @@ InRoom/InGame ─(RequestLeaveSession 또는 연결 끊김)─> Leaving ─> (Me
 - 보내기: `RPC_SendChat`(호스트, 초당 3회 제한) → `RPC_Chat(보낸 사람, 내용, 종류)` → 모두. 색: 플레이어 닉네임 하늘색 + 흰 글자 / 시스템 노랑 / 경고 주황.
 - 시스템 메시지: 나감(3분 재접속), 다시 들어옴, 3분 지나 가방 → 트럭, 새 방장(멈춤이 풀린 뒤 `TakePendingAnnouncement`), 방장 나감(각자), 밤/아침.
 - 입력 중 조작 막기: `GameLauncher.OnInput`이 빈 입력, 내 캐릭터의 키 읽는 스크립트를 잠시 끔(`NetworkPlayer.SetChatSuspended`), ESC 메뉴/트럭 키/부활/WorldClickInteractor(Esc·Tab·클릭)에 `ChatHud.IsTyping` 확인.
+
+### 14-3b. 테스트 명령 (`Game/DebugCommands.cs`)
+- 채팅에 `/`로 시작하는 글을 보내면 호스트가 실행하고 결과를 모두에게 알린다 (누가 했는지 표시).
+- `/giveall [개수]`: ItemCatalog의 모든 아이템을 트럭에 (도구/무기는 1개씩 최대 내구도, 나머지는 한 묶음 최대치 또는 [개수]). `/cleartruck`: 트럭 비우기.
+- `/night [회차]`: 바로 밤 시작 (`GameManager.DebugStartNight`, 회차를 주면 그 밤의 웨이브/쿼터). `/killall`: 몬스터 모두 처치. `/help`.
+- 트럭 인벤토리 네트워크 칸 64 → 128 (아이템 104종이 다 들어가도록), `NetProtocol` 13.
 
 ### 14-4. 배너 (`UI/WaveBanner.cs`)
 - 화면 가운데 위쪽(+230), 제목 60 / 설명 28, 0.35초 나타남 → 4초 → 0.6초 사라짐 (실제 시간).

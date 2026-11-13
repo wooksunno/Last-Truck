@@ -23,7 +23,7 @@ namespace LastTruck.Networking
     {
         #region 네트워크 상태
 
-        public const int MaxSlots = 64;
+        public const int MaxSlots = 128; // 트럭 칸(120)보다 크게 (모든 아이템 넣기 테스트 명령으로 100칸 넘게 찰 수 있다)
 
         /// <summary>슬롯별 아이템 번호 + 1 (0 = 빈 칸).</summary>
         [Networked, Capacity(MaxSlots)] private NetworkArray<int> SlotItems => default;

@@ -50,7 +50,8 @@ namespace LastTruck.Networking
             // 몬스터만 관심 영역(AOI) 대상: 멀리 있는 몬스터는 그 플레이어에게 보내지 않는다.
             MonsterKind pickedKind = kind ?? MonsterWaveDirector.HostPickKind();
             int night = MonsterWaveDirector.CurrentNight;
-            NetworkObject spawned = runner.Spawn(registry.monsterPrefab, position, rotation, PlayerRef.None,
+            NetworkObject prefab = registry.GetMonsterPrefab(pickedKind);
+            NetworkObject spawned = runner.Spawn(prefab, position, rotation, PlayerRef.None,
                 (r, obj) =>
                 {
                     NetworkInterest.Apply(r, obj, true);
