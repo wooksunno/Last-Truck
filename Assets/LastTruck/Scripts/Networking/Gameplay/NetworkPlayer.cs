@@ -348,10 +348,16 @@ namespace LastTruck.Networking
             bool seated = IsSeated;
             if (seated != _seatedApplied) ApplySeated(seated);
 
-            // 몸 숨기기: 트럭 안이면 모두에게 숨김. 포탑 위면 다른 사람에겐 보이고, 내 화면(1인칭)에서만 숨긴다.
-            bool hideBody = seated && (IsLocal || !IsOnTurret);
+            // 몸 숨기기: 트럭 좌석에 앉은 사람은 앉은 모습으로 모두에게 보인다. 내가 포탑 위에 있을 때만 내 화면(1인칭)에서 몸을 숨긴다.
+            bool hideBody = seated && IsLocal && IsOnTurret;
             if (hideBody != _bodyHiddenApplied) ApplyBodyHidden(hideBody);
+
+            // 앉은 자세 (포탑 위는 서 있는다). 운전석이면 핸들을 잡은 팔.
+            if (_seatedPose == null) _seatedPose = SeatedPose.Ensure(gameObject);
+            _seatedPose.Apply(seated && !IsOnTurret && IsAlive, NetworkTruck.SeatOfPlayer(Owner) == NetworkTruck.DriverSeat);
         }
+
+        private SeatedPose _seatedPose;
 
         private void ApplyBodyHidden(bool hide)
         {

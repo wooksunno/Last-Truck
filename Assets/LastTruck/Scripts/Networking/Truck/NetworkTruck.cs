@@ -92,6 +92,19 @@ namespace LastTruck.Networking
             if (SeatOfPlayer(player) == TurretSeat && CraftingSystem.TruckTurret.Instance != null &&
                 CraftingSystem.TruckTurret.Instance.TryGetStandPose(out position, out rotation))
                 return true;
+
+            // 좌석마다 앉을 자리(트럭 프리팹의 SeatPose_번호 = 엉덩이가 놓일 위치). 없으면 예전처럼 한 점(seatPoint).
+            int seat = SeatOfPlayer(player);
+            if (seat >= 0 && IsReady && Instance.FindTruck())
+            {
+                Transform pose = Instance._truck.transform.Find("SeatPose_" + seat);
+                if (pose != null)
+                {
+                    position = pose.position;
+                    rotation = Quaternion.Euler(0f, pose.eulerAngles.y, 0f);
+                    return true;
+                }
+            }
             return TryGetSeatPose(out position, out rotation);
         }
 

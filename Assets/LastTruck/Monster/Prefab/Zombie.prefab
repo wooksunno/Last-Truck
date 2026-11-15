@@ -102,10 +102,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 539107e69d794a8f836ed3ecd21da0ed, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MonsterAnimationSet
-  attackClip: {fileID: 7400000, guid: 359aa5e5ac1ec644896f36ac11ad68ea, type: 2}
+  attackClip: {fileID: 7400000, guid: a47ab999fae673d4385f6716ae17f1b4, type: 2}
   getHitClip: {fileID: 7400000, guid: 4ea83184c1588b846b2042c78e335418, type: 2}
   deathClip: {fileID: 7400000, guid: b613000e3692df142b37e58b11a66b3b, type: 2}
-  attackHitTiming: 0.42
+  attackHitTiming: 0.5
   stunImmunitySeconds: 1
   corpseLingerSeconds: 0.5
 --- !u!136 &8234844038741127473

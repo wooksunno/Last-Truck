@@ -102,7 +102,7 @@ namespace CraftingSystem
             string baseId = autoId.StartsWith(TruckUpgradeRules.AutoPrefix) ? autoId.Substring(TruckUpgradeRules.AutoPrefix.Length) : autoId;
 
             Transform mount = transform.Find("Mount_Bed");
-            Vector3 position = mount != null ? mount.position : transform.TransformPoint(new Vector3(0f, 1.2f, -1.7f));
+            Vector3 position = mount != null ? mount.position : transform.TransformPoint(new Vector3(0f, 1.7f, -2.2f));
 
             _root = new GameObject("TruckAutoTurret_Model").transform;
             _root.SetParent(transform, false);
@@ -113,7 +113,7 @@ namespace CraftingSystem
 
             // 적재함 바닥에서 포탑 받침까지 올라오는 기둥 (포신이 적재함 난간 위로 나오도록 높였다)
             var steel = Lit(new Color(0.3f, 0.32f, 0.36f));
-            Prim(PrimitiveType.Cylinder, _root, new Vector3(0f, -0.2f, 0f), new Vector3(0.32f, 0.2f, 0.32f), steel);
+            Prim(PrimitiveType.Cylinder, _root, new Vector3(0f, -0.3f, 0f), new Vector3(0.36f, 0.3f, 0.36f), steel);
 
             // 자동 포탑 표시: 파란 센서 눈 + 안테나
             var eye = Glow(new Color(0.3f, 0.85f, 1f));

@@ -85,6 +85,19 @@ public static class NewItemsSetup
         new Def { id = ItemIds.VitalityTonic, name = "활력 토닉", type = ItemType.Finished, stack = 10,
                   recipe = new Recipe { facility = FacilityType.ChemicalRefinery, recipeId = "chem_" + ItemIds.VitalityTonic, recipeName = "활력 토닉 정제",
                                         inputs = new[] { (ItemIds.MedicalExtract, 2), (ItemIds.StimulantPowder, 1) }, outCount = 1, seconds = 60f } },
+        // 독버섯 미끼: 독성 유인 페로몬 + 썩은 고기로 만든다 (독약초는 페로몬을 뽑을 때만 쓴다). 손에 들고 E를 꾹 눌러 놓으면 근처 몬스터가 몰려와서 먹고 중독된다.
+        new Def { id = ItemIds.PoisonMushroomBait, name = "독버섯 미끼", type = ItemType.Finished, stack = 10,
+                  recipe = Assemble(ItemIds.PoisonMushroomBait, "독버섯 미끼", 2, (ItemIds.LurePheromone, 1), (ItemIds.RottenMeat, 1)) },
+        // 랜턴: 안개/비 날씨에 손에 들면 주변이 환해지고 시야가 트인다 (횃불보다 넓고 안정적, 무기와 같이 들 수 없다).
+        new Def { id = ItemIds.Lantern, name = "랜턴", type = ItemType.Finished, stack = 1,
+                  recipe = Assemble(ItemIds.Lantern, "랜턴", 1, (ItemIds.Iron, 2), (ItemIds.Copper, 1), (ItemIds.Charcoal, 2)) },
+        // 탈출 부품 3종 (스토리 목표): 후반 재료로 만든다. 3종이 모두 트럭 보관함에 있어야 탈출 게이트를 통과할 수 있다.
+        new Def { id = ItemIds.EscapeEngineCore, name = "탈출 엔진 코어", type = ItemType.Finished, stack = 1,
+                  recipe = Assemble(ItemIds.EscapeEngineCore, "탈출 엔진 코어", 1, (ItemIds.PlatinumGear, 3), (ItemIds.EternalEnergyCore, 1), (ItemIds.ArmorPlate, 2)) },
+        new Def { id = ItemIds.EscapeFuelTank, name = "장거리 연료 탱크", type = ItemType.Finished, stack = 1,
+                  recipe = Assemble(ItemIds.EscapeFuelTank, "장거리 연료 탱크", 1, (ItemIds.RefinedFuel, 6), (ItemIds.ArmorPlate, 3), (ItemIds.PrecisionBarrel, 1)) },
+        new Def { id = ItemIds.EscapeBeacon, name = "구조 신호기", type = ItemType.Finished, stack = 1,
+                  recipe = Assemble(ItemIds.EscapeBeacon, "구조 신호기", 1, (ItemIds.HighVoltageCable, 3), (ItemIds.SuperconductorCatalyst, 2), (ItemIds.MechanicalTrigger, 2)) },
         new Def { id = ItemIds.ToolRepairKit, name = "도구 수리 키트", type = ItemType.Finished, stack = 10,
                   recipe = Assemble(ItemIds.ToolRepairKit, "도구 수리 키트", 2, (ItemIds.Iron, 1), (ItemIds.Wood, 4), (ItemIds.StonePowder, 2)) },
     };

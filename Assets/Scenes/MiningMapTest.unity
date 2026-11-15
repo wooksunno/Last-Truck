@@ -616339,7 +616339,7 @@ Transform:
   m_GameObject: {fileID: 453562870}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.2349999, y: 1.2349999, z: 4.16}
+  m_LocalPosition: {x: -1.2892857, y: 1.2892857, z: 4.342857}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1213888,11 +1213888,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7171383227632960109, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 1.2349999
+      value: 1.2892857
+      objectReference: {fileID: 0}
+    - target: {fileID: 7171383227632960109, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 1.2892857
       objectReference: {fileID: 0}
     - target: {fileID: 7171383227632960109, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 4.16
+      value: 4.342857
       objectReference: {fileID: 0}
     - target: {fileID: 7313451405434990046, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
       propertyPath: m_Mass
@@ -1280777,7 +1280781,7 @@ MonoBehaviour:
   nightFog: {r: 0.08, g: 0.1, b: 0.24, a: 1}
   nightFogDensity: 0.0055
   weatherFog: 0
-  weatherFogDensityScale: 4
+  weatherFogDensityScale: 14
   weatherLightScale: 0.45
   weatherAmbientScale: 0.7
   weatherFogColor: {r: 0.62, g: 0.66, b: 0.7, a: 1}
@@ -1690726,6 +1690730,50 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 7019130465105947032, guid: 440266c7acb89974ebed35ada9fbdc9f, type: 3}
   m_PrefabInstance: {fileID: 1221566319}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &1221691697
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1221691699}
+  - component: {fileID: 1221691698}
+  m_Layer: 0
+  m_Name: EscapeGate
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1221691698
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1221691697}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bef54c6355702e848b505901017f43ef, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LastTruck.EscapeGate
+--- !u!4 &1221691699
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1221691697}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -17.3, y: 0.94, z: 111.26}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1221712574
 GameObject:
   m_ObjectHideFlags: 0
@@ -2892181,3 +2892229,4 @@ SceneRoots:
   - {fileID: 2026315348}
   - {fileID: 295464023}
   - {fileID: 1091585331}
+  - {fileID: 1221691699}

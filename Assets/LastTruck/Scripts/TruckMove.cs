@@ -279,9 +279,11 @@ namespace LastTruck
                     if (Mathf.Abs(moveInput) > 0.05f)
                     {
                         // 최고 속도를 넘으면 더 가속하지 않는다 (같은 방향으로 갈 때만)
-                        bool overSpeed = carRb != null && carRb.linearVelocity.magnitude > maxSpeed &&
+                        // 비 오는 길은 미끄러워 최고 속도와 가속이 줄어든다 (날씨 패널티)
+                        float weather = LastTruck.WeatherDirector.TruckSpeedScale;
+                        bool overSpeed = carRb != null && carRb.linearVelocity.magnitude > maxSpeed * weather &&
                                          Vector3.Dot(carRb.linearVelocity, transform.forward * moveInput) > 0f;
-                        float torque = _throttle * maxAcceleration * (_throttle < 0f ? reverseTorqueFactor : 1f);
+                        float torque = _throttle * maxAcceleration * weather * (_throttle < 0f ? reverseTorqueFactor : 1f);
                         wheel.wheelCollider.motorTorque = overSpeed ? 0f : torque;
                         wheel.wheelCollider.brakeTorque = 0f;
                     }

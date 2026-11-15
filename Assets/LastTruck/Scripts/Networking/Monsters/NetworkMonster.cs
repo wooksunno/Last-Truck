@@ -109,6 +109,27 @@ namespace LastTruck.Networking
         /// <summary>호스트가 정한 이동 속도 (애니메이션 Idle/Walk용).</summary>
         [Networked] private float MoveSpeed { get; set; }
 
+        /// <summary>호스트가 정한 몸집 배율 (중간보스 등). 1이면 보통. 모든 화면이 모델 크기를 맞춘다.</summary>
+        [Networked] public float TierSize { get; set; }
+
+        // 강함 등급 (호스트): 체력은 NetworkHealth가 최대 체력을 정한 뒤 첫 틱에 곱해 준다.
+        private bool _tierQueued;
+        private float _queuedHp = 1f;
+        private bool _tierSizeApplied;
+
+        /// <summary>호스트: 스폰 직후 부른다. 체력/피해 배율과 몸집(모두에게 동기화)을 정한다.</summary>
+        public void QueueTier(float hpScale, float dmgScale, float size, bool boss)
+        {
+            if (!HasStateAuthority) return;
+            MonsterTier tier = GetComponent<MonsterTier>();
+            if (tier == null) tier = gameObject.AddComponent<MonsterTier>();
+            tier.IsBoss = boss;
+            tier.DamageScale = dmgScale;
+            _queuedHp = hpScale;
+            _tierQueued = true;
+            TierSize = size;
+        }
+
         #endregion
 
         #region 생명주기
@@ -233,6 +254,15 @@ namespace LastTruck.Networking
         public override void FixedUpdateNetwork()
         {
             if (!HasStateAuthority) return;
+
+            if (_tierQueued && _health != null && _health.Max > 0f)
+            {
+                float max = _health.Max * Mathf.Max(0.1f, _queuedHp);
+                _health.Max = max;
+                _health.Current = max;
+                _tierQueued = false;
+            }
+
             if (_agent == null || !_agent.enabled) return;
             if (!_agent.isOnNavMesh)
             {
@@ -337,8 +367,51 @@ namespace LastTruck.Networking
             if (nearest != null) _targetPlayer = nearest;
         }
 
+        /// <summary>독버섯 미끼에 이끌리는 중인가 (플레이어가 바로 곁에 있으면 플레이어가 먼저). 미끼를 돌려준다.</summary>
+        private CraftingSystem.PoisonBait LuringBait()
+        {
+            CraftingSystem.PoisonBait bait = CraftingSystem.PoisonBait.FindFor(_damageable, transform.position);
+            if (bait == null) return null;
+            if (_targetPlayer != null && CraftingSystem.PoisonBait.PlayerIsCloser(transform.position, _targetPlayer.transform.position)) return null;
+            return bait;
+        }
+
+        /// <summary>독성 유인 페로몬을 바른 덫에 이끌리는 중인가 (플레이어가 바로 곁에 있으면 플레이어가 먼저).</summary>
+        private CraftingSystem.TrapPlaced LuringTrap()
+        {
+            if (_targetPlayer != null && CraftingSystem.PoisonBait.PlayerIsCloser(transform.position, _targetPlayer.transform.position)) return null;
+            return CraftingSystem.TrapPlaced.FindLureFor(transform.position);
+        }
+
         private void MoveTowardTarget()
         {
+            // 독버섯 미끼: 플레이어/트럭 대신 미끼로 가서 먹는다 (먹는 동안은 멈춰 서서 독에 중독된다)
+            CraftingSystem.PoisonBait bait = LuringBait();
+            if (bait != null)
+            {
+                if (bait.Reached(transform.position))
+                {
+                    bait.Feed(_damageable);
+                    _agent.isStopped = true;
+                }
+                else
+                {
+                    _agent.isStopped = false;
+                    _agent.SetDestination(bait.transform.position);
+                }
+                return;
+            }
+
+            // 페로몬 덫: 냄새를 따라 덫으로 가서 걸린다
+            CraftingSystem.TrapPlaced lureTrap = LuringTrap();
+            if (lureTrap != null)
+            {
+                _agent.isStopped = false;
+                if (lureTrap.Reached(transform.position)) lureTrap.TryCatch(_damageable);
+                else _agent.SetDestination(lureTrap.transform.position);
+                return;
+            }
+
             Vector3 destination;
             if (_targetPlayer != null)
             {
@@ -360,6 +433,7 @@ namespace LastTruck.Networking
         private void TryAttack()
         {
             if (Time.time < _nextAttackTime) return;
+            if (LuringBait() != null || LuringTrap() != null) return;   // 미끼/페로몬 덫에 정신이 팔려 공격하지 않는다
 
             if (_targetPlayer != null && _targetPlayer.IsSeated) _targetPlayer = null; // 방금 트럭에 탔으면 트럭을 노린다
 
@@ -404,6 +478,7 @@ namespace LastTruck.Networking
             if (!HasStateAuthority || (_health != null && _health.IsDead) || NetworkGameState.IsGameOver) return;
 
             float reach = attackRange + (_agent != null ? _agent.radius : 0.5f) + hitRangeTolerance;
+            float dmgScale = MonsterTier.DamageOf(gameObject);
             if (target == AttackTarget.Player)
             {
                 if (player == null || !player.IsAlive || player.IsSeated) return;
@@ -411,13 +486,13 @@ namespace LastTruck.Networking
 
                 NetworkHealth targetHealth = player.Health;
                 if (targetHealth != null && !targetHealth.IsDead)
-                    targetHealth.ApplyDamage(playerDamage, player.transform.position + Vector3.up, false);
+                    targetHealth.ApplyDamage(playerDamage * dmgScale, player.transform.position + Vector3.up, false);
             }
             else if (target == AttackTarget.Truck)
             {
                 if (_truck == null || _truck.IsBroken) return;
                 if (HorizontalDistance(transform.position, ClosestPointOnTruck(transform.position)) > reach) return;
-                _truck.Take_Damage(truckDamage);
+                _truck.Take_Damage(truckDamage * dmgScale);
             }
         }
 
@@ -443,6 +518,15 @@ namespace LastTruck.Networking
         {
             bool dead = _health != null && _health.IsDead;
             if (dead && !_deathApplied) ApplyDeath();
+
+            // 몸집 (중간보스): 호스트가 정한 값을 모든 화면에서 한 번 적용
+            if (!_tierSizeApplied && TierSize > 1.01f)
+            {
+                _tierSizeApplied = true;
+                MonsterTier tier = GetComponent<MonsterTier>();
+                if (tier == null) tier = gameObject.AddComponent<MonsterTier>();
+                tier.ApplySize(TierSize);
+            }
 
             if (_animator == null || !_animator.isActiveAndEnabled) return;
             float target = dead ? 0f : MoveSpeed;

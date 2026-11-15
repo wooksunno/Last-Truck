@@ -8,8 +8,11 @@ namespace CraftingSystem
     /// 1/2/3 키로 선택한 플레이어 인벤토리 슬롯(PlayerInventory.SelectedSlotIndex)을 "손"으로 취급한다.
     /// 손에 든 도구의 등급(toolTier)이 요구 등급 이상이어야 채집 가능(요구 등급 0 = 맨손 채집 허용).
     /// </summary>
-    public class ResourceNode : MonoBehaviour, LastTruck.IHoldInteractable
+    public class ResourceNode : MonoBehaviour, LastTruck.IHoldInteractable, IGatherOutline
     {
+        public bool CanGatherNow => !_isGathering && outputItem != null && GatherRules.MeetsRequirement(requiredTier);
+        public GameObject OutlineRoot => gameObject;
+
         [SerializeField] private string displayName = "자원 채집";
         [SerializeField] private ItemData outputItem;
         [SerializeField] private int outputAmount = 1;

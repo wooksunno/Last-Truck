@@ -67,7 +67,7 @@ namespace LastTruck
         [Tooltip("날씨 안개 정도 (0 맑음 ~ 1 짙은 안개). 나중에 날씨 시스템이 WeatherFog로 바꾼다.")]
         [Range(0f, 1f)] [SerializeField] private float weatherFog = 0f;
         [Tooltip("안개가 짙을 때 안개 밀도 배율.")]
-        [SerializeField] private float weatherFogDensityScale = 4f;
+        [SerializeField] private float weatherFogDensityScale = 14f;
         [Tooltip("안개가 짙을 때 해/달빛 세기 배율 (빛이 안개에 막힘).")]
         [Range(0f, 1f)] [SerializeField] private float weatherLightScale = 0.45f;
         [Tooltip("안개가 짙을 때 주변광 배율.")]
@@ -127,6 +127,9 @@ namespace LastTruck
             get => weatherFog;
             set => weatherFog = Mathf.Clamp01(value);
         }
+
+        /// <summary>랜턴/횃불을 들고 있는 정도 (0 = 안 듦 ~ 1 = 랜턴). 들고 있으면 날씨 안개가 걷혀 주변이 잘 보인다 (WeatherDirector가 채운다).</summary>
+        public float LanternClear { get; set; }
 
         private void Awake()
         {
@@ -244,7 +247,7 @@ namespace LastTruck
             float glow = SunsetGlow(s);             // 노을
             float sunLeft = 1f - Step(SunGoneStart, SunGoneEnd, s);
             Shader.SetGlobalFloat(NightFactorId, t);
-            float w = Mathf.Clamp01(weatherFog);
+            float w = Mathf.Clamp01(weatherFog) * (1f - 0.62f * Mathf.Clamp01(LanternClear));   // 랜턴을 들면 안개가 걷힌다
             Shader.SetGlobalFloat(WeatherFogId, w);
             float weatherLight = Mathf.Lerp(1f, weatherLightScale, w);
 

@@ -46,6 +46,9 @@ public class MonsterAI : MonoBehaviour
     private float _nextAttackTime;
     private float _attackLockUntil;
     private bool _hitPending;
+    private bool _hitIsTruck;
+    private LastTruck.TruckInformation _truck;
+    private Collider[] _truckColliders;
     private float _hitFallbackTime;
     private float _stunUntil;
     private float _stunImmuneUntil;
@@ -122,9 +125,47 @@ public class MonsterAI : MonoBehaviour
         }
         else if (playerTarget != null)
         {
-            agent.isStopped = false;
-            agent.SetDestination(playerTarget.position);
-            TryAttack();
+            // 독버섯 미끼가 가까이 있으면 플레이어/트럭 대신 미끼로 몰려가서 먹는다 (플레이어가 바로 곁에 있으면 플레이어가 먼저)
+            CraftingSystem.PoisonBait bait = CraftingSystem.PoisonBait.FindFor(_damageable, transform.position);
+            if (bait != null && !CraftingSystem.PoisonBait.PlayerIsCloser(transform.position, playerTarget.position))
+            {
+                agent.isStopped = false;
+                if (bait.Reached(transform.position))
+                {
+                    bait.Feed(_damageable);   // 먹는 동안은 멈춰 서서 독에 중독된다
+                    agent.isStopped = true;
+                }
+                else
+                {
+                    agent.SetDestination(bait.transform.position);
+                }
+            }
+            else
+            {
+                // 독성 유인 페로몬을 바른 덫이 있으면 그쪽으로 끌려가서 덫에 걸린다
+                CraftingSystem.TrapPlaced lureTrap = CraftingSystem.PoisonBait.PlayerIsCloser(transform.position, playerTarget.position)
+                    ? null : CraftingSystem.TrapPlaced.FindLureFor(transform.position);
+                if (lureTrap != null)
+                {
+                    agent.isStopped = false;
+                    if (lureTrap.Reached(transform.position)) lureTrap.TryCatch(_damageable);
+                    else agent.SetDestination(lureTrap.transform.position);
+                }
+                else if (WantsTruck())
+                {
+                    // 트럭 방어 밤: 플레이어가 멀리 있으면 트럭을 노린다 (멀티플레이 몬스터와 같은 규칙)
+                    Vector3 point = ClosestPointOnTruck(transform.position);
+                    agent.isStopped = false;
+                    agent.SetDestination(point);
+                    TryAttackAt(point, true);
+                }
+                else
+                {
+                    agent.isStopped = false;
+                    agent.SetDestination(playerTarget.position);
+                    TryAttack();
+                }
+            }
         }
 
         // 걷기/대기 애니메이션 (Speed 파라미터)
@@ -167,15 +208,22 @@ public class MonsterAI : MonoBehaviour
 
     private void TryAttack()
     {
-        if (Time.time < _nextAttackTime || playerTarget == null) return;
-        if (HorizontalDistance(transform.position, playerTarget.position) > Reach) return;
+        if (playerTarget == null) return;
+        TryAttackAt(playerTarget.position, false);
+    }
+
+    private void TryAttackAt(Vector3 targetPos, bool truck)
+    {
+        if (Time.time < _nextAttackTime) return;
+        if (HorizontalDistance(transform.position, targetPos) > Reach) return;
 
         _nextAttackTime = Time.time + attackCooldown;
         _attackLockUntil = Time.time + _attackDuration;
         _hitPending = true;
+        _hitIsTruck = truck;
         _hitFallbackTime = Time.time + _hitDelay + 0.15f;
 
-        Vector3 dir = playerTarget.position - transform.position;
+        Vector3 dir = targetPos - transform.position;
         dir.y = 0f;
         if (dir.sqrMagnitude > 0.0001f) transform.rotation = Quaternion.LookRotation(dir.normalized);
 
@@ -185,12 +233,55 @@ public class MonsterAI : MonoBehaviour
     private void DealHit()
     {
         _hitPending = false;
-        if (_dead || playerTarget == null) return;
+        if (_dead) return;
+        float scale = LastTruck.MonsterTier.DamageOf(gameObject);
+
+        if (_hitIsTruck)
+        {
+            if (_truck == null || _truck.IsBroken) return;
+            if (HorizontalDistance(transform.position, ClosestPointOnTruck(transform.position)) > Reach + hitRangeTolerance) return;
+            _truck.Take_Damage(attackDamage * scale);
+            return;
+        }
+
+        if (playerTarget == null) return;
         if (_targetStats != null && _targetStats.IsDownedOffline) return;
         if (HorizontalDistance(transform.position, playerTarget.position) > Reach + hitRangeTolerance) return; // 피했다
 
         LastTruck.IDamageable target = playerTarget.GetComponentInParent<LastTruck.IDamageable>();
-        if (target != null) target.TakeDamage(attackDamage, gameObject);
+        if (target != null) target.TakeDamage(attackDamage * scale, gameObject);
+    }
+
+    // ---- 트럭 방어 밤 (SurvivalDirector.TruckTargeting): 플레이어가 멀리 있으면 트럭을 공격한다
+
+    private bool WantsTruck()
+    {
+        if (!LastTruck.SurvivalDirector.TruckTargeting) return false;
+        if (_truck == null)
+        {
+            _truck = FindFirstObjectByType<LastTruck.TruckInformation>();
+            if (_truck != null) _truckColliders = _truck.GetComponentsInChildren<Collider>();
+        }
+        if (_truck == null || _truck.IsBroken) return false;
+        return HorizontalDistance(transform.position, playerTarget.position) > 10f;
+    }
+
+    private Vector3 ClosestPointOnTruck(Vector3 from)
+    {
+        Vector3 best = _truck.transform.position;
+        float bestSqr = float.MaxValue;
+        if (_truckColliders != null)
+        {
+            foreach (Collider c in _truckColliders)
+            {
+                if (c == null || !c.enabled || c.isTrigger || c is WheelCollider) continue;
+                bool supported = c is BoxCollider || c is SphereCollider || c is CapsuleCollider || (c is MeshCollider m && m.convex);
+                Vector3 p = supported ? c.ClosestPoint(from) : c.bounds.ClosestPoint(from);
+                float d = (p - from).sqrMagnitude;
+                if (d < bestSqr) { bestSqr = d; best = p; }
+            }
+        }
+        return best;
     }
 
     #endregion

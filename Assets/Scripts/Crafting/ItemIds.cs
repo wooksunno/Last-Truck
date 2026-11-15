@@ -112,10 +112,16 @@ namespace CraftingSystem
         public const string ChemicalGasGrenade = "chemical_gas_grenade"; // 화학 독가스 수류탄
         public const string FragGrenade = "frag_grenade"; // 일반 수류탄
         public const string LureTrap = "lure_trap"; // 유인 미끼 트랩
+        public const string PoisonMushroomBait = "poison_mushroom_bait"; // 독버섯 미끼: 놓으면 몬스터가 몰려와서 먹고 중독된다 (E 꾹 설치)
+        // 탈출 부품 3종: 모두 트럭 보관함에 있어야 7일째 낮에 열리는 탈출 게이트를 통과할 수 있다 (StoryDirector)
+        public const string EscapeEngineCore = "escape_engine_core"; // 탈출 엔진 코어
+        public const string EscapeFuelTank = "escape_fuel_tank"; // 장거리 연료 탱크
+        public const string EscapeBeacon = "escape_beacon"; // 구조 신호기
         // 나무/돌 소비처 (나무·돌을 계속 쓰게 만드는 아이템)
         public const string ThrowingStone = "throwing_stone"; // 투척용 돌멩이
         public const string WoodSpikeTrap = "wood_spike_trap"; // 나무 가시 덫
         public const string Torch = "torch"; // 횃불 (손에 들면 주변을 밝힌다)
+        public const string Lantern = "lantern"; // 랜턴 (손에 들면 주변이 환해지고 안개/비로 흐려진 시야가 걷힌다)
         public const string WoodBarricade = "wood_barricade"; // 나무 바리케이드 (몬스터 길막)
         public const string StoneWall = "stone_wall"; // 돌 방벽 (몬스터 길막, 더 오래 감)
 

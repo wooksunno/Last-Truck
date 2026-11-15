@@ -48,6 +48,7 @@ namespace LastTruck.Networking
             {
                 SpecialResourceNode.DepletionChanged += OnHostDepletionChanged;
                 TrapPlaced.Triggered += OnHostTrapTriggered;
+                PoisonBait.Gone += OnHostBaitGone;
             }
         }
 
@@ -55,6 +56,7 @@ namespace LastTruck.Networking
         {
             SpecialResourceNode.DepletionChanged -= OnHostDepletionChanged;
             TrapPlaced.Triggered -= OnHostTrapTriggered;
+            PoisonBait.Gone -= OnHostBaitGone;
             if (Instance == this) Instance = null;
         }
 
@@ -62,6 +64,7 @@ namespace LastTruck.Networking
         {
             SpecialResourceNode.DepletionChanged -= OnHostDepletionChanged;
             TrapPlaced.Triggered -= OnHostTrapTriggered;
+            PoisonBait.Gone -= OnHostBaitGone;
             if (Instance == this) Instance = null;
         }
 
@@ -248,15 +251,15 @@ namespace LastTruck.Networking
         private int _nextTrapId = 1;
 
         /// <summary>멀티플레이면 덫 설치를 네트워크로 처리하고 true. 싱글플레이면 false (기존 방식).</summary>
-        public static bool TryPlaceTrap(Vector3 position, int damage, float rootSeconds, float triggerRadius)
+        public static bool TryPlaceTrap(Vector3 position, int damage, float rootSeconds, float triggerRadius, bool lure = false)
         {
             if (!GameLauncher.IsOnlineSession || !IsReady) return false;
-            Instance.RPC_RequestTrap(position, damage, rootSeconds, triggerRadius);
+            Instance.RPC_RequestTrap(position, damage, rootSeconds, triggerRadius, lure);
             return true;
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-        private void RPC_RequestTrap(Vector3 position, int damage, float rootSeconds, float triggerRadius, RpcInfo info = default)
+        private void RPC_RequestTrap(Vector3 position, int damage, float rootSeconds, float triggerRadius, bool lure, RpcInfo info = default)
         {
             PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
             NetworkPlayer owner = NetworkPlayer.Find(source);
@@ -266,21 +269,22 @@ namespace LastTruck.Networking
 
             int id = _nextTrapId++;
             RPC_SpawnTrap(id, position, damage, Mathf.Clamp(rootSeconds, 0f, 10f), Mathf.Clamp(triggerRadius, 0.1f, 3f),
-                owner != null ? owner.Object.InputAuthority : PlayerRef.None);
+                owner != null ? owner.Object.InputAuthority : PlayerRef.None, lure);
         }
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-        private void RPC_SpawnTrap(int id, Vector3 position, int damage, float rootSeconds, float triggerRadius, PlayerRef owner)
+        private void RPC_SpawnTrap(int id, Vector3 position, int damage, float rootSeconds, float triggerRadius, PlayerRef owner, bool lure)
         {
             if (_traps.ContainsKey(id)) return;
 
-            GameObject trapObject = TrapController.BuildTrapVisual();
+            GameObject trapObject = TrapController.BuildTrapVisual(lure);
             trapObject.transform.position = position;
             TrapPlaced trap = trapObject.AddComponent<TrapPlaced>();
             NetworkPlayer ownerCharacter = NetworkPlayer.Find(owner);
             trap.Setup(damage, rootSeconds, triggerRadius, ownerCharacter != null ? ownerCharacter.transform : null);
             trap.NetworkId = id;
             trap.VisualOnly = !HasStateAuthority; // 판정은 호스트만
+            if (lure) trap.EnableLure();          // 유인 판정은 VisualOnly가 아닌(호스트) 쪽에서만 쓰인다
             _traps[id] = trap;
         }
 
@@ -299,6 +303,60 @@ namespace LastTruck.Networking
             {
                 _traps.Remove(id);
                 if (trap != null) trap.PlayTriggered();
+            }
+        }
+
+        #endregion
+
+        #region 독버섯 미끼 (TrapController → PoisonBait)
+
+        // 미끼는 호스트가 정한 자리에 모두의 화면에 만들고, 몬스터를 끌어당기는 판정과 독 피해는 호스트만 한다 (몬스터 AI가 호스트에서 돌므로).
+        private readonly System.Collections.Generic.Dictionary<int, PoisonBait> _baits = new System.Collections.Generic.Dictionary<int, PoisonBait>();
+        private int _nextBaitId = 1;
+
+        /// <summary>멀티플레이면 미끼 설치를 네트워크로 처리하고 true (아이템은 이미 소모됨). 싱글이면 false.</summary>
+        public static bool TryPlaceBait(Vector3 position)
+        {
+            if (!GameLauncher.IsOnlineSession || !IsReady) return false;
+            Instance.RPC_RequestBait(position);
+            return true;
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_RequestBait(Vector3 position, RpcInfo info = default)
+        {
+            PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
+            NetworkPlayer owner = NetworkPlayer.Find(source);
+            // 너무 먼 위치면 설치자 발밑에 놓는다 (아이템은 이미 소모됐으므로 버리지 않는다)
+            if (owner != null && Vector3.Distance(owner.transform.position, position) > maxGatherDistance)
+                position = owner.transform.position;
+            RPC_SpawnBait(_nextBaitId++, position);
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_SpawnBait(int id, Vector3 position)
+        {
+            if (_baits.ContainsKey(id)) return;
+            PoisonBait bait = PoisonBait.Spawn(position, !HasStateAuthority);   // 판정은 호스트만
+            bait.NetworkId = id;
+            _baits[id] = bait;
+        }
+
+        private void OnHostBaitGone(PoisonBait bait)
+        {
+            if (bait == null || bait.NetworkId == 0 || Object == null || !Object.IsValid) return;
+            _baits.Remove(bait.NetworkId);
+            RPC_BaitGone(bait.NetworkId);
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_BaitGone(int id)
+        {
+            if (HasStateAuthority) return; // 호스트는 이미 사라짐
+            if (_baits.TryGetValue(id, out PoisonBait bait))
+            {
+                _baits.Remove(id);
+                if (bait != null) bait.Remove();
             }
         }
 

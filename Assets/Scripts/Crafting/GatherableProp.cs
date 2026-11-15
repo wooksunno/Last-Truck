@@ -8,8 +8,12 @@ namespace CraftingSystem
     /// PlayerInteract는 interactLayer(Water, 레이어 4)의 콜라이더만 찾으므로, 프롭의 자식 "GatherTrigger"
     /// (레이어 4, 트리거 콜라이더)에 이 컴포넌트를 붙여 사용한다. 설치는 에디터 메뉴 Tools/Gatherable Props 로 한다.
     /// </summary>
-    public class GatherableProp : MonoBehaviour, LastTruck.IHoldInteractable, LastTruck.IInteractPriority, LastTruck.IInteractLabel
+    public class GatherableProp : MonoBehaviour, LastTruck.IHoldInteractable, LastTruck.IInteractPriority, LastTruck.IInteractLabel, IGatherOutline
     {
+        // 이름은 띄우지 않는다. 대신 캘 수 있는 상태면 가까이 갔을 때 윤곽선이 굵게 나온다.
+        public bool CanGatherNow => !_done && (EffectiveTier <= 0 || GatherRules.MeetsRequirement(EffectiveTier));
+        public GameObject OutlineRoot => Root;
+
         [SerializeField] private string displayName = "채집";
         [SerializeField] private string itemId = ItemIds.Stone;
         [SerializeField] private int amount = 1;

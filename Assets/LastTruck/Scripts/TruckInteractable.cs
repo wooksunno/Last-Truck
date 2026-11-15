@@ -52,6 +52,20 @@ namespace LastTruck
         {
             if (isDriving && isGunning && !HasTurret) SetGunning(false);   // 포탑을 떼어냈다
 
+            // 생존 조건: 이번 밤은 포탑/트럭에 오를 수 없다 (타고 있었다면 내려 준다)
+            if (isDriving && isGunning && SurvivalDirector.TurretBlocked)
+            {
+                HudToast.Show("이번 밤은 포탑을 쓸 수 없어요 (생존 조건)");
+                GetOut_Truck();
+                return;
+            }
+            if (isDriving && SurvivalDirector.TruckBlocked)
+            {
+                HudToast.Show("이번 밤은 트럭에 탈 수 없어요 (생존 조건)");
+                GetOut_Truck();
+                return;
+            }
+
             if (isDriving && isGunning)
             {
                 var turret = GetComponent<CraftingSystem.TruckTurret>();
@@ -63,7 +77,7 @@ namespace LastTruck
                 // 운전 중에 밤이 되면 트럭을 세운다: 포탑이 있으면 포탑으로, 없으면 내리게 한다
                 if (GameManager.IsNight && !isGunning)
                 {
-                    if (HasTurret)
+                    if (HasTurret && !SurvivalDirector.TurretBlocked)
                     {
                         HudToast.Show("밤이 되어 트럭이 멈췄습니다. 포탑으로 버티세요!");
                         SetGunning(true);
@@ -92,6 +106,13 @@ public void Interact(GameObject player)
             if (_repair != null && _repair.TryRepair(player))
                 return;
 
+            // 생존 조건: 이번 밤은 트럭/포탑에 오를 수 없다
+            if (SurvivalDirector.TruckBlocked || (SurvivalDirector.TurretBlocked && HasTurret))
+            {
+                HudToast.Show(SurvivalDirector.TruckBlocked ? "이번 밤은 트럭에 탈 수 없어요 (생존 조건)" : "이번 밤은 포탑을 쓸 수 없어요 (생존 조건)");
+                return;
+            }
+
             // 밤에는 운전할 수 없다 (낮에 이동하고 밤에는 트럭 거점에서 버틴다). 포탑이 있으면 사수로는 탈 수 있다.
             if (GameManager.IsNight && !isDriving && (!HasTurret || LastTruck.Networking.GameLauncher.IsOnlineSession))
             {
@@ -118,6 +139,8 @@ public void Interact(GameObject player)
         private void SetGunning(bool on)
         {
             isGunning = on;
+            // 포탑을 잡는 동안은 1인칭이라 운전석의 내 몸은 숨긴다
+            if (driverPlayer != null && driverPlayer.TryGetComponent<SeatedPose>(out var seatedPose)) seatedPose.SetBodyVisible(!on);
             if (truckController != null) truckController.isDriving = !on;
             var turret = GetComponent<CraftingSystem.TruckTurret>();
             if (turret != null && !on) turret.StopLocalGunner();
@@ -142,10 +165,12 @@ public void Interact(GameObject player)
                 rb.isKinematic = true;
             }
 
-            player.transform.SetParent(seatPoint != null ? seatPoint : transform);
+            // 운전석(SeatPose_0)에 앉은 모습으로 태운다. 예전에는 캐릭터를 꺼서 숨겼다.
+            Transform seat = transform.Find("SeatPose_0");
+            player.transform.SetParent(seat != null ? seat : (seatPoint != null ? seatPoint : transform));
             player.transform.localPosition = Vector3.zero;
             player.transform.localRotation = Quaternion.identity;
-            player.SetActive(false);
+            SeatedPose.Ensure(player).Sit(driver: true, disableControls: true);
 
             if (truckController != null)
             {
@@ -182,7 +207,10 @@ public void Interact(GameObject player)
 
             driverPlayer.transform.SetParent(null);
             driverPlayer.transform.position = exitPoint != null ? exitPoint.position : transform.position + Vector3.right * 2.5f;
-            driverPlayer.SetActive(true);
+            driverPlayer.transform.rotation = Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
+            if (!driverPlayer.activeSelf) driverPlayer.SetActive(true);
+            var seated = driverPlayer.GetComponent<SeatedPose>();
+            if (seated != null) seated.Stand();   // 끈 조작 스크립트/태그를 되돌린다
             Vector3 fling = LastTruck.Networking.NetworkTruck.ExitFling(transform, truckRb, driverPlayer.transform.position);
 
             if (driverPlayer.TryGetComponent<Rigidbody>(out var rb))

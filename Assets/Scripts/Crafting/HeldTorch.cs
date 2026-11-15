@@ -11,6 +11,15 @@ namespace CraftingSystem
     {
         public const float BurnSeconds = 180f;
 
+        /// <summary>횃불을 들고 있는가 (내 화면). 날씨 안개가 약간 걷힌다 (HeldLantern.LitAmount).</summary>
+        public static bool Held { get; private set; }
+
+        private void OnDisable() { Held = false; }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics() { Held = false; }
+
+        private bool _doused;
         private PlayerInventory _inventory;
         private Light _light;
         private GameObject _flame;
@@ -58,6 +67,15 @@ namespace CraftingSystem
         private void Update()
         {
             bool holding = HoldingTorch();
+            // 비가 오면 횃불이 꺼진다 (랜턴은 괜찮다). 비가 그치면 다시 켜지고, 꺼진 동안은 타지 않는다.
+            if (holding && LastTruck.WeatherDirector.TorchDoused)
+            {
+                if (!_doused) LastTruck.HudToast.Show("비 때문에 횃불이 꺼졌어요 (랜턴은 쓸 수 있어요)");
+                _doused = true;
+                holding = false;
+            }
+            else if (!LastTruck.WeatherDirector.TorchDoused) _doused = false;
+            Held = holding;
             if (holding) EnsureVisual();
             if (_light != null)
             {

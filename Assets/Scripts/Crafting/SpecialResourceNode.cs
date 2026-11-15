@@ -7,8 +7,12 @@ namespace CraftingSystem
     /// 맵의 특산물 구역 안에 배치되는 채집 오브젝트.
     /// LastTruck.PlayerInteract(E키 꾹 누르기, OverlapSphere) 방식으로 상호작용한다.
     /// </summary>
-    public class SpecialResourceNode : MonoBehaviour, LastTruck.IHoldInteractable, LastTruck.IInteractLabel
+    public class SpecialResourceNode : MonoBehaviour, LastTruck.IHoldInteractable, LastTruck.IInteractLabel, IGatherOutline
     {
+        // 이름은 띄우지 않는다. 캘 수 있는 상태(고갈 아님 + 도구/장비 조건 충족)면 가까이 갔을 때 윤곽선이 굵게 나온다.
+        public bool CanGatherNow => !_depleted && GatherRules.MeetsRequirement(requiredTier, requiredItemId);
+        public GameObject OutlineRoot => gameObject;
+
         [SerializeField] private string displayName = "특산물";
         [SerializeField] private ItemData item;
         [SerializeField] private int amount = 1;

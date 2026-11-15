@@ -35,7 +35,8 @@ namespace CraftingSystem
         /// <summary>손에 들고 E 꾹으로 설치하는 아이템인지 (덫 2종 + 바리케이드 2종).</summary>
         public static bool IsPlaceable(string itemId) =>
             itemId == ItemIds.LureTrap || itemId == ItemIds.WoodSpikeTrap ||
-            itemId == ItemIds.WoodBarricade || itemId == ItemIds.StoneWall;
+            itemId == ItemIds.WoodBarricade || itemId == ItemIds.StoneWall ||
+            itemId == ItemIds.PoisonMushroomBait;
 
         private void Update()
         {
@@ -93,29 +94,56 @@ namespace CraftingSystem
                 return;
             }
 
+            // 독버섯 미끼: 캐릭터 앞에 놓는다. 주변 몬스터가 플레이어/트럭 대신 몰려와서 먹고 독에 중독된다.
+            if (item.itemID == ItemIds.PoisonMushroomBait)
+            {
+                Vector3 baitPos = Barricade.PlacementPoint(transform);
+                if (!LastTruck.Networking.NetworkGathering.TryPlaceBait(baitPos))
+                    PoisonBait.Spawn(baitPos, false);
+                LastTruck.HudToast.Show("독버섯 미끼를 놓았어요: 근처 몬스터가 몰려와서 먹고 중독됩니다");
+                return;
+            }
+
             int damage = trapDamage;
             float rootSeconds = trapRootSeconds;
             if (item.itemID == ItemIds.WoodSpikeTrap) { damage = SpikeTrapDamage; rootSeconds = SpikeTrapRootSeconds; }
+            // 유인 미끼 트랩 = 가시 덫에 독성 유인 페로몬을 붙인 것: 주변 몬스터를 덫으로 끌어당긴다
+            bool lure = item.itemID == ItemIds.LureTrap;
 
             // 멀티플레이: 호스트가 덫을 만들어 모두에게 보여주고, 밟았는지 판정도 호스트가 한다 (몬스터는 호스트에서 움직이므로).
-            if (LastTruck.Networking.NetworkGathering.TryPlaceTrap(transform.position + Vector3.up * 0.02f, damage, rootSeconds, trapTriggerRadius))
+            if (LastTruck.Networking.NetworkGathering.TryPlaceTrap(transform.position + Vector3.up * 0.02f, damage, rootSeconds, trapTriggerRadius, lure))
             {
                 Debug.Log($"[TrapController] {item.itemName}을(를) 설치했습니다.");
                 return;
             }
 
-            GameObject trapGO = BuildTrapVisual();
+            GameObject trapGO = BuildTrapVisual(lure);
             trapGO.transform.position = transform.position + Vector3.up * 0.02f;
 
             TrapPlaced placed = trapGO.AddComponent<TrapPlaced>();
             placed.Setup(damage, rootSeconds, trapTriggerRadius, transform);
+            if (lure) placed.EnableLure();
 
+            if (lure) LastTruck.HudToast.Show("페로몬 덫을 놓았어요: 근처 몬스터가 냄새를 따라 덫으로 몰려옵니다");
             Debug.Log($"[TrapController] {item.itemName}을(를) 설치했습니다.");
         }
 
-        public static GameObject BuildTrapVisual()
+        public static GameObject BuildTrapVisual(bool lure = false)
         {
             GameObject root = new GameObject("LureTrap");
+
+            // 페로몬을 바른 덫: 바닥에 연두색 독 기운이 은은히 번진다
+            if (lure)
+            {
+                GameObject aura = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                aura.name = "Aura";
+                aura.transform.SetParent(root.transform, false);
+                aura.transform.localPosition = new Vector3(0f, 0.03f, 0f);
+                aura.transform.localScale = new Vector3(1.4f, 0.005f, 1.4f);
+                Object.Destroy(aura.GetComponent<Collider>());
+                Material m = new Material(Shader.Find("Sprites/Default") ?? Shader.Find("Universal Render Pipeline/Unlit")) { color = new Color(0.45f, 0.95f, 0.3f, 0.28f) };
+                aura.GetComponent<Renderer>().sharedMaterial = m;
+            }
 
             GameObject plate = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             plate.name = "Plate";

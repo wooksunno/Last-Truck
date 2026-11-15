@@ -117,6 +117,9 @@ private int _withdrawMax;
 
         private GameObject _truckHint;
 
+        /// <summary>"[Tab] 트럭 거점" 안내가 지금 화면에 떠 있는가 (트럭 체력 막대가 안내와 겹치지 않게 피하는 데 쓴다).</summary>
+        public bool TruckHintVisible => _truckHint != null && _truckHint.activeSelf;
+
         /// <summary>트럭 근처에서 "[Tab] 트럭 거점" 안내를 트럭 위쪽(월드 좌표)에 띄운다.</summary>
         public void SetTruckHint(bool show, Vector3 worldAnchor)
         {
@@ -193,7 +196,8 @@ private int _withdrawMax;
             {
                 // 화면 밖으로 나가지 않게 가둔다 (오버레이 캔버스에서는 position이 화면 픽셀)
                 float x = Mathf.Clamp(screen.x, 180f, Screen.width - 180f);
-                float y = Mathf.Clamp(screen.y, 20f, Screen.height - 90f);
+                // 위쪽은 낮/밤 판과 목표 배너가 있는 자리라 그 아래로 가둔다
+                float y = Mathf.Clamp(screen.y, 20f, Screen.height - Screen.height * 0.26f);
                 _truckHint.transform.position = new Vector3(x, y, 0f);
             }
         }

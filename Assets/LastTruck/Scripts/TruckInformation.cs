@@ -27,8 +27,7 @@ namespace LastTruck
             if (GetComponent<CraftingSystem.TruckRam>() == null) gameObject.AddComponent<CraftingSystem.TruckRam>();
             if (GetComponent<CraftingSystem.TruckTurret>() == null) gameObject.AddComponent<CraftingSystem.TruckTurret>();
             if (GetComponent<CraftingSystem.TruckPartVisuals>() == null) gameObject.AddComponent<CraftingSystem.TruckPartVisuals>();
-            if (GetComponent<CraftingSystem.TruckAutoTurret>() == null) gameObject.AddComponent<CraftingSystem.TruckAutoTurret>();
-            if (GetComponent<CraftingSystem.VehicleWeathering>() == null) gameObject.AddComponent<CraftingSystem.VehicleWeathering>();
+            if (GetComponent<CraftingSystem.TruckAutoTurret>() == null) gameObject.AddComponent<CraftingSystem.TruckAutoTurret>();            if (GetComponent<CraftingSystem.VehicleWeathering>() == null) gameObject.AddComponent<CraftingSystem.VehicleWeathering>();
         }
 
         void Start()
@@ -68,6 +67,13 @@ public void Repair(float amount)
         {
             curDurability += amount;
             curDurability = Mathf.Clamp(curDurability, 0, maxDurability);
+            OnDurabilityChanged?.Invoke(curDurability, maxDurability);
+        }
+
+        /// <summary>내구도를 이 값으로 정한다 (생존 조건 실패 벌칙 등. 호스트/싱글플레이만 부른다).</summary>
+        public void SetDurability(float value)
+        {
+            curDurability = Mathf.Clamp(value, 0f, maxDurability);
             OnDurabilityChanged?.Invoke(curDurability, maxDurability);
         }
 
