@@ -1007853,6 +1007853,7 @@ GameObject:
   - component: {fileID: 743834699}
   - component: {fileID: 743834705}
   - component: {fileID: 743834706}
+  - component: {fileID: 743834707}
   m_Layer: 0
   m_Name: FreeLook Camera
   m_TagString: Untagged
@@ -1007977,7 +1007978,7 @@ MonoBehaviour:
   VerticalAxis:
     Value: 17.5
     Center: 17.5
-    Range: {x: 10, y: 50}
+    Range: {x: -35, y: 50}
     Wrap: 0
     Recentering:
       Enabled: 0
@@ -1008150,6 +1008151,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::LastTruck.CameraDistanceLimiter
   pivotHeight: 1.5
   transitionTime: 0.4
+--- !u!114 &743834707
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 743834693}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e62810947688dfc4194acdbe5b936110, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LastTruck.CameraSkyLook
+  startAngle: 5
+  fullAngle: -35
+  maxExtraPitch: 32
+  clearance: 0.45
 --- !u!1 &743861683 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 6936459669787727441, guid: ccb0420dfac689144a8acc1012c61a4c, type: 3}

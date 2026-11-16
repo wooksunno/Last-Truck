@@ -39,10 +39,9 @@ namespace Combat
             if (_fxMat == null) _fxMat = new Material(Shader.Find("Sprites/Default"));
             if (_scorchMat == null)
             {
-                _scorchMat = new Material(Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default"));
-                Color c = new Color(0.08f, 0.06f, 0.05f);
-                if (_scorchMat.HasProperty("_BaseColor")) _scorchMat.SetColor("_BaseColor", c);
-                _scorchMat.color = c;
+                // 반투명한 그을음 (불투명하면 바닥에 구멍이 난 것처럼 보인다)
+                _scorchMat = new Material(Shader.Find("Sprites/Default"));
+                _scorchMat.color = new Color(0.12f, 0.07f, 0.04f, 0.5f);
             }
 
             // 그을린 바닥
@@ -51,13 +50,13 @@ namespace Combat
             scorch.name = "Scorch";
             scorch.transform.SetParent(transform, false);
             scorch.transform.localPosition = Vector3.up * 0.03f;
-            scorch.transform.localScale = new Vector3(_radius * 1.9f, 0.01f, _radius * 1.9f);
+            scorch.transform.localScale = new Vector3(_radius * 1.6f, 0.01f, _radius * 1.6f);
             var sr = scorch.GetComponent<Renderer>();
             sr.sharedMaterial = _scorchMat;
             sr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
             // 불꽃 덩어리 (위로 길쭉한 구, 크기/색이 계속 흔들린다)
-            int n = Mathf.Clamp(Mathf.RoundToInt(_radius * 4f), 6, 14);
+            int n = Mathf.Clamp(Mathf.RoundToInt(_radius * 6f), 8, 18);
             _flames = new Transform[n];
             _flameBase = new Vector3[n];
             _flameSeed = new float[n];
@@ -103,8 +102,8 @@ namespace Combat
             {
                 float t = Time.time * 7f + _flameSeed[i];
                 float flick = 0.75f + 0.25f * Mathf.Sin(t) + 0.15f * Mathf.Sin(t * 2.3f + 1f);
-                float h = (0.55f + 0.5f * Mathf.PerlinNoise(_flameSeed[i], Time.time * 2f)) * flick * life;
-                float w = 0.32f * life * (0.8f + 0.2f * flick);
+                float h = (0.9f + 0.8f * Mathf.PerlinNoise(_flameSeed[i], Time.time * 2f)) * flick * life;
+                float w = 0.5f * life * (0.8f + 0.2f * flick);
                 _flames[i].localScale = new Vector3(w, h, w);
                 _flames[i].localPosition = _flameBase[i] + Vector3.up * (h * 0.45f);
                 Color c = Color.Lerp(new Color(1f, 0.85f, 0.3f), new Color(1f, 0.3f, 0.05f), 0.5f + 0.5f * Mathf.Sin(t * 0.7f));
