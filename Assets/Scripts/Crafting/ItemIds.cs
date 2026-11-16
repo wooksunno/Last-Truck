@@ -67,6 +67,11 @@ namespace CraftingSystem
         public const string DiamondCrusher = "diamond_crusher"; // 다이아몬드 분쇄기
         public const string CopperHandPump = "copper_hand_pump"; // 구리 수동 펌프
         public const string OilPumpjack = "oil_pumpjack"; // 석유 펌프잭 (기름 웅덩이에 설치)
+        public const string StoneAxe = "stone_axe"; // 돌도끼: 나무를 빨리 벤다 + 약한 근접 무기
+        public const string IronAxe = "iron_axe"; // 철도끼: 나무를 더 빨리 벤다
+        public const string HerbHoe = "herb_hoe"; // 채집용 호미: 약초를 빨리 캔다
+        public const string Binoculars = "binoculars"; // 쌍안경: 손에 들고 오른쪽 클릭으로 멀리 본다
+        public const string SignalFlare = "signal_flare"; // 신호탄: 던지면 그 자리를 한동안 붉게 밝힌다
 
         // 근접 무기
         public const string WoodSpear = "wood_spear";
@@ -75,7 +80,13 @@ namespace CraftingSystem
         public const string FlameMachete = "flame_machete"; // 화염 마체테
         public const string VibrationBlade = "vibration_blade"; // 진동 블레이드
 
+        public const string CopperDagger = "copper_dagger"; // 구리 단검: 빠르게 찌른다 (초반)
+        public const string BattleAxe = "battle_axe"; // 전투 도끼: 느리지만 앞의 적을 모두 벤다
+
         // 원거리/중화기
+        public const string Shotgun = "shotgun"; // 산탄총: 가까이서 산탄 여러 발
+        public const string Crossbow = "crossbow"; // 석궁: 일직선의 적을 꿰뚫는 화살
+        public const string Molotov = "molotov"; // 화염병: 던진 자리에 불길이 남는다
         public const string Pistol = "pistol"; // 권총
         public const string Ak47 = "ak47"; // AK-47 소총
         public const string PlatinumSniperRifle = "platinum_sniper_rifle"; // 백금 저격소총

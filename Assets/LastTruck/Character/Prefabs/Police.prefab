@@ -230,7 +230,11 @@ MonoBehaviour:
     m_Bits: 4294967295
   jumpKey: 32
   jumpVelocity: 4.7
+  jumpRiseGravity: 2.6
+  jumpFallGravity: 3.6
   jumpStateName: Jumping Up
+  loadFreeItems: 10
+  fullLoadSpeedMultiplier: 0.8
   sprintMultiplier: 1.6
 --- !u!114 &2659377635263646763
 MonoBehaviour:
@@ -264,6 +268,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.PlayerInventory
   maxSlots: 4
+  rawStackLimit: 20
   grantStarterItems: 0
   inventory:
     maxSlots: 32
@@ -329,6 +334,7 @@ MonoBehaviour:
     scale: 1
     isGun: 0
     casing: 0
+    facesPlusZ: 0
   - itemId: flame_machete
     prefab: {fileID: 919132149155446097, guid: c85b70d5b9e5dda4d91f7d8ad5b574db, type: 3}
     localPosition: {x: 0, y: 0, z: 0}
@@ -336,6 +342,7 @@ MonoBehaviour:
     scale: 1
     isGun: 0
     casing: 0
+    facesPlusZ: 0
   - itemId: vibration_blade
     prefab: {fileID: 919132149155446097, guid: c85b70d5b9e5dda4d91f7d8ad5b574db, type: 3}
     localPosition: {x: 0, y: 0, z: 0}
@@ -343,6 +350,7 @@ MonoBehaviour:
     scale: 1.15
     isGun: 0
     casing: 0
+    facesPlusZ: 0
   - itemId: wood_spear
     prefab: {fileID: 919132149155446097, guid: 513bc70d3ef780943a201812e5d0aa8a, type: 3}
     localPosition: {x: 0, y: 0, z: 0}
@@ -350,6 +358,7 @@ MonoBehaviour:
     scale: 1
     isGun: 0
     casing: 0
+    facesPlusZ: 0
   - itemId: pistol
     prefab: {fileID: 919132149155446097, guid: b590ce5c19dad7d45b164a9b956e0d02, type: 3}
     localPosition: {x: 0, y: 0.03, z: 0.1}
@@ -357,6 +366,7 @@ MonoBehaviour:
     scale: 1
     isGun: 1
     casing: 1
+    facesPlusZ: 0
   - itemId: ak47
     prefab: {fileID: 919132149155446097, guid: f9db856176e3d3749a175be33539dc4b, type: 3}
     localPosition: {x: 0, y: 0.03, z: 0.1}
@@ -364,6 +374,7 @@ MonoBehaviour:
     scale: 1
     isGun: 1
     casing: 2
+    facesPlusZ: 0
   - itemId: shredder_drill_launcher
     prefab: {fileID: 919132149155446097, guid: 109dc06e76a9f9e4ea506f0800eb92f8, type: 3}
     localPosition: {x: 0, y: 0.03, z: 0.1}
@@ -371,6 +382,7 @@ MonoBehaviour:
     scale: 1
     isGun: 1
     casing: 0
+    facesPlusZ: 0
   - itemId: iron_field_cannon
     prefab: {fileID: 919132149155446097, guid: c51bf746c84622c46b1a136133213522, type: 3}
     localPosition: {x: 0, y: 0.03, z: 0.1}
@@ -378,6 +390,7 @@ MonoBehaviour:
     scale: 1.15
     isGun: 1
     casing: 0
+    facesPlusZ: 0
   - itemId: platinum_rail_cannon
     prefab: {fileID: 919132149155446097, guid: 830a0cc9612e0e94a831d70320fc6d4b, type: 3}
     localPosition: {x: 0, y: 0.03, z: 0.1}
@@ -385,6 +398,7 @@ MonoBehaviour:
     scale: 1.15
     isGun: 1
     casing: 0
+    facesPlusZ: 0
   - itemId: flamethrower
     prefab: {fileID: 919132149155446097, guid: c7ceb19274324fd429a4c46bc696ab51, type: 3}
     localPosition: {x: 0, y: 0.03, z: 0.1}
@@ -392,6 +406,7 @@ MonoBehaviour:
     scale: 1.05
     isGun: 1
     casing: 0
+    facesPlusZ: 0
   - itemId: chemical_sprayer
     prefab: {fileID: 919132149155446097, guid: 5a1804900b45f144084ff43982b04c73, type: 3}
     localPosition: {x: 0, y: 0.03, z: 0.1}
@@ -399,6 +414,7 @@ MonoBehaviour:
     scale: 1.05
     isGun: 1
     casing: 0
+    facesPlusZ: 0
   - itemId: wood_pickaxe
     prefab: {fileID: 919132149155446097, guid: f7c8076711decc247be4ddb2fd8ac72d, type: 3}
     localPosition: {x: 0, y: 0, z: 0}
@@ -406,6 +422,7 @@ MonoBehaviour:
     scale: 3.6
     isGun: 0
     casing: 0
+    facesPlusZ: 0
   - itemId: stone_pickaxe
     prefab: {fileID: 919132149155446097, guid: 0526252e6b5169b41bb8ca415ad11b64, type: 3}
     localPosition: {x: 0, y: 0, z: 0}
@@ -413,6 +430,7 @@ MonoBehaviour:
     scale: 3.6
     isGun: 0
     casing: 0
+    facesPlusZ: 0
   - itemId: copper_pickaxe
     prefab: {fileID: 6211525589844241325, guid: 44071f8e3c8541c43bf2dbf8739314c4, type: 3}
     localPosition: {x: 0, y: 0, z: 0}
@@ -420,6 +438,7 @@ MonoBehaviour:
     scale: 1.25
     isGun: 0
     casing: 0
+    facesPlusZ: 0
   - itemId: iron_pickaxe
     prefab: {fileID: 8749389399153971726, guid: 463f936baa504e749adacd930c5852ef, type: 3}
     localPosition: {x: 0, y: 0, z: 0}
@@ -427,6 +446,63 @@ MonoBehaviour:
     scale: 1.25
     isGun: 0
     casing: 0
+    facesPlusZ: 0
+  - itemId: copper_dagger
+    prefab: {fileID: 919132149155446097, guid: 8fd15d63933e32d4ba35255c389be30b, type: 3}
+    localPosition: {x: 0, y: 0, z: 0}
+    localEuler: {x: 0, y: 0, z: 0}
+    scale: 1
+    isGun: 0
+    casing: 0
+    facesPlusZ: 0
+  - itemId: battle_axe
+    prefab: {fileID: 919132149155446097, guid: d0d2ae06f647ee345b31f125227adc04, type: 3}
+    localPosition: {x: 0, y: 0, z: 0}
+    localEuler: {x: 0, y: 0, z: 0}
+    scale: 0.95
+    isGun: 0
+    casing: 0
+    facesPlusZ: 0
+  - itemId: stone_axe
+    prefab: {fileID: 919132149155446097, guid: 987b30a4385bc7148b8b8a9b37e7fb31, type: 3}
+    localPosition: {x: 0, y: 0, z: 0}
+    localEuler: {x: 0, y: 0, z: 0}
+    scale: 3.6
+    isGun: 0
+    casing: 0
+    facesPlusZ: 0
+  - itemId: iron_axe
+    prefab: {fileID: 919132149155446097, guid: 8b65b892a08de30429a13f4d62792411, type: 3}
+    localPosition: {x: 0, y: 0, z: 0}
+    localEuler: {x: 0, y: 0, z: 0}
+    scale: 3.6
+    isGun: 0
+    casing: 0
+    facesPlusZ: 0
+  - itemId: herb_hoe
+    prefab: {fileID: 919132149155446097, guid: f2b92c9757c5b5f4c93b6a0422d967da, type: 3}
+    localPosition: {x: 0, y: 0, z: 0}
+    localEuler: {x: 0, y: 0, z: 0}
+    scale: 3.6
+    isGun: 0
+    casing: 0
+    facesPlusZ: 0
+  - itemId: shotgun
+    prefab: {fileID: 919132149155446097, guid: 2734cc8646d803147828c92943cb0905, type: 3}
+    localPosition: {x: 0, y: 0.03, z: 0.05}
+    localEuler: {x: 0, y: 0, z: 0}
+    scale: 0.55
+    isGun: 1
+    casing: 2
+    facesPlusZ: 1
+  - itemId: crossbow
+    prefab: {fileID: 919132149155446097, guid: a025dc740d04904418d23de08680c442, type: 3}
+    localPosition: {x: 0, y: 0.03, z: 0.05}
+    localEuler: {x: 0, y: 0, z: 0}
+    scale: 0.55
+    isGun: 1
+    casing: 0
+    facesPlusZ: 1
   muzzleFlashVfxPrefab: {fileID: 6980259576133684760, guid: 1f58a1dea6bbd9347843e4935585e6a2, type: 3}
   muzzleFlashScale: 0.3
   casingPistolPrefab: {fileID: 723937835086123482, guid: 262ae9658db111440bff8b4fcf8ffe87, type: 3}

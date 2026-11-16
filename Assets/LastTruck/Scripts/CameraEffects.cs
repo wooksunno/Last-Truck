@@ -92,6 +92,9 @@ namespace LastTruck
         private SprintGate _sprintGate;
         private float _aimLevel, _aimVel;
         private static bool _aiming;
+        // 쌍안경: 오른쪽 클릭을 누르는 동안 시야를 좁혀 멀리 본다 (HeldBinoculars)
+        private static bool _zooming;
+        private float _zoomLevel, _zoomVel;
         private float _truckLevel, _truckVel;
 
         // 착지
@@ -131,10 +134,15 @@ namespace LastTruck
             _instance = null;
             Enabled = true;
             _aiming = false;
+            _zooming = false;
         }
 
         /// <summary>활을 당기는 동안 true: 시야각이 좁아지고 카메라가 살짝 다가간다 (놓으면 부드럽게 돌아온다).</summary>
         public static void SetAiming(bool aiming) => _aiming = aiming;
+
+        /// <summary>쌍안경으로 보는 중인가 (시야각을 크게 좁히고 카메라를 캐릭터 쪽으로 당긴다).</summary>
+        public static void SetZooming(bool zooming) => _zooming = zooming;
+        public static bool IsZooming => _zooming;
 
         /// <summary>내 캐릭터가 점프/낙하 후 땅에 닿았다 (impactSpeed = 닿기 직전 아래로 떨어지던 속도, m/s).</summary>
         public static void NotifyLanded(float impactSpeed)
@@ -301,6 +309,7 @@ namespace LastTruck
 
             _footLevel = Mathf.SmoothDamp(_footLevel, footTarget, ref _footVel, footTarget > _footLevel ? riseTime : fallTime, Mathf.Infinity, dt);
             _truckLevel = Mathf.SmoothDamp(_truckLevel, truckTarget, ref _truckVel, truckTarget > _truckLevel ? riseTime : fallTime, Mathf.Infinity, dt);
+            _zoomLevel = Mathf.SmoothDamp(_zoomLevel, _zooming && _truck == null ? 1f : 0f, ref _zoomVel, 0.18f, Mathf.Infinity, dt);
             _aimLevel = Mathf.SmoothDamp(_aimLevel, _aiming && _truck == null ? 1f : 0f, ref _aimVel, aimTime, Mathf.Infinity, dt);
         }
 
@@ -349,6 +358,7 @@ namespace LastTruck
             if (!_baseCaptured) return;
 
             float fov = _baseFov + _footLevel * sprintFov + _truckLevel * truckFov + _fovPunch - _aimLevel * aimFov;
+            fov = Mathf.Lerp(fov, Mathf.Max(8f, fov * 0.28f), _zoomLevel);   // 쌍안경: 약 3.5배 확대
             LensSettings lens = _vcam.Lens;
             if (!Mathf.Approximately(lens.FieldOfView, fov))
             {
@@ -359,6 +369,7 @@ namespace LastTruck
             if (_orbital != null)
             {
                 float r = _baseRadius + _footLevel * sprintDistance + _truckLevel * truckDistance - _aimLevel * aimDistance;
+                r = Mathf.Lerp(r, r * 0.45f, _zoomLevel);
                 if (!Mathf.Approximately(_orbital.Radius, r)) _orbital.Radius = r;
             }
         }

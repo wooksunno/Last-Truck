@@ -24,6 +24,12 @@ namespace Combat
 
         public float Gravity => gravity;
 
+        /// <summary>터진 자리에 남는 것: 독가스 구름 / 불길(화염병) / 신호탄 불빛.</summary>
+        public enum AreaKind { Gas = 0, Fire = 1, Flare = 2 }
+        private AreaKind _area = AreaKind.Gas;
+
+        public void SetArea(AreaKind area) => _area = area;
+
         // 멀티플레이: 다른 사람이 던진 수류탄을 보여주기만 하는 복제본 (피해 없음, 가스 구름도 모양만).
         private bool _visualOnly;
 
@@ -77,7 +83,7 @@ namespace Combat
         {
             _exploded = true;
 
-            Collider[] hits = _visualOnly ? new Collider[0] : Physics.OverlapSphere(point, _blastRadius, _hitMask);
+            Collider[] hits = _visualOnly || _blastDamage <= 0 ? new Collider[0] : Physics.OverlapSphere(point, _blastRadius, _hitMask);
             var damaged = new HashSet<Damageable>();
             foreach (Collider col in hits)
             {
@@ -88,7 +94,17 @@ namespace Combat
                 damaged.Add(d);
             }
 
-            if (_gasDuration > 0f && (_gasTickDamage > 0 || _visualOnly))
+            if (_area == AreaKind.Flare)
+            {
+                FlareLight.Spawn(point, _gasDuration);
+            }
+            else if (_area == AreaKind.Fire && _gasDuration > 0f)
+            {
+                var fireGO = new GameObject("FireArea");
+                fireGO.transform.position = point;
+                fireGO.AddComponent<FireAreaEffect>().Setup(_blastRadius, _gasDuration, _gasTickInterval, _visualOnly ? 0 : _gasTickDamage, _hitMask);
+            }
+            else if (_gasDuration > 0f && (_gasTickDamage > 0 || _visualOnly))
             {
                 GameObject cloudGO = new GameObject("GasCloud");
                 cloudGO.transform.position = point;

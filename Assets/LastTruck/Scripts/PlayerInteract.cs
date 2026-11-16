@@ -98,7 +98,10 @@ namespace LastTruck
             if (_inventory == null)
                 _inventory = GetComponent<CraftingSystem.PlayerInventory>();
             CraftingSystem.ItemData hand = _inventory != null ? _inventory.SelectedItem : null;
-            bool withPickaxe = hand != null && Combat.WeaponController.IsPickaxe(hand.itemID);
+            // 곡괭이, 또는 나무를 벨 때의 도끼는 내려찍는 모션
+            bool woodWithAxe = hand != null && Combat.WeaponController.IsAxe(hand.itemID)
+                               && currentInteractable is CraftingSystem.GatherableProp wp && wp.ItemId == CraftingSystem.ItemIds.Wood;
+            bool withPickaxe = hand != null && (Combat.WeaponController.IsPickaxe(hand.itemID) || woodWithAxe);
 
             _nextGatherPunch = Time.time + (withPickaxe ? gatherPickaxeInterval : gatherPunchInterval);
             _weapon.PlayGatherHit(target, withPickaxe);

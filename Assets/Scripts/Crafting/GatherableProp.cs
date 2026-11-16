@@ -128,7 +128,9 @@ namespace CraftingSystem
                 if (tier > 0 && !GatherRules.MeetsRequirement(tier))
                     return Mathf.Max(gatherHoldSeconds, 1f) * GatherRules.UnmetTimeMultiplier;
                 // 캘 수 있는 도구면 빠르게(요구 등급보다 좋은 도구일수록 더 빠르게)
-                return gatherHoldSeconds * GatherRules.ToolSpeedFactor(GatherRules.Player, tier);
+                // 도끼(나무) / 호미(약초) 같은 전용 도구는 더 빨리 캔다
+                return gatherHoldSeconds * GatherRules.ToolSpeedFactor(GatherRules.Player, tier)
+                       * GatherRules.SpecialToolFactor(GatherRules.Player, itemId);
             }
         }
 
@@ -176,7 +178,7 @@ namespace CraftingSystem
             }
 
             // 곡괭이 등 도구가 필요한 채집은 도구가 한 번 닳는다 (내구도가 0이 되면 부서진다)
-            if (tier > 0)
+            if (tier > 0 || GatherRules.SpecialToolFactor(player, itemId) < 1f)
                 inventory.WearSelectedTool();
 
             // 멀티플레이: 호스트가 먼저 캔 사람을 정하고, 모든 화면에서 프롭을 없앤다.

@@ -58,6 +58,25 @@ namespace CraftingSystem
             return Mathf.Max(0.2f, 0.5f * Mathf.Pow(0.75f, excess));
         }
 
+        /// <summary>
+        /// 전용 도구 보너스 (시간 배율, 1이면 보너스 없음): 도끼로 나무를 베면 빠르고(돌도끼 0.6배, 철도끼 0.4배),
+        /// 호미로 약초/독약초를 캐면 빠르다(0.4배). 보너스를 받으면 도구가 한 번 닳는다.
+        /// </summary>
+        public static float SpecialToolFactor(GameObject player, string resourceItemId)
+        {
+            PlayerInventory inventory = player != null ? player.GetComponent<PlayerInventory>() : null;
+            ItemData hand = inventory != null ? inventory.SelectedItem : null;
+            if (hand == null) return 1f;
+            if (resourceItemId == ItemIds.Wood)
+            {
+                if (hand.itemID == ItemIds.IronAxe) return 0.4f;
+                if (hand.itemID == ItemIds.StoneAxe) return 0.6f;
+            }
+            if ((resourceItemId == ItemIds.Herb || resourceItemId == ItemIds.PoisonHerb) && hand.itemID == ItemIds.HerbHoe)
+                return 0.4f;
+            return 1f;
+        }
+
         /// <summary>플레이어 본인이 아닌 곳(UI/프로퍼티)에서 쓰는 편의 오버로드: 태그가 Player인 오브젝트 기준.</summary>
         public static bool MeetsRequirement(int requiredTier, string requiredItemId = "") =>
             MeetsRequirement(Player, requiredTier, requiredItemId);
