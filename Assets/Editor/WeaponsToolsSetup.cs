@@ -270,7 +270,7 @@ public static class WeaponsToolsSetup
             case ItemIds.CopperDagger: rot = diagonal; return Inst(KayKit + "dagger.prefab");
             case ItemIds.BattleAxe: rot = Quaternion.AngleAxis(-30f, Vector3.forward); return Inst(KayKit + "axe_2handed.prefab");
             case ItemIds.Shotgun: rot = sideways; return Inst(KayKit + "shotgun.prefab");
-            case ItemIds.Crossbow: rot = Quaternion.AngleAxis(-40f, Vector3.forward) * Quaternion.Euler(-90f, 0f, 0f);   // 위에서 본 모습 (활 날개가 보이게) return Inst(KayKit + "crossbow_2handed.prefab");
+            case ItemIds.Crossbow: rot = Quaternion.AngleAxis(-40f, Vector3.forward) * Quaternion.Euler(-90f, 0f, 0f); return Inst(KayKit + "crossbow_2handed.prefab");   // 위에서 본 모습 (활 날개가 보이게)
             case ItemIds.StoneAxe: rot = Quaternion.AngleAxis(-35f, Vector3.forward); return Inst(Kenney + "tool-axe.fbx");
             case ItemIds.IronAxe: rot = Quaternion.AngleAxis(-35f, Vector3.forward); return Inst(Kenney + "tool-axe-upgraded.fbx");
             case ItemIds.HerbHoe: rot = Quaternion.AngleAxis(-35f, Vector3.forward); return Inst(Kenney + "tool-hoe.fbx");
