@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 390686697781ce44e929a2c7da880592, type: 3}
+  m_Name: assemble_leather_armor
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
+  recipeID: assemble_leather_armor
+  displayName: "\uAC00\uC8FD \uAC11\uC637 \uC870\uB9BD"
+  requiredFacility: 0
+  inputs:
+  - item: {fileID: 11400000, guid: 3552693a76212b546b87ef29231b4bc1, type: 2}
+    count: 4
+  - item: {fileID: 11400000, guid: 9d55b64238a726348b3eba661a38818f, type: 2}
+    count: 2
+  output:
+    item: {fileID: 11400000, guid: 9c00df4e4e6cbb94b8459f7e13f7d03b, type: 2}
+    count: 1
+  processingSeconds: 2

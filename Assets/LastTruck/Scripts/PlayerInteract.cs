@@ -79,7 +79,13 @@ namespace LastTruck
         /// </summary>
         private void UpdateGatherPunch()
         {
-            if (!(currentInteractable is CraftingSystem.GatherableProp prop) || !Combat.WeaponController.IsPunchGatherItem(prop.ItemId))
+            // 나무/돌(GatherableProp) 또는 광물(구리/철/금/다이아 - SpecialResourceNode)
+            Transform target = null;
+            if (currentInteractable is CraftingSystem.GatherableProp prop && Combat.WeaponController.IsPunchGatherItem(prop.ItemId))
+                target = prop.transform;
+            else if (currentInteractable is CraftingSystem.SpecialResourceNode ore && ore.IsMineral && !ore.IsDepleted)
+                target = ore.transform;
+            if (target == null)
                 return;
             if (Time.time < _nextGatherPunch)
                 return;
@@ -92,10 +98,13 @@ namespace LastTruck
             if (_inventory == null)
                 _inventory = GetComponent<CraftingSystem.PlayerInventory>();
             CraftingSystem.ItemData hand = _inventory != null ? _inventory.SelectedItem : null;
-            bool withPickaxe = hand != null && Combat.WeaponController.IsPickaxe(hand.itemID);
+            // 곡괭이, 또는 나무를 벨 때의 도끼는 내려찍는 모션
+            bool woodWithAxe = hand != null && Combat.WeaponController.IsAxe(hand.itemID)
+                               && currentInteractable is CraftingSystem.GatherableProp wp && wp.ItemId == CraftingSystem.ItemIds.Wood;
+            bool withPickaxe = hand != null && (Combat.WeaponController.IsPickaxe(hand.itemID) || woodWithAxe);
 
             _nextGatherPunch = Time.time + (withPickaxe ? gatherPickaxeInterval : gatherPunchInterval);
-            _weapon.PlayGatherHit(prop, withPickaxe);
+            _weapon.PlayGatherHit(target, withPickaxe);
         }
 
         private void ResetHoldState()

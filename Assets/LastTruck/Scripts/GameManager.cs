@@ -208,6 +208,7 @@ public class GameManager : MonoBehaviour
         CurrentPhase = GamePhase.Night;
         NightMonstersKilled = 0;
         NightMonsterQuota = CalculateNightQuota(CurrentCycle);
+        LastTruck.SurvivalDirector.NightIsStarting(this);   // 생존 조건이 이번 밤의 진행을 맡는다 (쿼터/스폰/종료)
 
         OnNightStarted?.Invoke(NightMonsterQuota);
         OnPhaseChanged?.Invoke(CurrentPhase);
@@ -216,11 +217,39 @@ public class GameManager : MonoBehaviour
 
     private void TickNight()
     {
+        // 생존 조건(SurvivalDirector)이 밤을 진행하는 중이면 그쪽이 ForceEndNight()로 끝낸다.
+        if (LastTruck.SurvivalDirector.ControlsNight) return;
+
         // 밤은 고정 시간이 아니라 "쿼터를 다 채웠는가"로 종료 판정.
         // 실제 몬스터 스폰/처치는 외부 시스템이 담당하고, 이 매니저는 판정만 함.
         if (NightMonstersKilled >= NightMonsterQuota)
         {
             EndNight();
+        }
+    }
+
+    /// <summary>생존 조건을 달성(또는 실패)해서 밤을 끝낸다 (호스트/싱글플레이만).</summary>
+    public void ForceEndNight()
+    {
+        if (IsNetworkMirror || _waitingForNetworkStart || CurrentPhase != GamePhase.Night)
+            return;
+        EndNight();
+    }
+
+    /// <summary>이번 밤의 표시용 쿼터(킬 목표)를 바꾼다. 킬 조건이 아닌 밤은 아주 큰 값으로 두어 킬 수가 잘리지 않게 한다.</summary>
+    public void OverrideNightQuota(int quota)
+    {
+        if (IsNetworkMirror) return;
+        NightMonsterQuota = Mathf.Max(1, quota);
+    }
+
+    /// <summary>접속 인원에 따른 몬스터 수 배율 (1인 = 1).</summary>
+    public float PlayerCountMultiplier
+    {
+        get
+        {
+            if (quotaMultiplierByPlayerCount == null || quotaMultiplierByPlayerCount.Length == 0 || PlayerCount <= 1) return 1f;
+            return quotaMultiplierByPlayerCount[Mathf.Clamp(PlayerCount - 1, 0, quotaMultiplierByPlayerCount.Length - 1)];
         }
     }
 

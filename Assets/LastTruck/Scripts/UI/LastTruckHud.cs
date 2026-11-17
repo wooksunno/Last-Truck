@@ -52,6 +52,18 @@ namespace LastTruck
         private Label _spValue, _truckValue;
         private VisualElement _truckPlate, _spRow;
         private DayNightDial _dial;
+        private DayNightBadge _badge;
+        private MissionHud _mission;
+        private WeatherKitHud _weatherKit;
+        private AchievementHud _achievements;
+        private GameManager.GamePhase _lastPhase = (GameManager.GamePhase)(-1);
+        private int _lastCycle = -1;
+        private VisualElement _keyHints;
+        private VisualElement _truckOverhead;
+        private VisualElement _truckOverFill;
+        private SeatedPose _seatedPose;
+        private float _truckTop = float.NaN;
+        private float _nextTruckBounds;
         private VisualElement _toast;
         private Label _toastText;
         private float _toastUntil;
@@ -114,7 +126,16 @@ namespace LastTruck
             BuildStatusPlate(_hudRoot);
             BuildTruckPlate(_hudRoot);
             BuildHpOverhead(_hudRoot);
+            BuildTruckOverhead(_hudRoot);
             BuildDial(_hudRoot);
+            BuildBadge(_hudRoot);
+            _mission = new MissionHud(_fontDef, _skin.panelBrownDark, _skin.panelGreyBolts);
+            _mission.Build(_hudRoot);
+            _weatherKit = new LastTruck.WeatherKitHud(_fontDef);
+            _weatherKit.Build(_hudRoot);
+            _achievements = new AchievementHud(_fontDef, _skin.panelBrownDark);   // 도전과제 (성장 임무): 달성 알림만 (목록은 트럭 창의 도전과제 탭)
+            _achievements.Build(_hudRoot);
+            BuildKeyHints(_hudRoot);
 
             // 토스트 문서 (팝업 앞)
             VisualElement toastRoot = CreateDocument("Toast", overlaySettings, uss);
@@ -140,7 +161,7 @@ namespace LastTruck
         // ------------------------------------------------------------------ 부품
 
         /// <summary>스프라이트를 9-slice 배경으로 입힌다. 모서리 두께는 scale배로 줄여서 보여 준다.</summary>
-        private static void Skin(VisualElement e, Sprite sprite, float scale = 0.5f, Color? tint = null)
+        internal static void Skin(VisualElement e, Sprite sprite, float scale = 0.5f, Color? tint = null)
         {
             if (sprite == null) return;
             e.style.backgroundImage = new StyleBackground(sprite);
@@ -276,6 +297,7 @@ namespace LastTruck
             root.Add(_hpOverhead);
         }
 
+        /// <summary>기존 낮/밤 시계(반원 눈금판): 미니맵 왼쪽. 위쪽 가운데 모래시계 판과 함께 보인다.</summary>
         private void BuildDial(VisualElement root)
         {
             _dial = new DayNightDial(_fontDef);
@@ -284,6 +306,103 @@ namespace LastTruck
             _dial.style.top = 36;
             _dial.style.display = DisplayStyle.None;
             root.Add(_dial);
+        }
+
+        /// <summary>트럭 머리 위에 따라다니는 내구도: 트럭 그림 + 막대 (내 체력 막대와 같은 모양, 물체에 가려지지 않는다).</summary>
+        private void BuildTruckOverhead(VisualElement root)
+        {
+            _truckOverhead = new VisualElement { pickingMode = PickingMode.Ignore };
+            _truckOverhead.style.position = Position.Absolute;
+            _truckOverhead.style.flexDirection = FlexDirection.Row;
+            _truckOverhead.style.alignItems = Align.Center;
+            _truckOverhead.style.width = 150;
+            _truckOverhead.style.height = 30;
+            _truckOverhead.style.display = DisplayStyle.None;
+
+            VisualElement icon = MakeIcon("truck", 30f);
+            if (icon != null)
+            {
+                icon.style.marginRight = 4;
+                _truckOverhead.Add(icon);
+            }
+
+            var track = new VisualElement { pickingMode = PickingMode.Ignore };
+            track.AddToClassList("lt-track");
+            track.style.height = 18;
+            track.style.borderTopLeftRadius = track.style.borderTopRightRadius = track.style.borderBottomLeftRadius = track.style.borderBottomRightRadius = 9;
+            _truckOverFill = new VisualElement { pickingMode = PickingMode.Ignore };
+            _truckOverFill.AddToClassList("lt-fill");
+            _truckOverFill.AddToClassList("lt-fill-truck");
+            track.Add(_truckOverFill);
+            var shine = new VisualElement { pickingMode = PickingMode.Ignore };
+            shine.AddToClassList("lt-shine");
+            track.Add(shine);
+            _truckOverhead.Add(track);
+
+            root.Add(_truckOverhead);
+        }
+
+        /// <summary>화면 위쪽 가운데: 낮/밤 모래시계 판 + 그 아래 목표 문구 (J로 다시 본다).</summary>
+        private void BuildBadge(VisualElement root)
+        {
+            _badge = new DayNightBadge(_fontDef);
+            _badge.style.position = Position.Absolute;
+            _badge.style.top = 14;
+            _badge.style.left = new Length(50f, LengthUnit.Percent);
+            _badge.style.translate = new Translate(new Length(-50f, LengthUnit.Percent), 0);
+            _badge.style.display = DisplayStyle.None;
+            root.Add(_badge);
+
+        }
+
+        /// <summary>오른쪽 가운데: 자주 쓰는 키 안내 (탐색 E / 공격 클릭 / 임무 J / 부활 F[멀티플레이만]).</summary>
+        private void BuildKeyHints(VisualElement root)
+        {
+            _keyHints = new VisualElement { pickingMode = PickingMode.Ignore };
+            _keyHints.style.position = Position.Absolute;
+            _keyHints.style.right = 22;
+            _keyHints.style.top = new Length(46f, LengthUnit.Percent);
+            _keyHints.style.alignItems = Align.FlexEnd;
+
+            _keyHints.Add(MakeKeyHint("탐색", "E"));
+            _keyHints.Add(MakeKeyHint("공격", "클릭"));
+            _keyHints.Add(MakeKeyHint("임무 확인", "J"));
+            _keyHints.Add(MakeKeyHint("생존 임무", "K"));
+            if (LastTruck.Networking.GameLauncher.IsOnlineSession) _keyHints.Add(MakeKeyHint("부활", "F"));
+            root.Add(_keyHints);
+        }
+
+        private VisualElement MakeKeyHint(string label, string key)
+        {
+            var row = new VisualElement { pickingMode = PickingMode.Ignore };
+            row.style.flexDirection = FlexDirection.Row;
+            row.style.alignItems = Align.Center;
+            row.style.marginBottom = 6;
+
+            Label text = MakeLabel(label, null);
+            text.style.fontSize = 17;
+            text.style.marginRight = 8;
+            row.Add(text);
+
+            var cap = new VisualElement { pickingMode = PickingMode.Ignore };
+            cap.style.minWidth = 34;
+            cap.style.height = 34;
+            cap.style.paddingLeft = cap.style.paddingRight = 7;
+            cap.style.alignItems = Align.Center;
+            cap.style.justifyContent = Justify.Center;
+            cap.style.backgroundColor = new Color(0.97f, 0.92f, 0.8f, 1f);
+            cap.style.borderTopLeftRadius = cap.style.borderTopRightRadius = cap.style.borderBottomLeftRadius = cap.style.borderBottomRightRadius = 8;
+            cap.style.borderTopWidth = cap.style.borderLeftWidth = cap.style.borderRightWidth = 2;
+            cap.style.borderBottomWidth = 5;   // 키캡의 두께
+            cap.style.borderTopColor = cap.style.borderLeftColor = cap.style.borderRightColor = new Color(0.55f, 0.4f, 0.24f, 1f);
+            cap.style.borderBottomColor = new Color(0.55f, 0.4f, 0.24f, 1f);
+            Label k = MakeLabel(key, null);
+            k.style.fontSize = key.Length > 1 ? 14 : 19;
+            k.style.color = new Color(0.25f, 0.16f, 0.08f, 1f);
+            k.style.unityTextOutlineWidth = 0f;
+            cap.Add(k);
+            row.Add(cap);
+            return row;
         }
 
         private void BuildToast(VisualElement root)
@@ -324,8 +443,11 @@ namespace LastTruck
             UpdateStatus();
             UpdateHpOverhead();
             UpdateDial();
+            if (_weatherKit != null) _weatherKit.Tick();
+            if (_achievements != null) _achievements.Tick();
             UpdateTruck();
             UpdateToast();
+            UpdateEnding();
         }
 
         private void Resolve()
@@ -427,9 +549,13 @@ namespace LastTruck
             GameManager gm = GameManager.Instance;
             if (gm == null || gm.IsWaitingForNetworkStart)
             {
+                _badge.style.display = DisplayStyle.None;
                 _dial.style.display = DisplayStyle.None;
+                _mission.SetVisible(false);
                 return;
             }
+            _mission.SetVisible(true);
+            _badge.style.display = DisplayStyle.Flex;
             _dial.style.display = DisplayStyle.Flex;
 
             if (gm.CurrentPhase == GameManager.GamePhase.Day)
@@ -437,34 +563,168 @@ namespace LastTruck
                 float total = gm.DayDurationSeconds;
                 float progress = total > 0f ? 1f - Mathf.Clamp01(gm.DayTimeRemaining / total) : 0f;
                 int secs = Mathf.CeilToInt(Mathf.Max(0f, gm.DayTimeRemaining));
-                _dial.SetState(progress, false, (secs / 60).ToString("00") + ":" + (secs % 60).ToString("00"), gm.CurrentCycle);
+                string time = (secs / 60).ToString("00") + ":" + (secs % 60).ToString("00");
+                bool warn = gm.DayTimeRemaining <= 30f;   // 해가 지기 30초 전: 빨갛게 깜빡여서 밤이 오는 것을 알린다
+                _badge.SetState(false, gm.CurrentCycle, progress, time, warn);
+                _dial.SetState(progress, false, time, gm.CurrentCycle);
             }
             else
             {
-                int quota = gm.NightMonsterQuota;
-                float progress = quota > 0 ? Mathf.Clamp01((float)gm.NightMonstersKilled / quota) : 0f;
-                _dial.SetState(progress, true, gm.NightMonstersKilled + "/" + quota, gm.CurrentCycle);
+                // 밤: 생존 조건의 진행 (처치 수 / 버틴 시간 / 보스·웨이브 수)
+                LastTruck.SurvivalDirector.View view = LastTruck.SurvivalDirector.GetView(gm);
+                _badge.SetState(true, gm.CurrentCycle, view.progress, view.progressText, false);
+                _dial.SetState(view.progress, true, view.shortText, gm.CurrentCycle);
+            }
+
+            // 임무 UI: 낮/밤이 바뀌면 목표 글이 갈아 끼워지고 무전 대사가 나온다. J를 누르면 대사를 다시 들려준다.
+            bool changed = gm.CurrentPhase != _lastPhase || gm.CurrentCycle != _lastCycle;
+            if (changed)
+            {
+                _lastPhase = gm.CurrentPhase;
+                _lastCycle = gm.CurrentCycle;
+                _mission.SetObjective(ObjectiveText(gm), true);
+                _mission.ShowBeat(LastTruck.StoryDirector.BeatFor(gm));
+                _mission.PeekCard(8f);   // 낮/밤이 바뀌면 임무 카드를 잠깐 열어 보여 준다
+            }
+            else
+            {
+                // 밤 쿼터처럼 숫자가 바뀌는 목표는 조용히 갱신한다
+                _mission.SetObjective(ObjectiveText(gm), false);
+                if (Input.GetKeyDown(KeyCode.J)) _mission.ShowBeat(LastTruck.StoryDirector.BeatFor(gm));
+            }
+            if (Input.GetKeyDown(KeyCode.K)) _mission.ToggleCard();   // 생존 임무 카드 열기/닫기
+
+            _mission.Tick(gm);
+        }
+
+        private static string ObjectiveText(GameManager gm)
+        {
+            // 임무 카드의 조건 제목: 오늘 밤(낮에는 예고) 생존 조건
+            return LastTruck.SurvivalDirector.Title(LastTruck.SurvivalDirector.KindFor(gm.CurrentCycle));
+        }
+
+        // ------------------------------------------------------------------ 엔딩 (탈출 성공)
+
+        private VisualElement _ending;
+        private bool _endingPausedTime;
+        private float _endingPrevTimeScale = 1f;
+
+        /// <summary>전체 화면 엔딩. Enter/Space를 누르면 닫고 게임을 이어서 한다 (싱글플레이).</summary>
+        public static void ShowEnding(string title, string body, string hint)
+        {
+            if (_instance == null || !_instance._built) return;
+            _instance.BuildEnding(title, body, hint);
+        }
+
+        private void BuildEnding(string title, string body, string hint)
+        {
+            if (_ending != null) _ending.RemoveFromHierarchy();
+
+            _ending = new VisualElement { pickingMode = PickingMode.Position };
+            _ending.style.position = Position.Absolute;
+            _ending.style.left = _ending.style.top = _ending.style.right = _ending.style.bottom = 0;
+            _ending.style.backgroundColor = new Color(0.02f, 0.04f, 0.07f, 0.86f);
+            _ending.style.alignItems = Align.Center;
+            _ending.style.justifyContent = Justify.Center;
+
+            Label t = MakeLabel(title, null);
+            t.style.fontSize = 72;
+            t.style.color = new Color(0.55f, 1f, 0.72f, 1f);
+            t.style.marginBottom = 26;
+            _ending.Add(t);
+
+            Label b = MakeLabel(body, null);
+            b.style.fontSize = 24;
+            b.style.color = new Color(0.9f, 0.94f, 1f, 1f);
+            b.style.whiteSpace = WhiteSpace.Normal;
+            b.style.unityTextAlign = TextAnchor.MiddleCenter;
+            b.style.maxWidth = 860;
+            b.style.marginBottom = 34;
+            _ending.Add(b);
+
+            Label h = MakeLabel(hint, null);
+            h.style.fontSize = 20;
+            h.style.color = new Color(0.7f, 0.76f, 0.86f, 1f);
+            _ending.Add(h);
+
+            _hudRoot.Add(_ending);
+
+            _endingPrevTimeScale = Time.timeScale;
+            Time.timeScale = 0f;
+            _endingPausedTime = true;
+        }
+
+        private void UpdateEnding()
+        {
+            if (_ending == null) return;
+            if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.Space))
+            {
+                _ending.RemoveFromHierarchy();
+                _ending = null;
+                if (_endingPausedTime) Time.timeScale = _endingPrevTimeScale <= 0f ? 1f : _endingPrevTimeScale;
+                _endingPausedTime = false;
             }
         }
 
         private void UpdateTruck()
         {
-            bool show = _truck != null;
-            _truckPlate.style.display = show ? DisplayStyle.Flex : DisplayStyle.None;
-            if (!show) return;
+            // 예전 구석 판은 쓰지 않는다: 트럭 내구도는 트럭 머리 위를 따라다니는 작은 막대로 보여 준다 (UI라서 물체에 가려지지 않는다)
+            _truckPlate.style.display = DisplayStyle.None;
+
+            Camera cam = Camera.main;
+            if (_truck == null || cam == null || _hudRoot == null || _hudRoot.panel == null)
+            {
+                _truckOverhead.style.display = DisplayStyle.None;
+                return;
+            }
+
+            // 트럭 맨 위(적재함 아치/포탑 포함)를 가끔 다시 잰다
+            if (float.IsNaN(_truckTop) || Time.unscaledTime >= _nextTruckBounds)
+            {
+                _nextTruckBounds = Time.unscaledTime + 1f;
+                float top = float.MinValue;
+                foreach (Renderer r in _truck.GetComponentsInChildren<Renderer>())
+                {
+                    if (r is ParticleSystemRenderer || r is LineRenderer || r is TrailRenderer || !r.enabled) continue;
+                    top = Mathf.Max(top, r.bounds.max.y);
+                }
+                _truckTop = top > float.MinValue ? top : _truck.transform.position.y + 3.5f;
+            }
+
+            Vector3 world = new Vector3(_truck.transform.position.x, _truckTop + 0.45f, _truck.transform.position.z);
+            Vector3 viewport = cam.WorldToViewportPoint(world);
+            if (viewport.z <= 0f)
+            {
+                _truckOverhead.style.display = DisplayStyle.None;
+                return;
+            }
+
+            // 내가 트럭에 타고 있으면 내 체력 막대와 겹치므로 더 위에 둔다
+            if (_seatedPose == null && _stats != null) _seatedPose = _stats.GetComponent<SeatedPose>();
+            float lift = _seatedPose != null && _seatedPose.IsSeated ? 72f : 36f;
+            // "[Tab] 트럭 거점" 안내가 같은 자리에 떠 있으면 그 위로 비킨다
+            var ui = CraftingSystem.GameUIController.Instance;
+            if (ui != null && ui.TruckHintVisible) lift += 64f;
+
+            Vector2 p = RuntimePanelUtils.CameraTransformWorldToPanel(_hudRoot.panel, world, cam);
+            float panelW = _hudRoot.layout.width > 1f ? _hudRoot.layout.width : Screen.width;
+            float panelH = _hudRoot.layout.height > 1f ? _hudRoot.layout.height : Screen.height;
+            // 트럭이 화면 밖으로 나가도 막대는 화면 가장자리에 남아서 어느 쪽에 있는지 알려 준다
+            _truckOverhead.style.display = DisplayStyle.Flex;
+            _truckOverhead.style.left = Mathf.Clamp(p.x - 75f, 8f, panelW - 158f);
+            _truckOverhead.style.top = Mathf.Clamp(p.y - lift, 8f, panelH - 40f);
 
             float max = Mathf.Max(1f, _truck.MaxDurability);
             float cur = _truck.CurrentDurability;
             float ratio = Mathf.Clamp01(cur / max);
-            SetFill(_truckFill, ratio);
-            _truckValue.text = _truck.IsBroken ? "!" : Mathf.CeilToInt(cur) + " / " + Mathf.CeilToInt(max);
+            SetFill(_truckOverFill, ratio);
 
             // 많이 부서질수록 초록 → 노랑 → 빨강, 25% 아래에서는 깜빡임
             Color c = ratio > 0.5f
                 ? Color.Lerp(new Color(0.95f, 0.78f, 0.22f), new Color(0.36f, 0.80f, 0.34f), (ratio - 0.5f) * 2f)
                 : Color.Lerp(new Color(0.92f, 0.26f, 0.22f), new Color(0.95f, 0.78f, 0.22f), ratio * 2f);
-            _truckFill.style.backgroundColor = c;
-            _truckFill.style.opacity = ratio < 0.25f ? 0.65f + 0.35f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 4f)) : 1f;
+            _truckOverFill.style.backgroundColor = c;
+            _truckOverFill.style.opacity = ratio < 0.25f ? 0.65f + 0.35f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 4f)) : 1f;
         }
 
         private void UpdateToast()

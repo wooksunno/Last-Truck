@@ -42,7 +42,7 @@ namespace CraftingSystem
             ItemIds.WoodSpear, ItemIds.HuntingBow, ItemIds.Machete, ItemIds.FlameMachete, ItemIds.VibrationBlade,
             ItemIds.Pistol, ItemIds.Ak47, ItemIds.PlatinumSniperRifle, ItemIds.Flamethrower, ItemIds.ChemicalSprayer,
             ItemIds.ShredderDrillLauncher, ItemIds.IronFieldCannon, ItemIds.PlatinumRailCannon, ItemIds.FragGrenade, ItemIds.ChemicalGasGrenade,
-            ItemIds.ThrowingStone,
+            ItemIds.ThrowingStone, ItemIds.CopperDagger, ItemIds.BattleAxe, ItemIds.Shotgun, ItemIds.Crossbow, ItemIds.Molotov,
         };
         static readonly HashSet<string> FoodIds = new HashSet<string>
         {

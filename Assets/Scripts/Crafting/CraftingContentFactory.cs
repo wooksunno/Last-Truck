@@ -267,7 +267,7 @@ namespace CraftingSystem
             Add("assemble_combat_stimulant", "전투 각성제 조립", FacilityType.None, new[] { (ItemIds.StimulantPowder, 1), (ItemIds.MedicalExtract, 1) }, ItemIds.CombatStimulant, 1);
             Add("assemble_chemical_gas_grenade", "화학 독가스 수류탄 조립", FacilityType.None, new[] { (ItemIds.NeurotoxinExtract, 1), (ItemIds.StonePowder, 3), (ItemIds.PropellantPowder, 1) }, ItemIds.ChemicalGasGrenade, 1);
             Add("assemble_frag_grenade", "일반 수류탄 조립", FacilityType.None, new[] { (ItemIds.StonePowder, 3), (ItemIds.PropellantPowder, 1) }, ItemIds.FragGrenade, 1);
-            Add("assemble_lure_trap", "유인 미끼 트랩 조립", FacilityType.None, new[] { (ItemIds.LurePheromone, 1), (ItemIds.StonePowder, 5) }, ItemIds.LureTrap, 1);
+            Add("assemble_lure_trap", "유인 미끼 트랩 조립", FacilityType.None, new[] { (ItemIds.WoodSpikeTrap, 1), (ItemIds.LurePheromone, 1) }, ItemIds.LureTrap, 1);
 
             return recipes;
         }

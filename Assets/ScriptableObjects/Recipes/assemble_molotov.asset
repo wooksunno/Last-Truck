@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 390686697781ce44e929a2c7da880592, type: 3}
+  m_Name: assemble_molotov
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
+  recipeID: assemble_molotov
+  displayName: "\uD654\uC5FC\uBCD1 \uC870\uB9BD"
+  requiredFacility: 0
+  inputs:
+  - item: {fileID: 11400000, guid: 8a1ad08d7a35696439b501a1b18dbece, type: 2}
+    count: 1
+  - item: {fileID: 11400000, guid: a58d2c891bd54c14590999e28e50399f, type: 2}
+    count: 1
+  output:
+    item: {fileID: 11400000, guid: 132469af647f3db45a4822f690822389, type: 2}
+    count: 2
+  processingSeconds: 2

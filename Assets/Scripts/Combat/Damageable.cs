@@ -170,7 +170,8 @@ namespace Combat
         {
             // 캐릭터 고유 능력(군인 추가 피해, 경찰 표식)은 "때린 사람" 기준이다.
             // 멀티플레이에서는 내 캐릭터의 능력을 쓴다 (아무 플레이어나 찾으면 다른 사람 능력이 적용될 수 있음).
-            TakeDamage(amount, hitPoint, LastTruck.Networking.LocalPlayerLookup.AbilityController);
+            // 장비 강화(무기 강화 키트)도 플레이어가 직접 준 피해에만 붙는다.
+            TakeDamage(CraftingSystem.PlayerGear.ScaleDamage(amount), hitPoint, LastTruck.Networking.LocalPlayerLookup.AbilityController);
         }
 
         /// <summary>

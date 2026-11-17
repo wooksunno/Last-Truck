@@ -16,10 +16,10 @@ MonoBehaviour:
   displayName: "\uC720\uC778 \uBBF8\uB07C \uD2B8\uB7A9 \uC870\uB9BD"
   requiredFacility: 0
   inputs:
+  - item: {fileID: 11400000, guid: d747572c7f364914c9f9f0a54f1161be, type: 2}
+    count: 1
   - item: {fileID: 11400000, guid: d1e8148fa94b905478865b61983f97cf, type: 2}
     count: 1
-  - item: {fileID: 11400000, guid: 67efd874b73fea246aa38edea89b9f32, type: 2}
-    count: 5
   output:
     item: {fileID: 11400000, guid: 918e7df526c92094394dc0659f959cfe, type: 2}
     count: 1

@@ -31,6 +31,7 @@ public static class CaveOreConverter
     public static float MinGatherSize = 0.6f;
     public static float MaxGatherSize = 6f;
     public static float DiamondKeepChance = 0.15f;  // 작은(2m 이하) 파란 수정 중 다이아몬드로 남길 비율
+    public static bool IncludeOutdoor = false;      // true면 동굴 밖(지상)의 광석도 채집할 수 있게 만든다
     public static float MinNodeSpacing = 1.5f;      // 노드끼리 최소 간격 (멀티플레이 노드 매칭이 위치 기반)
 
     struct Res
@@ -188,7 +189,9 @@ public static class CaveOreConverter
             string baseName = BaseName(go.name);
             Bounds b = r.bounds;
             float size = Mathf.Max(b.size.x, Mathf.Max(b.size.y, b.size.z));
-            if (!InCave(b, go.transform)) { Count("skip_not_in_cave"); continue; }
+            bool inCave = InCave(b, go.transform);
+            if (!inCave && !IncludeOutdoor) { Count("skip_not_in_cave"); continue; }
+            if (!inCave) Count("outdoor");
             // 프리팹 내부 자식은 다른 부모로 옮길 수 없으므로 건너뛴다
             bool nestedInPrefab = PrefabUtility.IsPartOfPrefabInstance(go) && !PrefabUtility.IsOutermostPrefabInstanceRoot(go);
 
@@ -273,6 +276,17 @@ public static class CaveOreConverter
 
     [MenuItem("Tools/Last Truck/Quarry Underground Ores To Resources")]
     static void MenuQuarryCave() { Debug.Log("[CaveOreConverter]\n" + RunOn(new[] { "Map/09_Quarry/UndergroundMine" })); }
+
+    /// <summary>동굴 밖(지상)에 놓인 구리/철/금 광석도 채집할 수 있게 만든다 (동굴 안은 이미 된 것은 건너뛴다).</summary>
+    public static string RunOutdoor()
+    {
+        IncludeOutdoor = true;
+        try { return RunOn(Roots); }
+        finally { IncludeOutdoor = false; }
+    }
+
+    [MenuItem("Tools/Last Truck/Outdoor Ores To Resources")]
+    static void MenuOutdoor() { Debug.Log("[CaveOreConverter] outdoor: " + RunOutdoor()); }
 
     [MenuItem("Tools/Last Truck/Cave Ores To Resources")]
     static void Menu() { Debug.Log("[CaveOreConverter]\n" + Run()); }

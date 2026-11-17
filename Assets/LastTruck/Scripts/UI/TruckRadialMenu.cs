@@ -6,7 +6,7 @@ using UnityEngine.UIElements;
 namespace LastTruck
 {
     /// <summary>
-    /// 트럭 원형 메뉴: 트럭 근처에서 Tab을 누르면 화면 가운데에 5개 항목(보관함/제작/가공/도감/강화)이 원 둘레에 펼쳐진다.
+    /// 트럭 원형 메뉴: 트럭 근처에서 Tab을 누르면 화면 가운데에 6개 항목(보관함/제작/가공/도감/강화/도전과제)이 원 둘레에 펼쳐진다.
     ///
     /// 조작 (마우스 플릭)
     ///  - 열리면 커서는 숨겨지고, 마우스를 움직인 만큼 "가상 커서"(중심에서의 벡터 v)가 움직인다.
@@ -21,7 +21,7 @@ namespace LastTruck
     [DefaultExecutionOrder(2000)]
     public class TruckRadialMenu : MonoBehaviour
     {
-        public const int Count = 5;
+        public const int Count = 6;
         private const string SettingsPath = "UI/LastTruckRadialPanelSettings";
         private const string UssPath = "UI/LastTruckHud";
 
@@ -34,7 +34,7 @@ namespace LastTruck
         private const float MouseSensitivity = 14f;
         private const float HoldSeconds = 0.3f;
 
-        private static readonly string[] Names = { "보관함", "제작", "가공", "도감", "강화" };
+        private static readonly string[] Names = { "보관함", "제작", "가공", "도감", "강화", "도전과제" };
 
         /// <summary>항목이 확정됐을 때 (0 보관함, 1 제작, 2 가공, 3 도감, 4 강화).</summary>
         public static event Action<int> Selected;

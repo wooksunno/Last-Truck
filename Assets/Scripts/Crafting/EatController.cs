@@ -17,6 +17,7 @@ namespace CraftingSystem
             public float healAmount;
             public float staminaAmount;     // 스태미나 회복량 (0 = 없음)
             public float repairFraction;    // 가방 속 가장 닳은 도구를 최대 내구도의 이 비율만큼 수리 (0 = 없음)
+            public bool weaponUpgrade;      // 무기 강화 1단계 (PlayerGear)
         }
 
         private static readonly Dictionary<string, Edible> Edibles = new Dictionary<string, Edible>
@@ -28,12 +29,19 @@ namespace CraftingSystem
             { ItemIds.Steak, new Edible { holdSeconds = 2f, healAmount = 12f } },
             { ItemIds.HerbPorridge, new Edible { holdSeconds = 2f, healAmount = 18f } },
             { ItemIds.HeartyStew, new Edible { holdSeconds = 2.6f, healAmount = 32f, staminaAmount = 40f } },
+            // 사막 식물 요리 (선인장/들풀은 날것으로는 못 먹는다)
+            { ItemIds.CactusSteak, new Edible { holdSeconds = 1.8f, healAmount = 14f } },
+            { ItemIds.CactusJuice, new Edible { holdSeconds = 1.2f, healAmount = 8f, staminaAmount = 60f } },   // 마시면 힘이 난다
+            { ItemIds.GrassPorridge, new Edible { holdSeconds = 2f, healAmount = 16f } },
+            { ItemIds.DesertStew, new Edible { holdSeconds = 2.6f, healAmount = 30f, staminaAmount = 50f } },
             // 소모품
             { ItemIds.HerbBandage, new Edible { holdSeconds = 0.9f, healAmount = 12f } },
             { ItemIds.CombatStimulant, new Edible { holdSeconds = 1f, healAmount = 4f, staminaAmount = 100f } },
             { ItemIds.VitalityTonic, new Edible { holdSeconds = 1.8f, healAmount = 60f, staminaAmount = 100f } },
             // 도구 수리 (왼쪽 클릭 꾹: 가장 닳은 도구를 고친다)
             { ItemIds.ToolRepairKit, new Edible { holdSeconds = 1.5f, repairFraction = 0.5f } },
+            // 무기 강화 (왼쪽 클릭 꾹: 내가 주는 피해가 영구히 오른다)
+            { ItemIds.WeaponUpgradeKit, new Edible { holdSeconds = 1.5f, weaponUpgrade = true } },
         };
 
         [SerializeField] private Camera targetCamera;
@@ -139,6 +147,7 @@ private bool IsHealthFull()
             if (e.staminaAmount > 0f && LastTruck.PlayerStamina.Instance != null &&
                 LastTruck.PlayerStamina.Instance.Current < LastTruck.PlayerStamina.Instance.Max - 0.5f) return true;
             if (e.repairFraction > 0f && _inventory.HasDamagedTool()) return true;
+            if (e.weaponUpgrade && PlayerGear.CanUpgradeWeapon) return true;
             return false;
         }
 
@@ -174,8 +183,14 @@ private bool IsHealthFull()
             if (edible.repairFraction > 0f && !_inventory.RepairWorstTool(edible.repairFraction, out repaired))
                 return;
 
+            if (edible.weaponUpgrade && !PlayerGear.CanUpgradeWeapon)
+                return;
+
             if (!_inventory.RemoveItem(item, 1))
                 return;
+
+            if (edible.weaponUpgrade && PlayerGear.UpgradeWeapon())
+                LastTruck.HudToast.Show("무기를 강화했어요! " + PlayerGear.WeaponSummary);
 
             if (repaired != null)
                 LastTruck.HudToast.Show($"{repaired.itemName}을(를) 수리했어요");

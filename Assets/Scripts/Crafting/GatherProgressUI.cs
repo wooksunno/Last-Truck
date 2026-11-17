@@ -227,7 +227,8 @@ private void Update()
             var comp = _playerInteract != null ? _playerInteract.CurrentInteractable as Component : null;
             var label = comp as LastTruck.IInteractLabel;
             // 채집 대상이 방금 파괴됐으면(C# 참조만 남은 상태) 접근하지 않는다.
-            bool show = comp != null && label != null && !string.IsNullOrEmpty(label.InteractLabel);
+            // 채집 대상(돌/나무/광맥)은 이름을 띄우지 않는다: 캘 수 있으면 윤곽선으로 알려준다 (GatherOutlineHighlighter)
+            bool show = comp != null && label != null && !(comp is CraftingSystem.IGatherOutline) && !string.IsNullOrEmpty(label.InteractLabel);
             Camera cam = Camera.main;
             Vector3 sp = Vector3.zero;
             if (show)

@@ -26,8 +26,9 @@ public static class TruckModelSetup
     const string PrefabPath = "Assets/LastTruck/Character/Prefabs/Truck.prefab";
 
     const float FbxUnit = 900f;      // FBX 루트 자식의 스케일 (메쉬 정점 × 900 = 모델 미터)
-    const float Scale = 0.7f;        // 기존 트럭(길이 약 6.1m)과 비슷한 크기로
-    public const float GroundY = -0.23f;   // Model을 트럭 루트 기준 이만큼 내린다 (바퀴 바닥이 땅에 닿게)
+    const float Scale = 0.95f;       // FBX 원본 대비 배율 (0.7 = 처음 맞춘 트럭 크기, 0.95 = 캐릭터가 운전석에 머리까지 들어가는 크기)
+    const float K = Scale / 0.7f;    // 처음(0.7) 기준으로 맞춰 둔 값들(마운트/좌석/충돌체)에 곱하는 배율
+    public const float GroundY = -0.24f;   // Model을 트럭 루트 기준 이만큼 내린다 (바퀴 바닥이 땅에 닿게)
 
     // ---------------------------------------------------------------- 메쉬 쪼개기
 
@@ -340,7 +341,8 @@ public static class TruckModelSetup
             if (fl == null || fr == null || bl == null || br == null)
                 return log + "\n!! 바퀴 콜라이더(FL/FR/BL/BR)를 찾지 못했어요. 프리팹이 이미 바뀌었는지 확인하세요.";
 
-            float y = fl.transform.localPosition.y;   // 서스펜션 높이는 기존 값 그대로
+            float y = 0.45f * K;   // 바퀴 콜라이더 높이 (기존 0.45 × 배율: 서스펜션 거리는 TruckMove가 정하므로 그대로)
+            foreach (WheelCollider wc in new[] { fl, fr, bl, br }) wc.radius = 0.5f * K;
             Vector3 pFL = made["Wheel_F_L"].localPosition, pFR = made["Wheel_F_R"].localPosition;
             Vector3 pML = made["Wheel_M_L"].localPosition, pRL = made["Wheel_R_L"].localPosition;
             Vector3 pMR = made["Wheel_M_R"].localPosition, pRR = made["Wheel_R_R"].localPosition;
@@ -378,8 +380,8 @@ public static class TruckModelSetup
                     Bounds mb = kv.Value.GetComponent<MeshFilter>().sharedMesh.bounds;
                     if (!any) { b = mb; any = true; } else b.Encapsulate(mb);
                 }
-                box.center = new Vector3(0f, box.center.y, b.center.z);
-                box.size = new Vector3(Mathf.Min(b.size.x, 2.6f), box.size.y, b.size.z);
+                box.center = new Vector3(0f, 1.3277924f * K, b.center.z);
+                box.size = new Vector3(Mathf.Min(b.size.x, 2.6f * K), 0.72441524f * K, b.size.z);
                 log.AppendLine("BoxCollider center=" + box.center + " size=" + box.size);
             }
 
@@ -391,7 +393,22 @@ public static class TruckModelSetup
             // 부착물(포탑/엔진/전면/장갑)이 붙는 자리. 위치를 옮기면 장착 모델도 같이 옮겨진다 (트럭 기준 좌표).
             AddMount(root.transform, "Mount_Roof", new Vector3(0f, 2.05f, 0.85f));        // 운전석 지붕 가운데: 포탑
             AddMount(root.transform, "Mount_Front", new Vector3(0f, 0.55f, 3.12f));       // 범퍼 앞: 강철가시 범퍼 / 분쇄 휠
-            AddMount(root.transform, "Mount_Bed", new Vector3(0f, 1.2f, -1.7f));          // 적재함 가운데: 자동 포탑
+            AddMount(root.transform, "Mount_Bed", new Vector3(0f, 1.3f, -1.7f));          // 적재함 가운데: 자동 포탑
+
+            // 크기에 맞춰 옮겨야 하는 기존 오브젝트: 내리는 자리 / 헤드라이트
+            Transform exitPoint = root.transform.Find("Exit Point");
+            if (exitPoint != null) exitPoint.localPosition = new Vector3(-2.19f * K, exitPoint.localPosition.y, 0f);
+            foreach (Light l in root.GetComponentsInChildren<Light>(true))
+            {
+                if (l.name == "Front_L") l.transform.localPosition = new Vector3(-0.95f * K, 0.95f * K, 3.2f * K);
+                else if (l.name == "Front_R") l.transform.localPosition = new Vector3(0.95f * K, 0.95f * K, 3.2f * K);
+            }
+
+            // 탑승자가 앉는 자리 (엉덩이가 놓이는 위치, 앞이 +Z): 0 운전석(왼쪽) / 1 조수석 / 2·3 적재함 앞쪽 양옆
+            AddMount(root.transform, "SeatPose_0", new Vector3(-0.45f, 0.82f, 0.85f));
+            AddMount(root.transform, "SeatPose_1", new Vector3(0.45f, 0.82f, 0.85f));
+            AddMount(root.transform, "SeatPose_2", new Vector3(-0.65f, 0.88f, -0.9f));
+            AddMount(root.transform, "SeatPose_3", new Vector3(0.65f, 0.88f, -0.9f));
             AddMount(root.transform, "Mount_Engine", new Vector3(0f, 1.32f, 2.1f));       // 본네트 위: 엔진 흡기구
             AddMount(root.transform, "Mount_ArmorL", new Vector3(-0.97f, 1.25f, 1.08f));  // 왼쪽 문 바깥: 장갑판
             AddMount(root.transform, "Mount_ArmorR", new Vector3(0.97f, 1.25f, 1.08f));   // 오른쪽 문 바깥: 장갑판
@@ -409,15 +426,16 @@ public static class TruckModelSetup
         return log.ToString();
     }
 
-    static void AddMount(Transform root, string name, Vector3 localPosition)
+    /// <summary>basePosition은 0.7배일 때 기준 좌표. 트럭 크기(K)에 맞춰 곱해서 놓는다 (다시 실행하면 이 위치로 맞춰진다).</summary>
+    static void AddMount(Transform root, string name, Vector3 basePosition)
     {
         Transform t = root.Find(name);
         if (t == null)
         {
             t = new GameObject(name).transform;
             t.SetParent(root, false);
-            t.localPosition = localPosition;   // 이미 있으면 사용자가 옮겨 둔 위치를 그대로 둔다
         }
+        t.localPosition = basePosition * K;
     }
 
     static void AddFollower(Transform wheel, WheelCollider source, Vector3 offset)

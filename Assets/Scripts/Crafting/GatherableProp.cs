@@ -8,8 +8,12 @@ namespace CraftingSystem
     /// PlayerInteract는 interactLayer(Water, 레이어 4)의 콜라이더만 찾으므로, 프롭의 자식 "GatherTrigger"
     /// (레이어 4, 트리거 콜라이더)에 이 컴포넌트를 붙여 사용한다. 설치는 에디터 메뉴 Tools/Gatherable Props 로 한다.
     /// </summary>
-    public class GatherableProp : MonoBehaviour, LastTruck.IHoldInteractable, LastTruck.IInteractPriority, LastTruck.IInteractLabel
+    public class GatherableProp : MonoBehaviour, LastTruck.IHoldInteractable, LastTruck.IInteractPriority, LastTruck.IInteractLabel, IGatherOutline
     {
+        // 이름은 띄우지 않는다. 대신 캘 수 있는 상태면 가까이 갔을 때 윤곽선이 굵게 나온다.
+        public bool CanGatherNow => !_done && (EffectiveTier <= 0 || GatherRules.MeetsRequirement(EffectiveTier));
+        public GameObject OutlineRoot => Root;
+
         [SerializeField] private string displayName = "채집";
         [SerializeField] private string itemId = ItemIds.Stone;
         [SerializeField] private int amount = 1;
@@ -124,7 +128,10 @@ namespace CraftingSystem
                 if (tier > 0 && !GatherRules.MeetsRequirement(tier))
                     return Mathf.Max(gatherHoldSeconds, 1f) * GatherRules.UnmetTimeMultiplier;
                 // 캘 수 있는 도구면 빠르게(요구 등급보다 좋은 도구일수록 더 빠르게)
-                float seconds = gatherHoldSeconds * GatherRules.ToolSpeedFactor(GatherRules.Player, tier);
+                // 도끼(나무) / 호미(약초) 같은 전용 도구는 더 빨리 캔다
+                float seconds = gatherHoldSeconds * GatherRules.ToolSpeedFactor(GatherRules.Player, tier)
+                                * GatherRules.SpecialToolFactor(GatherRules.Player, itemId)
+                                * GatherRules.GlobalTimeScale;
 
                 // 광부: 돌 같은 광물 프롭은 채집 시간이 줄어든다 (광물이 아니면 그대로)
                 var player = GatherRules.Player;
@@ -139,7 +146,8 @@ namespace CraftingSystem
         public Color InteractLabelColor => Color.white;
 
         // 풀(약초)은 어디에나 깔려 있으므로, 근처에 나무/돌 등 다른 대상이 있으면 그쪽을 먼저 잡게 한다.
-        public int InteractPriority => itemId == ItemIds.Herb ? -1 : 0;
+        // 들풀은 그보다도 더 흔하므로 약초보다 한 단계 더 낮다 (풀 때문에 약초/나무/돌을 못 잡는 일이 없게).
+        public int InteractPriority => itemId == ItemIds.WildGrass ? -2 : itemId == ItemIds.Herb ? -1 : 0;
 
         public void Configure(string name, string item, int amt, float holdSeconds, GameObject toRemove)
         {
@@ -178,7 +186,7 @@ namespace CraftingSystem
             }
 
             // 곡괭이 등 도구가 필요한 채집은 도구가 한 번 닳는다 (내구도가 0이 되면 부서진다)
-            if (tier > 0)
+            if (tier > 0 || GatherRules.SpecialToolFactor(player, itemId) < 1f)
                 inventory.WearSelectedTool();
 
             // 멀티플레이: 호스트가 먼저 캔 사람을 정하고, 모든 화면에서 프롭을 없앤다.

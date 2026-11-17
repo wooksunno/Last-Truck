@@ -56,11 +56,16 @@ public static class GatherablePropInstaller
         }
     }
 
-    enum Kind { None, Rock, Tree, Log, Herb }
+    enum Kind { None, Rock, Tree, Log, Herb, Cactus, Weed }
+
+    // 선인장/들풀: 캐면 사라져서 트럭이 다니기 편해진다. 쓸 곳이 마땅치 않아 음식 재료로 쓴다 (선인장 구이/주스, 풀죽, 사막 스튜).
+    public static float CactusHoldSeconds = 1.2f;
+    public static float WeedHoldSeconds = 0.5f;
 
     static Kind Classify(string n)
     {
-        if (n.StartsWith("PP_Grass_Single")) return Kind.None;
+        if (n.StartsWith("PP_Cactus")) return Kind.Cactus;
+        if (n.StartsWith("PP_Grass_Single")) return Kind.Weed;   // 한 포기짜리 풀: 약초가 아니라 들풀
         if (n.StartsWith("PP_Grass_")) return Kind.Herb;
         if (n.StartsWith("PP_Rock_Plateau") || n.StartsWith("PP_Rock_Veins") || n.StartsWith("PP_Rock_Gem")) return Kind.None;
         if (n.StartsWith("PP_Rock_") || n.StartsWith("PP_Stone_Plain")) return Kind.Rock;
@@ -102,7 +107,7 @@ public static class GatherablePropInstaller
     {
         if (reset) Remove();
         RemoveGrassColliders();
-        int rocks = 0, trees = 0, logs = 0, herbs = 0, tooBig = 0;
+        int rocks = 0, trees = 0, logs = 0, herbs = 0, cacti = 0, weeds = 0, tooBig = 0;
         foreach (var r in Object.FindObjectsByType<MeshRenderer>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
         {
             var go = r.gameObject;
@@ -113,7 +118,7 @@ public static class GatherablePropInstaller
             if (go.GetComponentInParent<GatherableProp>() != null) continue;
             if (!reset && go.transform.Find(TriggerName) != null) continue;
 
-            if (kind == Kind.Herb && !IsHerbPick(go.transform.position)) continue;
+            if (kind == Kind.Herb && !IsHerbPick(go.transform.position)) kind = Kind.Weed;   // 약초로 뽑히지 않은 풀 덤불은 들풀
 
             Bounds b = r.bounds; float size = Mathf.Max(b.size.x, b.size.y, b.size.z);
             if (kind == Kind.Rock || kind == Kind.Log)
@@ -122,14 +127,17 @@ public static class GatherablePropInstaller
                 if (size > limit) { tooBig++; continue; }
             }
 
-            string itemId = kind == Kind.Rock ? ItemIds.Stone : kind == Kind.Herb ? ItemIds.Herb : ItemIds.Wood;
+            string itemId = kind == Kind.Rock ? ItemIds.Stone : kind == Kind.Herb ? ItemIds.Herb
+                : kind == Kind.Cactus ? ItemIds.Cactus : kind == Kind.Weed ? ItemIds.WildGrass : ItemIds.Wood;
             int amount = kind == Kind.Log ? 2 : (size > 3f ? 2 : 1);
             float hold = HoldSeconds;
             if (kind == Kind.Tree) TreeYield(b.size.y, out amount, out hold);
             if (kind == Kind.Rock && size > BigRockSize) RockYield(size, out amount, out hold);
             if (kind == Kind.Herb) { amount = HerbAmount; hold = HerbHoldSeconds; }
+            if (kind == Kind.Cactus) { amount = size > 2.5f ? 2 : 1; hold = CactusHoldSeconds; }
+            if (kind == Kind.Weed) { amount = 1; hold = WeedHoldSeconds; }
             string label = kind == Kind.Rock ? "돌" : kind == Kind.Tree ? (b.size.y >= 12f ? "큰 나무" : "나무")
-                : kind == Kind.Herb ? "약초" : "통나무";
+                : kind == Kind.Herb ? "약초" : kind == Kind.Cactus ? "선인장" : kind == Kind.Weed ? "들풀" : "통나무";
 
             var t = new GameObject(TriggerName); t.transform.SetParent(go.transform, true);
             t.transform.rotation = Quaternion.identity; t.layer = 4;     // PlayerInteract.interactLayer (Water)
@@ -149,16 +157,17 @@ public static class GatherablePropInstaller
             else
             {
                 t.transform.position = b.center;
-                float pad = kind == Kind.Herb ? HerbTriggerPadding : 1.0f;
+                float pad = (kind == Kind.Herb || kind == Kind.Weed) ? HerbTriggerPadding : 1.0f;   // 풀은 나무/돌 옆에서 E를 가로채지 않게 작게
                 var sc = t.AddComponent<SphereCollider>(); sc.isTrigger = true;
                 sc.radius = (Mathf.Max(b.extents.x, b.extents.z) + pad) / Mathf.Max(lsXZ, lsY);
             }
             var gp = t.AddComponent<GatherableProp>(); gp.Configure(label, itemId, amount, hold, go);
 
-            if (kind == Kind.Rock) rocks++; else if (kind == Kind.Tree) trees++; else if (kind == Kind.Herb) herbs++; else logs++;
+            if (kind == Kind.Rock) rocks++; else if (kind == Kind.Tree) trees++; else if (kind == Kind.Herb) herbs++;
+            else if (kind == Kind.Cactus) cacti++; else if (kind == Kind.Weed) weeds++; else logs++;
         }
         EditorSceneManagerHelper.MarkDirty();
-        string s = $"gatherable: rocks={rocks} trees={trees} logs={logs} herbs={herbs} skipped(too big)={tooBig}";
+        string s = $"gatherable: rocks={rocks} trees={trees} logs={logs} herbs={herbs} cacti={cacti} weeds={weeds} skipped(too big)={tooBig}";
         Debug.Log("[GatherablePropInstaller] " + s);
         return s;
     }

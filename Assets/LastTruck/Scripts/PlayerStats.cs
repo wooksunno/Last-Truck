@@ -109,6 +109,8 @@ namespace LastTruck
 
             if (_downedOffline) return;
 
+            damage *= 1f - CraftingSystem.PlayerArmor.ReductionOfTier(CraftingSystem.PlayerArmor.LocalTier);   // 가방에 가진 갑옷만큼 피해 감소
+
             currentHealth -= damage;
             currentHealth = Mathf.Clamp(currentHealth, 0f, MaxHealth);
 

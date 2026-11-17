@@ -30,6 +30,7 @@ namespace LastTruck.Networking
             None = 0,
             AllPlayersDead = 1,
             TruckDestroyed = 2,
+            Escaped = 3,   // 탈출 성공 (엔딩)
         }
 
         [Networked] public NetworkBool Started { get; set; }
@@ -40,6 +41,14 @@ namespace LastTruck.Networking
         [Networked] public int NightKilled { get; set; }
         [Networked, OnChangedRender(nameof(OnGameOverRender))] public int GameOver { get; set; }
         [Networked] public float TruckDurability { get; set; }
+
+        // 생존 조건 진행 (SurvivalDirector, 호스트가 계산해서 모두에게 보여 준다. 조건 종류는 회차로 정해지므로 보내지 않는다)
+        [Networked] public int SurvState { get; set; }
+        [Networked] public float SurvElapsed { get; set; }
+        [Networked] public int SurvCount { get; set; }
+        [Networked] public float SurvDamage { get; set; }
+        [Networked] public float SurvNext { get; set; }
+        [Networked] public int SurvBoss { get; set; }
         [Networked] private TickTimer LoadTimeout { get; set; }
 
         #endregion
@@ -144,6 +153,17 @@ namespace LastTruck.Networking
                 NightKilled = gm.NightMonstersKilled;
             }
 
+            LastTruck.SurvivalDirector survival = LastTruck.SurvivalDirector.Instance;
+            if (survival != null)
+            {
+                SurvState = (int)survival.State;
+                SurvElapsed = survival.Elapsed;
+                SurvCount = survival.Count;
+                SurvDamage = survival.Damage;
+                SurvNext = survival.NextIn;
+                SurvBoss = survival.BossState;
+            }
+
             if (GameOver == 0)
             {
                 GameOverReason reason = CheckGameOver();
@@ -162,6 +182,9 @@ namespace LastTruck.Networking
 
         private GameOverReason CheckGameOver()
         {
+            // 탈출 성공 (게이트가 열렸고 부품 3종을 실은 트럭이 게이트에 도착)
+            if (LastTruck.StoryDirector.EscapeConditionMet()) return GameOverReason.Escaped;
+
             // 트럭 파괴
             if (Truck != null && Truck.IsBroken) return GameOverReason.TruckDestroyed;
 
@@ -201,6 +224,10 @@ namespace LastTruck.Networking
 
                 // 트럭 내구도 (몬스터가 호스트에서 깎은 값)
                 if (Started && Truck != null) Truck.ApplyNetworkDurability(TruckDurability);
+
+                // 생존 조건 진행 (호스트 값)
+                LastTruck.SurvivalDirector survival = LastTruck.SurvivalDirector.Instance;
+                if (Started && survival != null) survival.ApplyNetworkState(SurvState, SurvElapsed, SurvCount, SurvDamage, SurvNext, SurvBoss);
             }
         }
 
@@ -209,12 +236,19 @@ namespace LastTruck.Networking
             if (GameOver == 0 || _gameOverShown) return;
             _gameOverShown = true;
 
+            GameLauncher launcher = GameLauncher.Instance;
+            if (launcher != null) launcher.NotifyGameOver();
+
+            // 탈출 성공은 패배가 아니라 엔딩 화면
+            if ((GameOverReason)GameOver == GameOverReason.Escaped)
+            {
+                LastTruck.StoryDirector.ShowEnding(false);
+                return;
+            }
+
             string message = (GameOverReason)GameOver == GameOverReason.TruckDestroyed
                 ? "트럭이 파괴되었습니다."
                 : "모든 플레이어가 기절했습니다.";
-
-            GameLauncher launcher = GameLauncher.Instance;
-            if (launcher != null) launcher.NotifyGameOver();
 
             SystemUI.Alert("게임 오버", message, () =>
             {

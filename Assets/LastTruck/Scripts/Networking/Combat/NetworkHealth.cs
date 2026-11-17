@@ -178,6 +178,14 @@ namespace LastTruck.Networking
             amount = Mathf.Clamp(amount, 0f, maxDamagePerHit);
             if (amount <= 0f) return;
 
+            // 플레이어는 가방에 가진 갑옷만큼 피해가 줄어든다 (몬스터/폭발 등 모든 피해)
+            if (isPlayer)
+            {
+                NetworkPlayerMovement movement = GetComponent<NetworkPlayerMovement>();
+                if (movement != null) amount *= 1f - CraftingSystem.PlayerArmor.ReductionOfTier(movement.ArmorTier);
+                if (amount <= 0f) return;
+            }
+
             Current = Mathf.Max(0f, Current - amount);
             RPC_PlayHit(amount, hitPoint);
             try { DamagedOnHost?.Invoke(amount); }

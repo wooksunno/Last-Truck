@@ -81,7 +81,7 @@ namespace LastTruck.Networking
 
         private void UpdatePlate(NetworkPlayer player, Plate plate, Camera cam, float scale)
         {
-            bool visible = cam != null && !player.IsSeated;
+            bool visible = cam != null && (!player.IsSeated || player.IsOnTurret);   // 포탑 위의 동료는 이름표가 보인다
             Vector3 screen = Vector3.zero;
             if (visible)
             {

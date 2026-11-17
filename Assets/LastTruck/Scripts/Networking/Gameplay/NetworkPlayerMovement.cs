@@ -43,6 +43,8 @@ namespace LastTruck.Networking
         [SerializeField] private string jumpStateName = "Jumping Up";
 
         [Networked] public NetworkBool IsWalking { get; set; }
+        /// <summary>이 플레이어가 가방에 가진 가장 좋은 갑옷 등급 (0~3). 호스트가 받는 피해를 줄일 때 쓴다.</summary>
+        [Networked] public int ArmorTier { get; set; }
         [Networked] private NetworkButtons PreviousButtons { get; set; }
         [Networked] private int JumpCount { get; set; }
 
@@ -188,6 +190,10 @@ namespace LastTruck.Networking
             bool hasInput = GetInput(out NetworkInputData input);
             if (!hasInput && !Object.HasStateAuthority) return;
 
+            // 갑옷 등급: 호스트가 입력에서 읽어 두고 피해 계산(NetworkHealth.ApplyDamage)에 쓴다 (값 범위는 호스트가 다시 제한)
+            if (hasInput && Object.HasStateAuthority)
+                ArmorTier = Mathf.Clamp(input.ArmorTier, 0, CraftingSystem.PlayerArmor.MaxTier);
+
             // 트럭에 타 있으면 걷지 않고 좌석에 붙어 있는다 (충돌 끔 → 트럭을 밀지 않음).
             if (NetworkTruck.IsSeated(Object.InputAuthority))
             {
@@ -278,7 +284,8 @@ namespace LastTruck.Networking
             IsWalking = false;
 
             // 좌석 위치는 호스트가 정한다 (클라이언트의 내 캐릭터는 호스트 값으로 맞춰진다).
-            if (Object.HasStateAuthority && NetworkTruck.TryGetSeatPose(out Vector3 position, out Quaternion rotation))
+            // 포탑 사수는 포탑 위에 서서 포탑 방향을 따라 돈다 (다른 사람에게도 보인다).
+            if (Object.HasStateAuthority && NetworkTruck.TryGetSeatPose(Object.InputAuthority, out Vector3 position, out Quaternion rotation))
             {
                 _controller.Teleport(position, rotation);
             }

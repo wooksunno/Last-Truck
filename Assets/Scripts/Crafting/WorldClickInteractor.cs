@@ -66,17 +66,32 @@ namespace CraftingSystem
                 best = (_truck.transform.position - p).sqrMagnitude;
             Vector3 nearest = all.ClosestPoint(p);   // 플레이어와 가장 가까운 트럭 부분 위쪽에 띄워 화면 안에 보이게 한다
             _truckAnchor = new Vector3(nearest.x, all.max.y + 0.8f, nearest.z);
+            _truckCenter = any ? all.center : _truck.transform.position;
 
             return best <= truckOpenRange * truckOpenRange;
+        }
+
+        private Vector3 _truckCenter;
+
+        /// <summary>카메라가 트럭 쪽(화면 가운데 근처)을 보고 있는가. 트럭을 등지고 있거나 화면 가장자리에만 걸쳐 있으면 false.</summary>
+        private bool IsLookingAtTruck()
+        {
+            Camera cam = targetCamera != null ? targetCamera : Camera.main;
+            if (cam == null) return false;
+            Vector3 v = cam.WorldToViewportPoint(_truckCenter);
+            return v.z > 0f && v.x > 0.15f && v.x < 0.85f && v.y > -0.1f && v.y < 1.1f;
         }
 
         private void Update()
         {
             GameUIController ui = GameUIController.Instance;
 
-            // 트럭 원형 메뉴가 열려 있는 동안은 그쪽이 Tab/Esc/클릭을 처리한다
+            // 트럭 원형 메뉴가 열려 있는 동안은 그쪽이 Tab/Esc/클릭을 처리한다 (안내는 숨긴다)
             if (LastTruck.TruckRadialMenu.IsOpen)
+            {
+                if (ui != null) ui.SetTruckHint(false, _truckAnchor);
                 return;
+            }
 
             if (Input.GetKeyDown(KeyCode.Escape) && ui != null)
             {
@@ -86,8 +101,10 @@ namespace CraftingSystem
 
             // 트럭 거점: 근처에서 Tab으로 열기/닫기 + 안내 표시
             bool nearTruck = IsNearTruck();
+            // 안내는 "트럭 근처에서 트럭 쪽을 바라볼 때"만 보이고, Tab을 누르고 있는 동안은 숨긴다 (화면을 가리지 않게)
+            bool showHint = nearTruck && ui != null && !ui.IsPopupOpen && !Input.GetKey(KeyCode.Tab) && IsLookingAtTruck();
             if (ui != null)
-                ui.SetTruckHint(nearTruck && !ui.IsPopupOpen, _truckAnchor);
+                ui.SetTruckHint(showHint, _truckAnchor);
 
             if (Input.GetKeyDown(KeyCode.Tab) && ui != null && playerInventory != null)
             {

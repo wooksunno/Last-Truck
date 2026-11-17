@@ -141,8 +141,78 @@ public class MonsterSpawner : MonoBehaviour
         if (!LastTruck.Networking.NetworkMonsterSpawning.CanSpawnMonsters)
             return;
 
+        // 생존 조건(SurvivalDirector)이 이번 밤의 스폰(웨이브/보스/꾸준히)을 직접 맡는다.
+        if (LastTruck.SurvivalDirector.ControlsNight)
+            return;
+
         SpawnMonsters(quota);
     }
+
+    #region 생존 조건(SurvivalDirector)이 쓰는 스폰 창구
+
+    /// <summary>지금 살아 있는 몬스터 수.</summary>
+    public int AliveCount => CountAliveMonsters();
+
+    /// <summary>
+    /// 몬스터 한 마리를 강함 등급(체력/피해 배율, 몸집, 중간보스 여부)을 정해서 스폰한다.
+    /// 위치는 기존 규칙(플레이어/트럭 주변 링, 바닥 위)을 그대로 쓴다. 다 만들어지면 onSpawned(몬스터, 실패 시 null).
+    /// </summary>
+    public void SpawnTiered(float hpScale, float damageScale, float size, bool boss, System.Action<GameObject> onSpawned)
+    {
+        if (!LastTruck.Networking.NetworkMonsterSpawning.CanSpawnMonsters) { onSpawned?.Invoke(null); return; }
+        StartCoroutine(SpawnTieredRoutine(hpScale, damageScale, size, boss, onSpawned));
+    }
+
+    private IEnumerator SpawnTieredRoutine(float hpScale, float damageScale, float size, bool boss, System.Action<GameObject> onSpawned)
+    {
+        bool network = LastTruck.Networking.NetworkMonsterSpawning.UseNetworkSpawn;
+        _spawnCenter = network ? PickNetworkSpawnCenter() : player;
+        if (_spawnCenter == null || LastTruck.Networking.NetworkGameState.IsGameOver) { onSpawned?.Invoke(null); yield break; }
+
+        Vector3? spawnPos = null;
+        yield return FindValidSpawnPosition(new List<Vector3>(), result => spawnPos = result);
+        if (spawnPos == null) { onSpawned?.Invoke(null); yield break; }
+
+        GameObject monster;
+        if (network)
+        {
+            monster = LastTruck.Networking.NetworkMonsterSpawning.Spawn(spawnPos.Value, Quaternion.identity, hpScale, damageScale, size, boss);
+        }
+        else
+        {
+            monster = monsterPrefab != null ? Instantiate(monsterPrefab, spawnPos.Value, Quaternion.identity) : null;
+            if (monster != null)
+            {
+                var tier = monster.AddComponent<LastTruck.MonsterTier>();
+                tier.IsBoss = boss;
+                tier.DamageScale = damageScale;
+                var damageable = monster.GetComponent<Combat.Damageable>();
+                if (damageable != null && !Mathf.Approximately(hpScale, 1f))
+                    damageable.SetMaxHealth(Mathf.RoundToInt(damageable.MaxHealth * hpScale));
+                tier.ApplySize(size);
+                AttachKillNotifier(monster);
+            }
+        }
+
+        if (monster != null) _aliveMonsters.Add(monster);
+        onSpawned?.Invoke(monster);
+    }
+
+    /// <summary>살아 있는 몬스터를 모두 치운다 (생존 조건을 달성해서 아침이 올 때).</summary>
+    public void ClearAllMonsters()
+    {
+        if (spawnRoutine != null) { StopCoroutine(spawnRoutine); spawnRoutine = null; }
+        bool network = LastTruck.Networking.NetworkMonsterSpawning.UseNetworkSpawn;
+        foreach (GameObject m in _aliveMonsters.ToArray())
+        {
+            if (m == null) continue;
+            if (network) LastTruck.Networking.NetworkMonsterSpawning.Despawn(m);
+            else Destroy(m);
+        }
+        _aliveMonsters.Clear();
+    }
+
+    #endregion
 
     /// <summary>
     /// GameManager의 밤 종료 이벤트 핸들러. 혹시 아직 스폰이 진행 중이라면 중단한다
@@ -315,11 +385,14 @@ public class MonsterSpawner : MonoBehaviour
             if (_spawnCenter == null)
                 break;
 
-            Vector3 candidateXZ = GetRandomPointInAnnulus(_spawnCenter.position, minDistance, maxDistance);
+            // 안개가 낀 날씨에는 좀비가 더 가까이서 나타난다 (날씨 패널티)
+            float distScale = LastTruck.WeatherDirector.SpawnDistanceScale;
+            float effMin = minDistance * distScale;
+            Vector3 candidateXZ = GetRandomPointInAnnulus(_spawnCenter.position, effMin, Mathf.Max(effMin + 3f, maxDistance * distScale));
 
             if (TryRaycastGround(candidateXZ, out Vector3 groundPoint) &&
                 IsFarEnoughFromOthers(groundPoint, alreadySpawned) &&
-                (!network || !LastTruck.Networking.NetworkMonsterSpawning.IsNearAnyPlayer(groundPoint, minDistance)))
+                (!network || !LastTruck.Networking.NetworkMonsterSpawning.IsNearAnyPlayer(groundPoint, effMin)))
             {
                 onResult(groundPoint);
                 yield break;

@@ -97,8 +97,12 @@ namespace CraftingSystem
             Transform mount = transform.Find(mountName);
             go.localPosition = mount != null ? mount.localPosition : fallbackLocal;
             go.localRotation = Quaternion.identity;
+            go.localScale = Vector3.one * PartScale;
             return go;
         }
+
+        /// <summary>트럭 모델이 처음(0.7배) 기준으로 만든 장착 모델의 크기를 현재 트럭(0.9배)에 맞추는 배율.</summary>
+        private const float PartScale = 0.95f / 0.7f;
 
         /// <summary>엔진: 본네트 위 흡기구 + 운전석 뒤 배기관. 터보는 더 크고 배기구에 불빛이 난다.</summary>
         private Transform BuildEngine(bool turbo)
@@ -187,6 +191,7 @@ namespace CraftingSystem
                 var holder = new GameObject("Side").transform;
                 holder.SetParent(root, false);
                 holder.localPosition = pos;
+                holder.localScale = Vector3.one * PartScale;
 
                 // 문 아래쪽을 덮는 큰 판 (창문은 가리지 않는다)
                 Prim(PrimitiveType.Cube, holder, new Vector3(0f, alloy ? -0.12f : -0.18f, 0f), new Vector3(0.07f, alloy ? 0.85f : 0.65f, alloy ? 1.05f : 0.9f), plate);

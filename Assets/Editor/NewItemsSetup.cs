@@ -85,6 +85,42 @@ public static class NewItemsSetup
         new Def { id = ItemIds.VitalityTonic, name = "활력 토닉", type = ItemType.Finished, stack = 10,
                   recipe = new Recipe { facility = FacilityType.ChemicalRefinery, recipeId = "chem_" + ItemIds.VitalityTonic, recipeName = "활력 토닉 정제",
                                         inputs = new[] { (ItemIds.MedicalExtract, 2), (ItemIds.StimulantPowder, 1) }, outCount = 1, seconds = 60f } },
+        // 독버섯 미끼: 독성 유인 페로몬 + 썩은 고기로 만든다 (독약초는 페로몬을 뽑을 때만 쓴다). 손에 들고 E를 꾹 눌러 놓으면 근처 몬스터가 몰려와서 먹고 중독된다.
+        new Def { id = ItemIds.PoisonMushroomBait, name = "독버섯 미끼", type = ItemType.Finished, stack = 10,
+                  recipe = Assemble(ItemIds.PoisonMushroomBait, "독버섯 미끼", 2, (ItemIds.LurePheromone, 1), (ItemIds.RottenMeat, 1)) },
+        // 플레이어 갑옷 3단계: 가방에 가지고 있으면 받는 피해가 줄어든다 (PlayerArmor). 한 칸을 차지하는 것이 대가.
+        new Def { id = ItemIds.LeatherArmor, name = "가죽 갑옷", type = ItemType.Finished, stack = 1,
+                  recipe = Assemble(ItemIds.LeatherArmor, "가죽 갑옷", 1, (ItemIds.TannedLeather, 4), (ItemIds.WetHide, 2)) },
+        new Def { id = ItemIds.IronPlateArmor, name = "철제 갑옷", type = ItemType.Finished, stack = 1,
+                  recipe = Assemble(ItemIds.IronPlateArmor, "철제 갑옷", 1, (ItemIds.ArmorPlate, 3), (ItemIds.TannedLeather, 2), (ItemIds.Iron, 2)) },
+        new Def { id = ItemIds.AlloyPlateArmor, name = "합금 갑옷", type = ItemType.Finished, stack = 1,
+                  recipe = Assemble(ItemIds.AlloyPlateArmor, "합금 갑옷", 1, (ItemIds.ArmorPlate, 4), (ItemIds.PurePlatinum, 2), (ItemIds.PlatinumGear, 1), (ItemIds.TannedLeather, 2)) },
+
+        // 사막 식물: 선인장/들풀은 채집하면 사라져서 트럭 길을 틔우는 용도. 쓸 데가 없으므로 음식으로 만든다.
+        new Def { id = ItemIds.Cactus, name = "선인장", type = ItemType.Raw, stack = 99 },
+        new Def { id = ItemIds.WildGrass, name = "들풀", type = ItemType.Raw, stack = 99 },
+        new Def { id = ItemIds.CactusSteak, name = "선인장 구이", type = ItemType.Finished, stack = 20,
+                  recipe = new Recipe { facility = FacilityType.Campfire, recipeId = "bonfire_" + ItemIds.CactusSteak, recipeName = "선인장 구이",
+                                        inputs = new[] { (ItemIds.Cactus, 2) }, outCount = 1, seconds = 30f } },
+        new Def { id = ItemIds.CactusJuice, name = "선인장 주스", type = ItemType.Finished, stack = 20,
+                  recipe = Assemble(ItemIds.CactusJuice, "선인장 주스", 1, (ItemIds.Cactus, 2)) },
+        new Def { id = ItemIds.GrassPorridge, name = "풀죽", type = ItemType.Finished, stack = 20,
+                  recipe = new Recipe { facility = FacilityType.Campfire, recipeId = "bonfire_" + ItemIds.GrassPorridge, recipeName = "풀죽",
+                                        inputs = new[] { (ItemIds.WildGrass, 5) }, outCount = 1, seconds = 35f } },
+        new Def { id = ItemIds.DesertStew, name = "사막 스튜", type = ItemType.Finished, stack = 10,
+                  recipe = new Recipe { facility = FacilityType.Campfire, recipeId = "bonfire_" + ItemIds.DesertStew, recipeName = "사막 스튜",
+                                        inputs = new[] { (ItemIds.Cactus, 2), (ItemIds.WildGrass, 3), (ItemIds.Meat, 1) }, outCount = 1, seconds = 50f } },
+
+        // 랜턴: 안개/비 날씨에 손에 들면 주변이 환해지고 시야가 트인다 (횃불보다 넓고 안정적, 무기와 같이 들 수 없다).
+        new Def { id = ItemIds.Lantern, name = "랜턴", type = ItemType.Finished, stack = 1,
+                  recipe = Assemble(ItemIds.Lantern, "랜턴", 1, (ItemIds.Iron, 2), (ItemIds.Copper, 1), (ItemIds.Charcoal, 2)) },
+        // 탈출 부품 3종 (스토리 목표): 후반 재료로 만든다. 3종이 모두 트럭 보관함에 있어야 탈출 게이트를 통과할 수 있다.
+        new Def { id = ItemIds.EscapeEngineCore, name = "탈출 엔진 코어", type = ItemType.Finished, stack = 1,
+                  recipe = Assemble(ItemIds.EscapeEngineCore, "탈출 엔진 코어", 1, (ItemIds.PlatinumGear, 3), (ItemIds.EternalEnergyCore, 1), (ItemIds.ArmorPlate, 2)) },
+        new Def { id = ItemIds.EscapeFuelTank, name = "장거리 연료 탱크", type = ItemType.Finished, stack = 1,
+                  recipe = Assemble(ItemIds.EscapeFuelTank, "장거리 연료 탱크", 1, (ItemIds.RefinedFuel, 6), (ItemIds.ArmorPlate, 3), (ItemIds.PrecisionBarrel, 1)) },
+        new Def { id = ItemIds.EscapeBeacon, name = "구조 신호기", type = ItemType.Finished, stack = 1,
+                  recipe = Assemble(ItemIds.EscapeBeacon, "구조 신호기", 1, (ItemIds.HighVoltageCable, 3), (ItemIds.SuperconductorCatalyst, 2), (ItemIds.MechanicalTrigger, 2)) },
         new Def { id = ItemIds.ToolRepairKit, name = "도구 수리 키트", type = ItemType.Finished, stack = 10,
                   recipe = Assemble(ItemIds.ToolRepairKit, "도구 수리 키트", 2, (ItemIds.Iron, 1), (ItemIds.Wood, 4), (ItemIds.StonePowder, 2)) },
     };
@@ -159,6 +195,7 @@ public static class NewItemsSetup
         {
             var item = Item(def.id);
             var r = def.recipe;
+            if (r.inputs == null) continue;   // 레시피가 없는 원재료 (선인장/들풀)
             var recipe = AssetDatabase.LoadAssetAtPath<RecipeData>(RecipeDir + r.recipeId + ".asset");
             if (recipe == null)
             {

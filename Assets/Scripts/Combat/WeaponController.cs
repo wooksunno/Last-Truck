@@ -41,6 +41,12 @@ namespace Combat
             public float gasTickInterval;
             public int gasTickDamage;
             public float throwSpeed;
+            public int pellets;          // Hitscan: 한 번에 나가는 산탄 수 (0/1이면 한 발)
+            public float spreadAngle;    // 산탄이 퍼지는 각도 (도)
+            public bool pierce;          // Hitscan: 일직선 위의 적을 모두 꿰뚫는다 (단단한 지형에서 멈춤)
+            public bool cleave;          // MeleeArc: 부채꼴 안의 적을 모두 벤다 (기본은 가장 가까운 1명)
+            public string swingAnim;     // MeleeArc: 휘두르는 애니메이션 (비우면 AtkSlash)
+            public GrenadeProjectile.AreaKind area;   // Throw: 터진 자리에 남는 것 (독가스/불길/신호탄 불빛)
         }
 
         [SerializeField] private Camera targetCamera;
@@ -150,6 +156,8 @@ namespace Combat
             public bool isGun;
             [Tooltip("탄피 종류: 0 없음, 1 권총탄, 2 소총탄")]
             public int casing;
+            [Tooltip("총 모델의 총구가 로컬 +Z인 경우 (KayKit 산탄총/석궁). 끄면 Kenney 블래스터처럼 -Z")]
+            public bool facesPlusZ;
         }
 
         [Header("손에 드는 무기 모델 (근접/총)")]
@@ -231,8 +239,16 @@ namespace Combat
         {
             if (target == null)
                 return;
-            FaceDirection(target.transform.position - transform.position);
-            Vector3 p = target.transform.position;
+            PlayGatherHit(target.transform, withPickaxe);
+        }
+
+        /// <summary>광물(SpecialResourceNode)도 같은 방식으로: 대상 쪽으로 돌아 곡괭이로 내려찍고(맨손이면 주먹), 광석이 흔들린다.</summary>
+        public void PlayGatherHit(Transform target, bool withPickaxe)
+        {
+            if (target == null)
+                return;
+            FaceDirection(target.position - transform.position);
+            Vector3 p = target.position;
             var inv = System.Globalization.CultureInfo.InvariantCulture;
             PlayAttackAnim(GatherTriggerPrefix + (withPickaxe ? "X" : "P") + "|" +
                            p.x.ToString("F2", inv) + "|" + p.y.ToString("F2", inv) + "|" + p.z.ToString("F2", inv));
@@ -279,10 +295,24 @@ namespace Combat
                 }
             }
 
-            if (best == null)
-                yield break;
-
             Vector3 me = transform.position;
+            if (best == null)
+            {
+                // 광물(구리/철/금/다이아): 돌처럼 짧고 빠르게 떨린다
+                SpecialResourceNode ore = null;
+                float oreDist = 0.5f * 0.5f;
+                foreach (SpecialResourceNode node in SpecialResourceNode.AllNodes)
+                {
+                    if (node == null || node.IsDepleted || !node.IsMineral)
+                        continue;
+                    float d = (node.transform.position - targetPosition).sqrMagnitude;
+                    if (d < oreDist) { oreDist = d; ore = node; }
+                }
+                if (ore != null)
+                    TreeShake.Shake(ore.gameObject, ore.transform.position, me, rockShakeAmplitudeScale, rockShakeFrequencyScale);
+                yield break;
+            }
+
             if (best.ItemId == ItemIds.Wood)
                 TreeShake.Shake(best.Root, best.transform.position, me);
             else
@@ -354,7 +384,7 @@ namespace Combat
                 GameObject visual = Instantiate(model.prefab, _heldMeleeObj.transform);
                 visual.name = "Model";
                 _heldGunModel = visual.transform;
-                _heldGunModel.localRotation = Quaternion.Euler(0f, 180f, 0f);
+                _heldGunModel.localRotation = model.facesPlusZ ? Quaternion.identity : Quaternion.Euler(0f, 180f, 0f);
                 _heldGunModel.localScale = Vector3.one * Mathf.Max(0.01f, model.scale);
                 _heldGunBasePos = Vector3.zero;
                 _heldGunModel.localPosition = _heldGunBasePos;
@@ -414,6 +444,8 @@ namespace Combat
             switch (itemId)
             {
                 case ItemIds.Pistol: return 0.4f;
+                case ItemIds.Shotgun: return 0.6f;
+                case ItemIds.Crossbow: return 0.25f;
                 case ItemIds.Ak47: return 0.3f;
                 case ItemIds.PlatinumSniperRifle: return 0.8f;
                 case ItemIds.ShredderDrillLauncher: return 0.6f;
@@ -516,6 +548,46 @@ namespace Combat
         }
 
         private const string AttackLayerName = "Attack";
+
+        // ---------- 내구도: 적을 실제로 맞혔을 때만 닳는다 ----------
+        // 공격을 시작할 때 BeginAttackWear로 "이번 공격"을 열어 두고, 피해를 준 순간 WearOnHit이 한 번만 깎는다
+        // (산탄/관통/휘두르기로 여러 마리를 맞혀도 공격 한 번에 1만 닳는다). 허공을 치거나 벽만 맞히면 닳지 않는다.
+        private int _attackSerial, _wornSerial = -1;
+        private string _attackWeaponId;
+
+        private void BeginAttackWear(string weaponId)
+        {
+            _attackSerial++;
+            _attackWeaponId = weaponId;
+        }
+
+        private void WearOnHit()
+        {
+            if (_remoteView || _wornSerial == _attackSerial) return;
+            _wornSerial = _attackSerial;
+            WearIfStillHolding(_attackWeaponId);
+        }
+
+        /// <summary>날아가는 화살/총알용: 적에게 맞는 순간 한 번만 그 무기를 깎는다.</summary>
+        private System.Action ProjectileWear()
+        {
+            string weaponId = _attackWeaponId;
+            bool worn = false;
+            return () =>
+            {
+                if (worn || this == null) return;
+                worn = true;
+                WearIfStillHolding(weaponId);
+            };
+        }
+
+        // 맞는 사이에 다른 칸으로 바꿨으면 엉뚱한 아이템이 닳지 않게 건너뛴다
+        private void WearIfStillHolding(string weaponId)
+        {
+            if (_inventory == null || string.IsNullOrEmpty(weaponId)) return;
+            ItemData held = _inventory.SelectedItem;
+            if (held != null && held.itemID == weaponId) _inventory.WearSelectedTool();
+        }
 
         private IEnumerator DelayedMeleeArc(WeaponStats stats, float delay)
         {
@@ -680,7 +752,85 @@ namespace Combat
                     throwSpeed = 17f, effectColor = new Color(0.62f, 0.6f, 0.56f),
                 }
             },
+
+            // ───── 추가 무기 ─────
+            {
+                // 구리 단검: 피해는 약하지만 아주 빠르게 찌른다 (초반 근접)
+                ItemIds.CopperDagger, new WeaponStats
+                {
+                    behavior = WeaponBehavior.MeleeArc, damage = 11, range = 1.4f, cooldown = 0.24f,
+                    coneAngle = 100f, effectColor = new Color(0.95f, 0.7f, 0.45f), swingAnim = "AtkStab",
+                }
+            },
+            {
+                // 전투 도끼: 느리게 내려찍지만 앞의 적을 모두 벤다 (몰려올 때)
+                ItemIds.BattleAxe, new WeaponStats
+                {
+                    behavior = WeaponBehavior.MeleeArc, damage = 42, range = 2.0f, cooldown = 0.95f,
+                    coneAngle = 150f, effectColor = new Color(1f, 0.85f, 0.7f), cleave = true, swingAnim = "AtkChop",
+                }
+            },
+            {
+                // 돌도끼 / 철도끼: 나무를 빨리 베는 도구지만 급할 땐 무기로도 쓴다
+                ItemIds.StoneAxe, new WeaponStats
+                {
+                    behavior = WeaponBehavior.MeleeArc, damage = 13, range = 1.6f, cooldown = 0.55f,
+                    coneAngle = 110f, effectColor = new Color(0.75f, 0.72f, 0.66f), swingAnim = "AtkChop",
+                }
+            },
+            {
+                ItemIds.IronAxe, new WeaponStats
+                {
+                    behavior = WeaponBehavior.MeleeArc, damage = 21, range = 1.7f, cooldown = 0.5f,
+                    coneAngle = 120f, effectColor = new Color(0.85f, 0.88f, 0.95f), swingAnim = "AtkChop",
+                }
+            },
+            {
+                // 산탄총: 가까이서 산탄 7발이 부채꼴로 퍼진다 (붙은 적에게 강하고 멀면 약하다)
+                ItemIds.Shotgun, new WeaponStats
+                {
+                    behavior = WeaponBehavior.Hitscan, damage = 9, range = 15f, cooldown = 0.85f,
+                    pellets = 7, spreadAngle = 24f, effectColor = new Color(1f, 0.8f, 0.45f),
+                }
+            },
+            {
+                // 석궁: 줄 서서 오는 적을 한 번에 꿰뚫는다
+                ItemIds.Crossbow, new WeaponStats
+                {
+                    behavior = WeaponBehavior.Hitscan, damage = 28, range = 38f, cooldown = 1.1f,
+                    pierce = true, effectColor = new Color(0.75f, 0.6f, 0.4f),
+                }
+            },
+            {
+                // 화염병: 터지면서 피해 + 그 자리에 5초 동안 불길이 남아 계속 태운다
+                ItemIds.Molotov, new WeaponStats
+                {
+                    behavior = WeaponBehavior.Throw, damage = 15, range = 18f, cooldown = 1.0f,
+                    blastRadius = 2.6f, gasDuration = 5f, gasTickInterval = 0.5f, gasTickDamage = 6,
+                    throwSpeed = 14f, effectColor = new Color(1f, 0.5f, 0.12f), area = GrenadeProjectile.AreaKind.Fire,
+                }
+            },
+            {
+                // 신호탄: 피해는 없고, 떨어진 자리를 45초 동안 붉게 밝힌다 (밤 길잡이 / 어두운 동굴)
+                ItemIds.SignalFlare, new WeaponStats
+                {
+                    behavior = WeaponBehavior.Throw, damage = 0, range = 22f, cooldown = 0.6f,
+                    blastRadius = 0.5f, gasDuration = 45f, gasTickInterval = 1f, gasTickDamage = 0,
+                    throwSpeed = 16f, effectColor = new Color(1f, 0.25f, 0.2f), area = GrenadeProjectile.AreaKind.Flare,
+                }
+            },
         };
+
+        private bool HasHeldModel(string itemId)
+        {
+            if (heldMelee == null || string.IsNullOrEmpty(itemId)) return false;
+            foreach (HeldModel m in heldMelee)
+                if (m != null && m.prefab != null && m.itemId == itemId) return true;
+            return false;
+        }
+
+        /// <summary>도끼 (나무를 빨리 베고, 캘 때 도끼로 내려찍는다).</summary>
+        public static bool IsAxe(string itemId) => itemId == ItemIds.StoneAxe || itemId == ItemIds.IronAxe;
 
         private void Awake()
         {
@@ -744,7 +894,7 @@ namespace Combat
                 UnequipRifle();
 
             // 곡괭이처럼 무기는 아니지만 손에 모델이 보이는 도구도 알려서, 다른 사람 화면에서도 들고 있게 한다
-            ReportHeldWeapon(selected != null && (Weapons.ContainsKey(selected.itemID) || IsPickaxe(selected.itemID)) ? selected.itemID : null);
+            ReportHeldWeapon(selected != null && (Weapons.ContainsKey(selected.itemID) || IsPickaxe(selected.itemID) || HasHeldModel(selected.itemID)) ? selected.itemID : null);
 
             if (!hasWeapon || selected.itemID != _activeWeaponId)
             {
@@ -768,6 +918,7 @@ namespace Combat
                         if (!_pressVetoed && Time.time >= _nextFireTime)
                         {
                             _nextFireTime = Time.time + stats.cooldown;
+                            BeginAttackWear(selected.itemID);   // 내구도는 적을 실제로 맞혔을 때만 닳는다 (허공에 쏘면 안 닳는다)
                             if (holdingRifle && bulletPrefab != null)
                                 FireBullet(stats);
                             else
@@ -779,7 +930,6 @@ namespace Combat
                                 OnGunFired(selected.itemID, true, transform.position + Vector3.up * 1.2f, transform.right, 0);
                             }
                             StartAttackRecovery(stats.cooldown);
-                            _inventory.WearSelectedTool();   // 한 발 쏠 때마다 무기가 닳는다
                         }
                     }
                     break;
@@ -791,14 +941,18 @@ namespace Combat
                         if (!_pressVetoed && Time.time >= _nextFireTime)
                         {
                             _nextFireTime = Time.time + stats.cooldown;
+                            BeginAttackWear(selected.itemID);   // 허공을 휘두르면 닳지 않고, 적을 맞혔을 때만 닳는다
                             AutoFaceNearestTarget(meleeAutoFaceRange);
-                            bool stab = selected.itemID == ItemIds.WoodSpear;
-                            if (PlayAttackAnim(stab ? "AtkStab" : "AtkSlash"))
-                                StartCoroutine(DelayedMeleeArc(stats, stab ? stabImpactDelay : slashImpactDelay));
+                            string swing = selected.itemID == ItemIds.WoodSpear ? "AtkStab"
+                                         : !string.IsNullOrEmpty(stats.swingAnim) ? stats.swingAnim : "AtkSlash";
+                            // 내려찍기(도끼) 애니메이션이 없는 컨트롤러면 베기로 대신한다
+                            if (swing == PickaxeChopTrigger && !HasAnimParam(PickaxeChopTrigger)) swing = "AtkSlash";
+                            float impact = swing == "AtkStab" ? stabImpactDelay : swing == PickaxeChopTrigger ? pickaxeImpactDelay : slashImpactDelay;
+                            if (PlayAttackAnim(swing))
+                                StartCoroutine(DelayedMeleeArc(stats, impact));
                             else
                                 FireMeleeArc(stats);
                             StartAttackRecovery(stats.cooldown);
-                            _inventory.WearSelectedTool();   // 한 번 휘두를 때마다 무기가 닳는다
                         }
                     }
                     break;
@@ -826,11 +980,11 @@ namespace Combat
                         if (Time.time >= _nextFireTime)
                         {
                             _nextFireTime = Time.time + stats.cooldown;
-                            FireCone(stats);
+                            bool coneHit = FireCone(stats);
                             Combat.CameraShake.Shake(0.05f);     // 화염 뿜는 동안 은은한 진동
 
-                            // 연사 무기는 뿜은 시간 0.6초마다 1씩 닳는다 (틱마다 닳으면 너무 빨리 부서진다)
-                            _coneWearTime += stats.cooldown;
+                            // 연사 무기는 적에게 닿은 시간 0.6초마다 1씩 닳는다 (허공에 뿜는 동안은 닳지 않는다)
+                            if (coneHit) _coneWearTime += stats.cooldown;
                             if (_coneWearTime >= ConeWearInterval)
                             {
                                 _coneWearTime = 0f;
@@ -867,13 +1021,13 @@ namespace Combat
                         if (fraction >= stats.minChargeFraction)
                         {
                             int scaledDamage = Mathf.Max(1, Mathf.RoundToInt(stats.damage * Mathf.Lerp(0.4f, 1f, fraction)));
+                            BeginAttackWear(selected.itemID);   // 화살이 적에게 맞았을 때만 활이 닳는다
                             if (arrowPrefab != null)
                                 FireArrow(stats, scaledDamage, fraction);
                             else
                                 FireHitscan(stats, scaledDamage);
                             // 활은 쿨다운 대신 당긴 시간만큼(세게 당길수록 오래) 멈칫한다.
                             StartAttackRecovery(stats.chargeTime * fraction);
-                            _inventory.WearSelectedTool();   // 화살 한 발마다 활이 닳는다
                         }
                     }
                     break;
@@ -1014,6 +1168,7 @@ namespace Combat
                 col.enabled = false;
 
             GrenadeProjectile grenade = go.AddComponent<GrenadeProjectile>();
+            grenade.SetArea(stats.area);
             grenade.LaunchVisual(velocity, stats.blastRadius, stats.gasDuration, hitMask, transform);
         }
 
@@ -1502,6 +1657,7 @@ namespace Combat
 
             ArrowProjectile bullet = Instantiate(bulletPrefab, muzzle, Quaternion.LookRotation(dir));
             bullet.Launch(dir * bulletSpeed, stats.damage, stats.range, hitMask, transform);
+            bullet.HitDamageable = ProjectileWear();
             if (!_remoteView) BulletFired?.Invoke(muzzle, dir * bulletSpeed);
 
             SpawnImpact(muzzle, new Color(1f, 0.85f, 0.4f));
@@ -1540,6 +1696,7 @@ namespace Combat
             ArrowProjectile arrow = Instantiate(arrowPrefab, spawnPos, Quaternion.LookRotation(toTarget));
             Vector3 velocity = toTarget.normalized * speed + Vector3.up * (0.5f * arrow.Gravity * flightTime);
             arrow.Launch(velocity, damage, stats.range * 1.5f, hitMask, transform);
+            arrow.HitDamageable = ProjectileWear();
             ArrowFired?.Invoke(spawnPos, velocity);
         }
 
@@ -1573,6 +1730,7 @@ namespace Combat
                 col.enabled = false;
 
             GrenadeProjectile grenade = go.AddComponent<GrenadeProjectile>();
+            grenade.SetArea(stats.area);
             Vector3 velocity = toTarget.normalized * speed + Vector3.up * (0.5f * grenade.Gravity * flightTime);
             grenade.Launch(velocity, stats.damage, stats.blastRadius, stats.gasDuration, stats.gasTickInterval,
                 stats.gasTickDamage, hitMask, transform);
@@ -1883,13 +2041,50 @@ namespace Combat
             dir = dir.sqrMagnitude < 0.0001f ? transform.forward : dir.normalized;
             FaceDirection(dir);
 
+            if (stats.pellets > 1)
+            {
+                // 산탄: 같은 방향 주위로 여러 발이 퍼진다. 한 적이 여러 발을 맞으면 피해가 쌓인다
+                for (int i = 0; i < stats.pellets; i++)
+                {
+                    Vector2 r = Random.insideUnitCircle * (stats.spreadAngle * 0.5f);
+                    Vector3 d = Quaternion.AngleAxis(r.x, Vector3.up) * Quaternion.AngleAxis(r.y * 0.35f, transform.right) * dir;
+                    FireRay(muzzle, d, stats, damage);
+                }
+                return;
+            }
+            if (stats.pierce)
+            {
+                // 관통: 일직선 위의 적을 모두 맞히고 단단한 지형에서 멈춘다
+                Vector3 end = muzzle + dir * stats.range;
+                RaycastHit[] hits = Physics.RaycastAll(muzzle, dir, stats.range, hitMask, QueryTriggerInteraction.Ignore);
+                System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+                var done = new HashSet<Damageable>();
+                foreach (RaycastHit h in hits)
+                {
+                    if (h.collider.transform.IsChildOf(transform)) continue;
+                    Damageable t = h.collider.GetComponentInParent<Damageable>();
+                    if (t == null) { end = h.point; SpawnBulletHit(h.point, h.normal); break; }
+                    if (done.Add(t)) { t.TakeDamage(damage, h.point); WearOnHit(); SpawnBulletHit(h.point, h.normal); }
+                }
+                SpawnTracer(muzzle, end, stats.effectColor);
+                return;
+            }
+
+            FireRay(muzzle, dir, stats, damage);
+        }
+
+        private void FireRay(Vector3 muzzle, Vector3 dir, WeaponStats stats, int damage)
+        {
             Vector3 endPoint;
             if (Physics.Raycast(muzzle, dir, out RaycastHit hit, stats.range, hitMask))
             {
                 endPoint = hit.point;
                 Damageable target = hit.collider.GetComponentInParent<Damageable>();
                 if (target != null)
+                {
                     target.TakeDamage(damage, hit.point);
+                    WearOnHit();
+                }
 
                 SpawnBulletHit(hit.point, hit.normal);
             }
@@ -1912,11 +2107,12 @@ namespace Combat
             Damageable nearest = null;
             Vector3 nearestPoint = origin;
             float nearestDist = float.MaxValue;
+            HashSet<Damageable> cleaved = stats.cleave ? new HashSet<Damageable>() : null;
 
             foreach (Collider col in hits)
             {
                 Damageable d = col.GetComponentInParent<Damageable>();
-                if (d == null)
+                if (d == null || col.transform.IsChildOf(transform))
                     continue;
 
                 Vector3 toTarget = col.transform.position - transform.position;
@@ -1924,6 +2120,17 @@ namespace Combat
                 if (toTarget.sqrMagnitude > 0.0001f &&
                     Vector3.Angle(transform.forward, toTarget.normalized) > stats.coneAngle * 0.5f)
                     continue;
+
+                if (cleaved != null)
+                {
+                    // 휘두르기: 부채꼴 안의 적을 모두 벤다
+                    if (!cleaved.Add(d)) continue;
+                    Vector3 p = col.ClosestPoint(origin);
+                    d.TakeDamage(stats.damage, p);
+                    WearOnHit();
+                    SpawnMeleeHit(p, stats.effectColor);
+                    continue;
+                }
 
                 float dist = (col.transform.position - transform.position).sqrMagnitude;
                 if (dist < nearestDist)
@@ -1934,10 +2141,17 @@ namespace Combat
                 }
             }
 
+            if (cleaved != null)
+            {
+                if (cleaved.Count > 0) Combat.CameraShake.Shake(0.15f + 0.04f * Mathf.Min(cleaved.Count, 4));
+                return;
+            }
+
             if (nearest != null)
             {
                 nearest.TakeDamage(stats.damage, nearestPoint);
                 TryApplyMeleeStun(nearest);   // 복서: 근접 무기 기절
+                WearOnHit();
                 SpawnMeleeHit(nearestPoint, stats.effectColor);
                 Combat.CameraShake.Shake(0.1f);
             }
@@ -1946,7 +2160,7 @@ namespace Combat
         /// <summary>
         /// 화염방사기: 전방 부채꼴 범위 안의 모든 적에게 동시에 피해를 준다.
         /// </summary>
-        private void FireCone(WeaponStats stats)
+        private bool FireCone(WeaponStats stats)
         {
             Vector3 origin = transform.position + Vector3.up * 1.2f;
             Collider[] hits = Physics.OverlapSphere(origin, stats.range, hitMask);
@@ -1968,6 +2182,7 @@ namespace Combat
                 d.TakeDamage(stats.damage, col.ClosestPoint(origin));
                 damaged.Add(d);
             }
+            return damaged.Count > 0;
         }
 
         private static bool IsWorldInteractable(Collider collider)

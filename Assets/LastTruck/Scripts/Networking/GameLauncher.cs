@@ -901,6 +901,7 @@ namespace LastTruck.Networking
             // UI가 열려 있거나 공격 후딜/맨손 공격 등으로 이동이 잠겨 있으면 이동 입력을 보내지 않는다.
             if (localMove != null && localMove.IsMovementBlocked) canMove = false;
             data.SpeedMultiplier = localMove != null ? localMove.SpeedMultiplier : 1f;
+            data.ArmorTier = (byte)Mathf.Clamp(CraftingSystem.PlayerArmor.LocalTier, 0, CraftingSystem.PlayerArmor.MaxTier);
 
             Camera cam = Camera.main;
             float h = Input.GetAxisRaw("Horizontal");

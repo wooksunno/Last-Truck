@@ -24,6 +24,9 @@ namespace LastTruck.Networking
         /// <summary>이동 속도 배율 (PlayerMove.SpeedMultiplier: 활 차징/화염 분사 중 감속 등). 0이면 1로 본다.</summary>
         public float SpeedMultiplier;
 
+        /// <summary>내가 가방에 가진 가장 좋은 갑옷의 등급 (0~3). 호스트가 받는 피해를 줄이는 데 쓴다 (PlayerArmor).</summary>
+        public byte ArmorTier;
+
         /// <summary>트럭 운전석에 앉아 있을 때: 앞(+1)/뒤(-1) 가속.</summary>
         public float TruckThrottle;
 

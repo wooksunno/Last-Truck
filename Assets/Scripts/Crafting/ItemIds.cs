@@ -67,6 +67,11 @@ namespace CraftingSystem
         public const string DiamondCrusher = "diamond_crusher"; // 다이아몬드 분쇄기
         public const string CopperHandPump = "copper_hand_pump"; // 구리 수동 펌프
         public const string OilPumpjack = "oil_pumpjack"; // 석유 펌프잭 (기름 웅덩이에 설치)
+        public const string StoneAxe = "stone_axe"; // 돌도끼: 나무를 빨리 벤다 + 약한 근접 무기
+        public const string IronAxe = "iron_axe"; // 철도끼: 나무를 더 빨리 벤다
+        public const string HerbHoe = "herb_hoe"; // 채집용 호미: 약초를 빨리 캔다
+        public const string Binoculars = "binoculars"; // 쌍안경: 손에 들고 오른쪽 클릭으로 멀리 본다
+        public const string SignalFlare = "signal_flare"; // 신호탄: 던지면 그 자리를 한동안 붉게 밝힌다
 
         // 근접 무기
         public const string WoodSpear = "wood_spear";
@@ -75,7 +80,13 @@ namespace CraftingSystem
         public const string FlameMachete = "flame_machete"; // 화염 마체테
         public const string VibrationBlade = "vibration_blade"; // 진동 블레이드
 
+        public const string CopperDagger = "copper_dagger"; // 구리 단검: 빠르게 찌른다 (초반)
+        public const string BattleAxe = "battle_axe"; // 전투 도끼: 느리지만 앞의 적을 모두 벤다
+
         // 원거리/중화기
+        public const string Shotgun = "shotgun"; // 산탄총: 가까이서 산탄 여러 발
+        public const string Crossbow = "crossbow"; // 석궁: 일직선의 적을 꿰뚫는 화살
+        public const string Molotov = "molotov"; // 화염병: 던진 자리에 불길이 남는다
         public const string Pistol = "pistol"; // 권총
         public const string Ak47 = "ak47"; // AK-47 소총
         public const string PlatinumSniperRifle = "platinum_sniper_rifle"; // 백금 저격소총
@@ -112,10 +123,27 @@ namespace CraftingSystem
         public const string ChemicalGasGrenade = "chemical_gas_grenade"; // 화학 독가스 수류탄
         public const string FragGrenade = "frag_grenade"; // 일반 수류탄
         public const string LureTrap = "lure_trap"; // 유인 미끼 트랩
+        public const string PoisonMushroomBait = "poison_mushroom_bait"; // 독버섯 미끼: 놓으면 몬스터가 몰려와서 먹고 중독된다 (E 꾹 설치)
+        // 탈출 부품 3종: 모두 트럭 보관함에 있어야 7일째 낮에 열리는 탈출 게이트를 통과할 수 있다 (StoryDirector)
+        public const string EscapeEngineCore = "escape_engine_core"; // 탈출 엔진 코어
+        public const string EscapeFuelTank = "escape_fuel_tank"; // 장거리 연료 탱크
+        public const string EscapeBeacon = "escape_beacon"; // 구조 신호기
         // 나무/돌 소비처 (나무·돌을 계속 쓰게 만드는 아이템)
         public const string ThrowingStone = "throwing_stone"; // 투척용 돌멩이
         public const string WoodSpikeTrap = "wood_spike_trap"; // 나무 가시 덫
         public const string Torch = "torch"; // 횃불 (손에 들면 주변을 밝힌다)
+        // 플레이어 갑옷 (가방에 가지고 있으면 받는 피해가 줄어든다 - PlayerArmor)
+        public const string LeatherArmor = "leather_armor";           // 가죽 갑옷 (-10%)
+        public const string IronPlateArmor = "iron_plate_armor";      // 철제 갑옷 (-20%, 이동 -5%)
+        public const string AlloyPlateArmor = "alloy_plate_armor";    // 합금 갑옷 (-30%, 이동 -8%)
+        // 사막 식물 채집물과 음식 (선인장/풀을 캐면 사라져서 트럭 길이 트인다)
+        public const string Cactus = "cactus";                        // 선인장
+        public const string WildGrass = "wild_grass";                 // 들풀
+        public const string CactusSteak = "cactus_steak";             // 선인장 구이
+        public const string CactusJuice = "cactus_juice";             // 선인장 주스
+        public const string GrassPorridge = "grass_porridge";         // 풀죽
+        public const string DesertStew = "desert_stew";               // 사막 스튜
+        public const string Lantern = "lantern"; // 랜턴 (손에 들면 주변이 환해지고 안개/비로 흐려진 시야가 걷힌다)
         public const string WoodBarricade = "wood_barricade"; // 나무 바리케이드 (몬스터 길막)
         public const string StoneWall = "stone_wall"; // 돌 방벽 (몬스터 길막, 더 오래 감)
 
@@ -145,6 +173,7 @@ namespace CraftingSystem
         public const string HerbBandage = "herb_bandage"; // 약초 붕대
         public const string VitalityTonic = "vitality_tonic"; // 활력 토닉 (최종 소모품)
         public const string ToolRepairKit = "tool_repair_kit"; // 도구 수리 키트
+        public const string WeaponUpgradeKit = "weapon_upgrade_kit"; // 무기 강화 키트 (왼쪽 클릭 꾹: 내가 주는 피해 +8%, 최대 10단계 - PlayerGear)
 
         // 맵 특산물 구역 전용 자원 (기존 유지)
         public const string Platinum = PlatinumOre;
