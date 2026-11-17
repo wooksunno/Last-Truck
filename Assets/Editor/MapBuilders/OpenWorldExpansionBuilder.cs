@@ -20,7 +20,7 @@ using UnityEngine;
 ///  - 다시 실행하면 이전에 만든 것을 지우고 새로 만든다 (같은 seed면 같은 결과).
 ///  - 채집물(나무/돌/약초)은 마지막에 GatherablePropInstaller.Install(false), 트럭 통과 레이어는 TruckPassSetup.Apply로 맞춘다.
 /// </summary>
-public static class OpenWorldExpansionBuilder
+public static partial class OpenWorldExpansionBuilder
 {
     const string RootName = "10_Expansion";
     const string AssetDir = "Assets/Scenes/MiningMapAssets/Expansion";
@@ -141,6 +141,8 @@ public static class OpenWorldExpansionBuilder
         _rng = new System.Random(seed);
         _taken.Clear(); _ponds.Clear();
         _mountAcc = 0f;
+        _mineEntrance = null; _mineEntrance2 = null;
+        ExpansionMineCave.BuiltPlans.Clear();
 
         var map = GameObject.Find("Map");
         if (map == null) return "Map 없음";
@@ -185,6 +187,11 @@ public static class OpenWorldExpansionBuilder
         sb.AppendLine(GatherablePropInstaller.Install(false));
         int passed = TruckPassSetup.Apply(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
         sb.AppendLine("truck-pass colliders=" + passed);
+
+        // 7) 광산 입구 뒤로 이어지는 지하 동굴 두 곳 (트럭 통과 설정 뒤에 만들어서 동굴 레이어/충돌체가 바뀌지 않게 한다)
+        sb.AppendLine(ExpansionMineCave.Build(_root, _mineEntrance, seed + 7, 1));
+        if (_mineEntrance2 != null) sb.AppendLine(ExpansionMineCave.Build(_root, _mineEntrance2, seed + 8, 2, _mine2Side));
+        else sb.AppendLine("두 번째 광산 입구를 놓을 자리를 못 찾았어요");
 
         AssetDatabase.SaveAssets();
         UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
@@ -371,9 +378,11 @@ public static class OpenWorldExpansionBuilder
     {
         Weights(x, z, out float wA, out float wB, out float wC);
         // 초원: 넓게 구르는 언덕
-        float hA = Mathf.Pow(N(x, z, 0.011f), 1.4f) * 7f + (N(x, z, 0.035f, 11f) - 0.5f) * 1.6f;
+        // (Mathf.PerlinNoise는 가끔 0보다 아주 조금 작은 값을 돌려준다. 음수의 소수 거듭제곱은 NaN이라 타일 메시에 NaN 정점이 생겨
+        //  충돌체/내비메시 굽기가 실패하거나 크래시했다 → 0 이상으로 자른다)
+        float hA = Mathf.Pow(Mathf.Max(0f, N(x, z, 0.011f)), 1.4f) * 7f + (N(x, z, 0.035f, 11f) - 0.5f) * 1.6f;
         // 고원: 더 높고 굵은 둔덕 + 잔 요철
-        float hB = Mathf.Pow(N(x, z, 0.009f, 33f), 1.6f) * 12f + Mathf.Abs(N(x, z, 0.03f, 5f) - 0.5f) * 4f;
+        float hB = Mathf.Pow(Mathf.Max(0f, N(x, z, 0.009f, 33f)), 1.6f) * 12f + Mathf.Abs(N(x, z, 0.03f, 5f) - 0.5f) * 4f;
         // 늪: 거의 평평하고 낮은 물결
         float hC = N(x, z, 0.025f, 51f) * 1.4f;
         float h = wA * hA + wB * hB + wC * hC;
@@ -382,6 +391,7 @@ public static class OpenWorldExpansionBuilder
         float mask = Sm((DistExisting(x, z) - 6f) / 40f);
         mask = Mathf.Min(mask, Sm((RoadDist(x, z) - 5f) / 14f));
         mask = Mathf.Min(mask, Sm((PondDist(x, z) - 13f) / 16f));
+        if (float.IsNaN(h) || float.IsInfinity(h)) h = 0f;   // 안전장치: 어떤 경우에도 NaN 높이는 내보내지 않는다
         return BaseY + Mathf.Max(0f, h) * mask;
     }
 
@@ -391,6 +401,7 @@ public static class OpenWorldExpansionBuilder
     /// <summary>바닥 색 (팔레트 UV). 구역마다 팔레트의 한 줄 안에서만 고른다.</summary>
     static Vector2 GroundUV(Biome biome, float x, float z, float h)
     {
+        if (biome == Biome.Swamp && GroveGround(x, z, out Vector2 groveUv)) return groveUv;   // 독버섯 군락 안은 청록빛 땅
         float n1 = N(x, z, 0.05f, 3f), n2 = N(x, z, 0.12f, 9f);
         float lift = Mathf.Clamp01((h - BaseY) / 8f);
         bool road = RoadDist(x, z) < 4.5f;
@@ -465,6 +476,7 @@ public static class OpenWorldExpansionBuilder
             int i = Mathf.FloorToInt((x - GX0) / Step), j = Mathf.FloorToInt((z - GZ0) / Step);
             var c = new Vector2(GX0 + i * Step + Step * 0.5f, GZ0 + j * Step + Step * 0.5f);
             if (RoadDist(c.x, c.y) < 30f) continue;
+            if (InGrove(c.x, c.y, 26f)) continue;   // 독버섯 군락 둘레에는 연못을 두지 않는다
             bool ok = true;
             foreach (var p in _ponds) if (Vector2.Distance(p, c) < 50f) { ok = false; break; }
             if (!ok) continue;
@@ -910,6 +922,7 @@ public static class OpenWorldExpansionBuilder
 
         int circle = BuildStoneCircle(rocks);
         int mine = BuildMineEntrance(props);
+        mine += BuildSecondMineEntrance(props);
 
         // 큰 암반 (이 구역의 얼굴)
         int mesas = 0;
@@ -925,11 +938,12 @@ public static class OpenWorldExpansionBuilder
             90, 0.8f, 2.2f, 2f, 6f, 0.3f, 0.6f);
         int firs = Scatter(B, veg, () => Num("PP_Fir_Tree_", 10), 70, 1.3f, 2.0f, 3.5f, 9f, 0.2f, 0.1f);
 
-        // 광맥: 구리 10 / 철 8 / 금 4
+        // 광맥: 구리 20 / 철 16 / 금 9 / 다이아몬드 4 (회색 고원은 광물 지대라 늘렸다. 동굴 두 곳에는 따로 더 있다)
         int nodes = 0;
-        nodes += PlaceOres(ores, B, "copper_ore", "구리 광맥", 2, 8, 3, 5, 1.2f, 180f, 360f, 10);
-        nodes += PlaceOres(ores, B, "iron_ore", "철 광맥", 3, 6, 4, 7, 1.8f, 300f, 600f, 8);
-        nodes += PlaceOres(ores, B, "platinum_ore", "금 광맥", 4, 3, 3, 4, 3.5f, 420f, 900f, 4);
+        nodes += PlaceOres(ores, B, "copper_ore", "구리 광맥", 2, 8, 3, 5, 1.2f, 180f, 360f, 20);
+        nodes += PlaceOres(ores, B, "iron_ore", "철 광맥", 3, 6, 4, 7, 1.8f, 300f, 600f, 16);
+        nodes += PlaceOres(ores, B, "platinum_ore", "금 광맥", 4, 3, 3, 4, 3.5f, 420f, 900f, 9);
+        nodes += PlaceOres(ores, B, "diamond", "다이아몬드 원석", 5, 1, 5, 6, 5f, 1200f, 1800f, 4);
 
         sb.AppendLine($"highland: mesas={mesas} menhirs={menhir} rocks={small} firs={firs} ore nodes={nodes} stone circle={circle} mine camp={mine}");
     }
@@ -976,6 +990,8 @@ public static class OpenWorldExpansionBuilder
         return n;
     }
 
+    static Transform _mineEntrance;   // 이번 빌드에서 놓은 광산 입구 (뒤로 동굴을 판다 - ExpansionMineCave)
+
     static int BuildMineEntrance(Transform parent)
     {
         // 북쪽 산맥 앞 (고원 위쪽 가장자리)에 버려진 광산 입구 + 레일 + 수레
@@ -983,19 +999,63 @@ public static class OpenWorldExpansionBuilder
         {
             float x = Rng(SplitX + 60f, EastX - 80f), z = Rng(235f, 262f);
             if (BiomeAt(x, z) != Biome.Highland || !Free(x, z, 14f, 10f) || !Ground(x, z, out _, out _)) continue;
-            _taken.Add(new Vector3(x, z, 14f));
-            int n = 0;
-            var e = PutOnGround("PP_Main_Entrance_01_Wooden", parent, x, z, 2.4f, 0.2f, 0f, false);
-            if (e != null) { e.transform.rotation = Quaternion.Euler(0f, 180f, 0f); n++; }
-            for (int k = 0; k < 3; k++)
-            {
-                var r = PutOnGround("PP_Rail_Straight_0" + (1 + _rng.Next(5)), parent, x, z - 8f - k * 5.6f, 1.4f, 0.05f, 0.2f, false);
-                if (r != null) { r.transform.rotation = Quaternion.Euler(0f, 0f, 0f); n++; }
-            }
-            if (PutOnGround("PP_Mine_Cart_0" + (1 + _rng.Next(9)), parent, x + 0.2f, z - 14f, 2.2f, 0f, 0.2f, false) != null) n++;
-            for (int k = 0; k < 5; k++)
-                if (PutOnGround(Pick("PP_Crate_Wooden_01", "PP_Crate_Wooden_03", "PP_Barrel_03", "PP_Dynamite_Bundle_01", "PP_Log_Pile_02"), parent, x + Rng(-10f, 10f), z - Rng(6f, 18f), Rng(2.2f, 2.8f), 0.05f, 0.3f, false) != null) n++;
+            _mineEntrance = PlaceMineEntranceAt(parent, x, z, out int n);
             return n;
+        }
+        return 0;
+    }
+
+    /// <summary>광산 입구(문 틀 + 앞쪽 레일/수레/상자)를 한 곳에 놓는다. 입구는 -Z(남쪽)를 향하고 안쪽은 +Z다.</summary>
+    static Transform PlaceMineEntranceAt(Transform parent, float x, float z, out int n)
+    {
+        _taken.Add(new Vector3(x, z, 14f));
+        n = 0;
+        Transform ent = null;
+        var e = PutOnGround("PP_Main_Entrance_01_Wooden", parent, x, z, 2.4f, 0.2f, 0f, false);
+        if (e != null) { e.transform.rotation = Quaternion.Euler(0f, 180f, 0f); n++; ent = e.transform; }
+        for (int k = 0; k < 3; k++)
+        {
+            var r = PutOnGround("PP_Rail_Straight_0" + (1 + _rng.Next(5)), parent, x, z - 8f - k * 5.6f, 1.4f, 0.05f, 0.2f, false);
+            if (r != null) { r.transform.rotation = Quaternion.Euler(0f, 0f, 0f); n++; }
+        }
+        if (PutOnGround("PP_Mine_Cart_0" + (1 + _rng.Next(9)), parent, x + 0.2f, z - 14f, 2.2f, 0f, 0.2f, false) != null) n++;
+        for (int k = 0; k < 5; k++)
+            if (PutOnGround(Pick("PP_Crate_Wooden_01", "PP_Crate_Wooden_03", "PP_Barrel_03", "PP_Dynamite_Bundle_01", "PP_Log_Pile_02"), parent, x + Rng(-10f, 10f), z - Rng(6f, 18f), Rng(2.2f, 2.8f), 0.05f, 0.3f, false) != null) n++;
+        return ent;
+    }
+
+    // 두 번째 광산 입구 (수정 동굴). 첫 동굴과 겹치지 않고, 산/경계 벽/트럭 길에서 떨어진 고원 남쪽에 놓는다.
+    static Transform _mineEntrance2;
+    static float _mine2Side = 1f;
+
+    static int BuildSecondMineEntrance(Transform parent)
+    {
+        if (_mineEntrance == null) return 0;
+        // 첫 동굴 경로 (겹침 검사용)
+        float f1 = 4f;
+        if (Ground(_mineEntrance.position.x, _mineEntrance.position.z - 3f, out float gy1, out _)) f1 = gy1 + 0.15f;
+        Vector3 door1 = _mineEntrance.position + Vector3.forward * 2.7f;
+        float s1 = _mineEntrance.position.x < 400f ? 1f : -1f;
+        var plan1 = ExpansionMineCave.Plan(door1, f1, s1, 1);
+
+        for (int t = 0; t < 250; t++)
+        {
+            float x = Rng(190f, 600f), z = Rng(165f, 205f);
+            if (BiomeAt(x, z) != Biome.Highland || !Free(x, z, 14f, 10f) || !Ground(x, z, out float gy, out _)) continue;
+            if (!Ground(x, z - 3f, out float gf, out _)) continue;
+            Vector3 door = new Vector3(x, gy, z) + Vector3.forward * 2.7f;
+            foreach (float side in new[] { 1f, -1f })
+            {
+                var plan2 = ExpansionMineCave.Plan(door, gf + 0.15f, side, 2);
+                if (!ExpansionMineCave.Fits(plan2, plan1, out string why)) continue;
+                bool roadOk = true;
+                foreach (var st in plan2)
+                    if (st.pos.y > -9f && RoadDist(st.pos.x, st.pos.z) < st.hw + 10f) { roadOk = false; break; }
+                if (!roadOk) continue;
+                _mineEntrance2 = PlaceMineEntranceAt(parent, x, z, out int n);
+                _mine2Side = side;
+                return n;
+            }
         }
         return 0;
     }
@@ -1006,6 +1066,10 @@ public static class OpenWorldExpansionBuilder
     {
         var veg = Group("Vegetation"); var mush = Group("Mushrooms"); var rocks = Group("Stones&Rocks"); var props = Group("Props"); var fx = Group("FX");
         Biome B = Biome.Swamp;
+
+        // 독버섯 군락 (신비로운 숲): 자리를 먼저 차지해서 다른 장식이 겹치지 않게 한다
+        _taken.Add(new Vector3(GroveCenter.x, GroveCenter.y, GroveRadius));
+        sb.AppendLine(BuildGrove());
 
         int shacks = 0;
         for (int k = 0; k < 2; k++) if (BuildShack(props)) shacks++;

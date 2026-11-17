@@ -13,7 +13,8 @@ namespace LastTruck
         {
             public string name, hint;
             public float x0, x1, z0, z1;
-            public bool Contains(Vector3 p) => p.x >= x0 && p.x <= x1 && p.z >= z0 && p.z <= z1;
+            public float maxY;   // 이 높이보다 아래에 있을 때만 (0이면 높이 제한 없음 - 지하 동굴용)
+            public bool Contains(Vector3 p) => p.x >= x0 && p.x <= x1 && p.z >= z0 && p.z <= z1 && (maxY == 0f || p.y <= maxY);
         }
 
         // 순서가 우선순위 (겹치면 앞의 것)
@@ -46,6 +47,17 @@ namespace LastTruck
             for (int i = 0; i < _lastShown.Length; i++) _lastShown[i] = -999f;
         }
 
+        // 씬의 ZoneMarker(광산 동굴, 독버섯 군락 등)는 위 고정 구역보다 먼저 검사한다. 번호는 고정 구역 뒤로 이어서 매긴다.
+        private ZoneMarker[] _markers = new ZoneMarker[0];
+        private float[] _markerShown = new float[0];
+
+        private void Start()
+        {
+            _markers = FindObjectsByType<ZoneMarker>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            _markerShown = new float[_markers.Length];
+            for (int i = 0; i < _markerShown.Length; i++) _markerShown[i] = -999f;
+        }
+
         private void Update()
         {
             if (Time.unscaledTime < _nextCheck) return;
@@ -54,17 +66,34 @@ namespace LastTruck
             GameObject player = CraftingSystem.GatherRules.Player;
             if (player == null) { _current = -1; return; }
 
-            int zone = -1;
             Vector3 p = player.transform.position;
-            for (int i = 0; i < Zones.Length; i++)
-                if (Zones[i].Contains(p)) { zone = i; break; }
+            int zone = -1;
+            // 표식 구역(동굴/군락)이 먼저: 번호는 Zones.Length + 표식 번호
+            for (int i = 0; i < _markers.Length; i++)
+                if (_markers[i] != null && _markers[i].Contains(p)) { zone = Zones.Length + i; break; }
+            if (zone < 0)
+                for (int i = 0; i < Zones.Length; i++)
+                    if (Zones[i].Contains(p)) { zone = i; break; }
 
             if (zone == _current) return;
             _current = zone;
             if (zone < 0) return;
-            if (Time.unscaledTime - _lastShown[zone] < 40f) return;
-            _lastShown[zone] = Time.unscaledTime;
-            HudToast.Show("[ " + Zones[zone].name + " ]   " + Zones[zone].hint, 4f);
+
+            string name, hint; float lastShown;
+            if (zone >= Zones.Length)
+            {
+                int mi = zone - Zones.Length;
+                name = _markers[mi].zoneName; hint = _markers[mi].hint; lastShown = _markerShown[mi];
+                if (Time.unscaledTime - lastShown < 40f) return;
+                _markerShown[mi] = Time.unscaledTime;
+            }
+            else
+            {
+                name = Zones[zone].name; hint = Zones[zone].hint; lastShown = _lastShown[zone];
+                if (Time.unscaledTime - lastShown < 40f) return;
+                _lastShown[zone] = Time.unscaledTime;
+            }
+            HudToast.Show("[ " + name + " ]   " + hint, 4f);
         }
     }
 }

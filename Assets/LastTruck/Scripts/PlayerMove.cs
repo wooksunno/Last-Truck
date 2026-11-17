@@ -135,6 +135,8 @@ namespace LastTruck
                                                                                                 * CraftingSystem.PlayerArmor.SpeedScaleOfTier(CraftingSystem.PlayerArmor.LocalTier);   // 무거운 갑옷은 느리다
 
         [Header("짐 무게")]
+        [Tooltip("켜면 아이템을 많이 들수록 느려진다. 기본은 꺼짐 (아이템을 많이 들어도 느려지지 않는다).")]
+        [SerializeField] private bool applyLoadSlowdown = false;
         [Tooltip("인벤토리 아이템이 이 개수 이하면 느려지지 않는다.")]
         [SerializeField] private int loadFreeItems = 10;
         [Tooltip("인벤토리가 가득 찼을 때의 이동 속도 배율 (너무 느려지지 않게 0.8 정도).")]
@@ -151,6 +153,9 @@ namespace LastTruck
         {
             get
             {
+                if (!applyLoadSlowdown)
+                    return 1f;   // 짐 무게로 느려지는 기능은 꺼져 있다
+
                 if (!_loadInventorySearched)
                 {
                     _loadInventory = GetComponent<CraftingSystem.PlayerInventory>();
