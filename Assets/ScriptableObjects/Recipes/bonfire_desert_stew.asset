@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 390686697781ce44e929a2c7da880592, type: 3}
+  m_Name: bonfire_desert_stew
+  m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.RecipeData
+  recipeID: bonfire_desert_stew
+  displayName: "\uC0AC\uB9C9 \uC2A4\uD29C"
+  requiredFacility: 1
+  inputs:
+  - item: {fileID: 11400000, guid: a83c72cb8c3a06043be6a58702bd4c6a, type: 2}
+    count: 2
+  - item: {fileID: 11400000, guid: 7b60f7ff5d31e6345adde252c57de9fb, type: 2}
+    count: 3
+  - item: {fileID: 11400000, guid: 9aa8ca572226872438b09e2a4e469349, type: 2}
+    count: 1
+  output:
+    item: {fileID: 11400000, guid: 75799fb6ebcd61a4e817ee192fe6c761, type: 2}
+    count: 1
+  processingSeconds: 50

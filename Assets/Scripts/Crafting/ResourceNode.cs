@@ -26,7 +26,7 @@ namespace CraftingSystem
         private bool _isGathering;
 
         public string InteractLabel => displayName;
-        public float RequiredHoldSeconds => gatherHoldSeconds;
+        public float RequiredHoldSeconds => gatherHoldSeconds * GatherRules.GlobalTimeScale;
 
         public void Interact(GameObject player)
         {

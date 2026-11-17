@@ -88,6 +88,29 @@ public static class NewItemsSetup
         // 독버섯 미끼: 독성 유인 페로몬 + 썩은 고기로 만든다 (독약초는 페로몬을 뽑을 때만 쓴다). 손에 들고 E를 꾹 눌러 놓으면 근처 몬스터가 몰려와서 먹고 중독된다.
         new Def { id = ItemIds.PoisonMushroomBait, name = "독버섯 미끼", type = ItemType.Finished, stack = 10,
                   recipe = Assemble(ItemIds.PoisonMushroomBait, "독버섯 미끼", 2, (ItemIds.LurePheromone, 1), (ItemIds.RottenMeat, 1)) },
+        // 플레이어 갑옷 3단계: 가방에 가지고 있으면 받는 피해가 줄어든다 (PlayerArmor). 한 칸을 차지하는 것이 대가.
+        new Def { id = ItemIds.LeatherArmor, name = "가죽 갑옷", type = ItemType.Finished, stack = 1,
+                  recipe = Assemble(ItemIds.LeatherArmor, "가죽 갑옷", 1, (ItemIds.TannedLeather, 4), (ItemIds.WetHide, 2)) },
+        new Def { id = ItemIds.IronPlateArmor, name = "철제 갑옷", type = ItemType.Finished, stack = 1,
+                  recipe = Assemble(ItemIds.IronPlateArmor, "철제 갑옷", 1, (ItemIds.ArmorPlate, 3), (ItemIds.TannedLeather, 2), (ItemIds.Iron, 2)) },
+        new Def { id = ItemIds.AlloyPlateArmor, name = "합금 갑옷", type = ItemType.Finished, stack = 1,
+                  recipe = Assemble(ItemIds.AlloyPlateArmor, "합금 갑옷", 1, (ItemIds.ArmorPlate, 4), (ItemIds.PurePlatinum, 2), (ItemIds.PlatinumGear, 1), (ItemIds.TannedLeather, 2)) },
+
+        // 사막 식물: 선인장/들풀은 채집하면 사라져서 트럭 길을 틔우는 용도. 쓸 데가 없으므로 음식으로 만든다.
+        new Def { id = ItemIds.Cactus, name = "선인장", type = ItemType.Raw, stack = 99 },
+        new Def { id = ItemIds.WildGrass, name = "들풀", type = ItemType.Raw, stack = 99 },
+        new Def { id = ItemIds.CactusSteak, name = "선인장 구이", type = ItemType.Finished, stack = 20,
+                  recipe = new Recipe { facility = FacilityType.Campfire, recipeId = "bonfire_" + ItemIds.CactusSteak, recipeName = "선인장 구이",
+                                        inputs = new[] { (ItemIds.Cactus, 2) }, outCount = 1, seconds = 30f } },
+        new Def { id = ItemIds.CactusJuice, name = "선인장 주스", type = ItemType.Finished, stack = 20,
+                  recipe = Assemble(ItemIds.CactusJuice, "선인장 주스", 1, (ItemIds.Cactus, 2)) },
+        new Def { id = ItemIds.GrassPorridge, name = "풀죽", type = ItemType.Finished, stack = 20,
+                  recipe = new Recipe { facility = FacilityType.Campfire, recipeId = "bonfire_" + ItemIds.GrassPorridge, recipeName = "풀죽",
+                                        inputs = new[] { (ItemIds.WildGrass, 5) }, outCount = 1, seconds = 35f } },
+        new Def { id = ItemIds.DesertStew, name = "사막 스튜", type = ItemType.Finished, stack = 10,
+                  recipe = new Recipe { facility = FacilityType.Campfire, recipeId = "bonfire_" + ItemIds.DesertStew, recipeName = "사막 스튜",
+                                        inputs = new[] { (ItemIds.Cactus, 2), (ItemIds.WildGrass, 3), (ItemIds.Meat, 1) }, outCount = 1, seconds = 50f } },
+
         // 랜턴: 안개/비 날씨에 손에 들면 주변이 환해지고 시야가 트인다 (횃불보다 넓고 안정적, 무기와 같이 들 수 없다).
         new Def { id = ItemIds.Lantern, name = "랜턴", type = ItemType.Finished, stack = 1,
                   recipe = Assemble(ItemIds.Lantern, "랜턴", 1, (ItemIds.Iron, 2), (ItemIds.Copper, 1), (ItemIds.Charcoal, 2)) },
@@ -172,6 +195,7 @@ public static class NewItemsSetup
         {
             var item = Item(def.id);
             var r = def.recipe;
+            if (r.inputs == null) continue;   // 레시피가 없는 원재료 (선인장/들풀)
             var recipe = AssetDatabase.LoadAssetAtPath<RecipeData>(RecipeDir + r.recipeId + ".asset");
             if (recipe == null)
             {

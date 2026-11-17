@@ -42,6 +42,8 @@ namespace LastTruck.Networking
         [SerializeField] private string jumpStateName = "Jumping Up";
 
         [Networked] public NetworkBool IsWalking { get; set; }
+        /// <summary>이 플레이어가 가방에 가진 가장 좋은 갑옷 등급 (0~3). 호스트가 받는 피해를 줄일 때 쓴다.</summary>
+        [Networked] public int ArmorTier { get; set; }
         [Networked] private NetworkButtons PreviousButtons { get; set; }
         [Networked] private int JumpCount { get; set; }
 
@@ -146,6 +148,10 @@ namespace LastTruck.Networking
             // 입력은 호스트(모든 캐릭터)와 자기 캐릭터를 예측하는 본인 컴퓨터에서만 받을 수 있다.
             bool hasInput = GetInput(out NetworkInputData input);
             if (!hasInput && !Object.HasStateAuthority) return;
+
+            // 갑옷 등급: 호스트가 입력에서 읽어 두고 피해 계산(NetworkHealth.ApplyDamage)에 쓴다 (값 범위는 호스트가 다시 제한)
+            if (hasInput && Object.HasStateAuthority)
+                ArmorTier = Mathf.Clamp(input.ArmorTier, 0, CraftingSystem.PlayerArmor.MaxTier);
 
             // 트럭에 타 있으면 걷지 않고 좌석에 붙어 있는다 (충돌 끔 → 트럭을 밀지 않음).
             if (NetworkTruck.IsSeated(Object.InputAuthority))

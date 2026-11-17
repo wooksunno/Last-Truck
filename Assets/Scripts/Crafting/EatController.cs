@@ -28,6 +28,11 @@ namespace CraftingSystem
             { ItemIds.Steak, new Edible { holdSeconds = 2f, healAmount = 12f } },
             { ItemIds.HerbPorridge, new Edible { holdSeconds = 2f, healAmount = 18f } },
             { ItemIds.HeartyStew, new Edible { holdSeconds = 2.6f, healAmount = 32f, staminaAmount = 40f } },
+            // 사막 식물 요리 (선인장/들풀은 날것으로는 못 먹는다)
+            { ItemIds.CactusSteak, new Edible { holdSeconds = 1.8f, healAmount = 14f } },
+            { ItemIds.CactusJuice, new Edible { holdSeconds = 1.2f, healAmount = 8f, staminaAmount = 60f } },   // 마시면 힘이 난다
+            { ItemIds.GrassPorridge, new Edible { holdSeconds = 2f, healAmount = 16f } },
+            { ItemIds.DesertStew, new Edible { holdSeconds = 2.6f, healAmount = 30f, staminaAmount = 50f } },
             // 소모품
             { ItemIds.HerbBandage, new Edible { holdSeconds = 0.9f, healAmount = 12f } },
             { ItemIds.CombatStimulant, new Edible { holdSeconds = 1f, healAmount = 4f, staminaAmount = 100f } },

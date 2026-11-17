@@ -132,6 +132,17 @@ namespace CraftingSystem
         public const string ThrowingStone = "throwing_stone"; // 투척용 돌멩이
         public const string WoodSpikeTrap = "wood_spike_trap"; // 나무 가시 덫
         public const string Torch = "torch"; // 횃불 (손에 들면 주변을 밝힌다)
+        // 플레이어 갑옷 (가방에 가지고 있으면 받는 피해가 줄어든다 - PlayerArmor)
+        public const string LeatherArmor = "leather_armor";           // 가죽 갑옷 (-10%)
+        public const string IronPlateArmor = "iron_plate_armor";      // 철제 갑옷 (-20%, 이동 -5%)
+        public const string AlloyPlateArmor = "alloy_plate_armor";    // 합금 갑옷 (-30%, 이동 -8%)
+        // 사막 식물 채집물과 음식 (선인장/풀을 캐면 사라져서 트럭 길이 트인다)
+        public const string Cactus = "cactus";                        // 선인장
+        public const string WildGrass = "wild_grass";                 // 들풀
+        public const string CactusSteak = "cactus_steak";             // 선인장 구이
+        public const string CactusJuice = "cactus_juice";             // 선인장 주스
+        public const string GrassPorridge = "grass_porridge";         // 풀죽
+        public const string DesertStew = "desert_stew";               // 사막 스튜
         public const string Lantern = "lantern"; // 랜턴 (손에 들면 주변이 환해지고 안개/비로 흐려진 시야가 걷힌다)
         public const string WoodBarricade = "wood_barricade"; // 나무 바리케이드 (몬스터 길막)
         public const string StoneWall = "stone_wall"; // 돌 방벽 (몬스터 길막, 더 오래 감)

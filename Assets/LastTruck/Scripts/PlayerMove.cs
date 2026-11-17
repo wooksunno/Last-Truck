@@ -131,7 +131,8 @@ namespace LastTruck
         }
 
         /// <summary>이동 속도 배율 (능력/상태 효과 × 짐 무게). 멀티플레이 이동에도 반영된다.</summary>
-        public float SpeedMultiplier => _speedMultiplier * LoadMultiplier * WeatherDirector.PlayerSpeedScale;   // 비가 오면 느려진다
+        public float SpeedMultiplier => _speedMultiplier * LoadMultiplier * WeatherDirector.PlayerSpeedScale   // 비가 오면 느려진다
+                                                                                                * CraftingSystem.PlayerArmor.SpeedScaleOfTier(CraftingSystem.PlayerArmor.LocalTier);   // 무거운 갑옷은 느리다
 
         [Header("짐 무게")]
         [Tooltip("인벤토리 아이템이 이 개수 이하면 느려지지 않는다.")]

@@ -130,7 +130,8 @@ namespace CraftingSystem
                 // 캘 수 있는 도구면 빠르게(요구 등급보다 좋은 도구일수록 더 빠르게)
                 // 도끼(나무) / 호미(약초) 같은 전용 도구는 더 빨리 캔다
                 return gatherHoldSeconds * GatherRules.ToolSpeedFactor(GatherRules.Player, tier)
-                       * GatherRules.SpecialToolFactor(GatherRules.Player, itemId);
+                       * GatherRules.SpecialToolFactor(GatherRules.Player, itemId)
+                       * GatherRules.GlobalTimeScale;
             }
         }
 
@@ -139,7 +140,8 @@ namespace CraftingSystem
         public Color InteractLabelColor => Color.white;
 
         // 풀(약초)은 어디에나 깔려 있으므로, 근처에 나무/돌 등 다른 대상이 있으면 그쪽을 먼저 잡게 한다.
-        public int InteractPriority => itemId == ItemIds.Herb ? -1 : 0;
+        // 들풀은 그보다도 더 흔하므로 약초보다 한 단계 더 낮다 (풀 때문에 약초/나무/돌을 못 잡는 일이 없게).
+        public int InteractPriority => itemId == ItemIds.WildGrass ? -2 : itemId == ItemIds.Herb ? -1 : 0;
 
         public void Configure(string name, string item, int amt, float holdSeconds, GameObject toRemove)
         {
