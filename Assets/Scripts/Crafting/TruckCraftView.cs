@@ -213,7 +213,7 @@ namespace CraftingSystem
                 if (ing == null || ing.item == null || ing.count <= 0) continue;
                 int have = _inv != null ? _inv.GetMaterialCount(ing.item) : 0;
                 int orig = ing.count, need = orig;
-                if (_ability != null) need = _ability.GetCalculatedCraftingCost(orig, isWeapon);
+                if (_ability != null) need = _ability.GetCalculatedCraftingCost(orig, _selected.output != null ? _selected.output.item : null);
                 bool enough = have >= need;
 
                 var row = Mk("Ing_" + ing.item.itemID, right);

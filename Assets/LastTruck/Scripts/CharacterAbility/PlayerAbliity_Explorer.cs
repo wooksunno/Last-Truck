@@ -13,13 +13,15 @@ namespace LastTruck
             Debug.Log($"{caster.name} 탐험가 능력 적용");
         }
 
+        public override string AbilityTitle => "풍부한 수확";
+        public override string GetDescription() => $"자원을 채집할 때 얻는 양이 {(resourceMultiplier - 1f) * 100f:0}% 늘어납니다.";
+
         public override int CalculateGatherAmount(int baseAmount)
         {
             if (baseAmount <= 0) return baseAmount;
 
-            int extraAmount = Mathf.CeilToInt(baseAmount * resourceMultiplier);
-            Debug.Log($"[탐험가] 자원 획득량 증가: {baseAmount}개 -> {extraAmount}개");
-            return extraAmount;
+            // 기록은 CharacterAbilityController → AbilityDebug
+            return Mathf.CeilToInt(baseAmount * resourceMultiplier);
         }
     }
 }

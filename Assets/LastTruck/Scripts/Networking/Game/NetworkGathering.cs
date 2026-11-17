@@ -160,7 +160,8 @@ namespace LastTruck.Networking
             RPC_PropRemoved(prop.transform.position);
             prop.RemoveGathered();
 
-            if (itemIndex >= 0) RPC_GiveGathered(source, itemIndex, amount, false);
+            // 광부 보너스는 받는 쪽에서 아이템을 보고 광물일 때만 붙는다 (돌 프롭 등). 나무/약초는 그대로.
+            if (itemIndex >= 0) RPC_GiveGathered(source, itemIndex, amount, true);
         }
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
@@ -221,7 +222,7 @@ namespace LastTruck.Networking
 
         /// <summary>
         /// 받은 아이템을 가방에 넣는다. 캐릭터 고유 능력(탐험가 채집량, 광부 광물 보너스)은 캔 사람 기준으로 여기서 적용한다
-        /// (호스트는 다른 사람의 능력을 계산하지 않는다). applyMiningBonus: 특산물(광맥)만 광부 보너스 적용 - 기존과 같음.
+        /// (호스트는 다른 사람의 능력을 계산하지 않는다). applyMiningBonus: 광부 보너스 적용 여부 (광물 여부는 광부 능력이 아이템으로 판단).
         /// </summary>
         private static void GiveToInventory(PlayerInventory inventory, ItemData item, int amount, bool applyMiningBonus)
         {

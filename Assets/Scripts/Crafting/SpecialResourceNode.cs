@@ -60,7 +60,7 @@ namespace CraftingSystem
                 // 캘 수 있는 도구면 빠르게(요구 등급보다 좋은 도구일수록 더 빠르게). 못 캐는 경우는 아래에서 10배로 느려진다.
                 if (!unmet) baseSeconds *= GatherRules.ToolSpeedFactor(player, requiredTier);
                 if (player != null && player.TryGetComponent<LastTruck.CharacterAbilityController>(out var abilityController))
-                    baseSeconds = abilityController.GetCalculatedMiningTime(baseSeconds);
+                    baseSeconds = abilityController.GetCalculatedMiningTime(item, baseSeconds);   // 광부: 광물 노드만 빨라진다
                 // 조건(도구 등급/장비)을 못 맞추면 훨씬 오래 걸리고, 끝나도 아이템을 얻지 못한다(Interact에서 막는다).
                 return unmet ? Mathf.Max(baseSeconds, 1f) * GatherRules.UnmetTimeMultiplier : baseSeconds;
             }

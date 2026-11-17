@@ -23,13 +23,16 @@ namespace LastTruck
             Debug.Log($"{caster.name} 수리공 능력 적용");
         }
 
+        public override string AbilityTitle => "정비 전문가";
+        public override string GetDescription() =>
+            $"트럭 수리 시간이 {repairTimeDiscount * 100f:0}% 줄고, 수리 재료를 {repairCostDiscount * 100f:0}% 덜 씁니다.";
+
         public override float CalculateRepairTime(float baseSeconds)
         {
             if (baseSeconds <= 0f) return baseSeconds;
 
-            float result = Mathf.Max(0f, baseSeconds * (1f - repairTimeDiscount));
-            Debug.Log($"[수리공] 수리 시간 감소: {baseSeconds}초 -> {result:F2}초");
-            return result;
+            // 트럭 E 상호작용이 매 프레임 묻는 값이라 여기서 로그를 남기지 않는다 (기록은 CharacterAbilityController → AbilityDebug)
+            return Mathf.Max(0f, baseSeconds * (1f - repairTimeDiscount));
         }
 
         public override int CalculateRepairCost(int baseCost)
@@ -37,9 +40,7 @@ namespace LastTruck
             if (baseCost <= 0) return baseCost;
 
             float floatCost = baseCost * (1f - repairCostDiscount);
-            int result = Mathf.Max(1, Mathf.FloorToInt(floatCost + 0.0001f));
-            Debug.Log($"[수리공] 수리 재료 감소: {baseCost}개 -> {result}개");
-            return result;
+            return Mathf.Max(1, Mathf.FloorToInt(floatCost + 0.0001f));
         }
     }
 }

@@ -35,14 +35,34 @@ namespace LastTruck
             Debug.Log($"{caster.name} 과학자 능력 적용");
         }
 
+        public override string AbilityTitle => "연구 효율";
+        public override string GetDescription()
+        {
+            var parts = new List<string>();
+            foreach (MineralConversionRecipe r in conversionRecipes)
+            {
+                if (r == null) continue;
+                parts.Add($"{ItemLabel(r.inputItemId)} {r.inputCount}개를 {ItemLabel(r.resultItemId)} {r.outputCount}개로");
+            }
+            if (parts.Count == 0)
+                return $"모든 가공 시간이 {processingTimeDiscount * 100f:0}% 줄어듭니다.";
+            return $"모든 가공 시간이 {processingTimeDiscount * 100f:0}% 줄고, 낮에는 트럭 보관함에서 {string.Join(", ", parts)} 바꿀 수 있습니다.";
+        }
+
+        private static string ItemLabel(string itemId)
+        {
+            if (string.IsNullOrEmpty(itemId)) return "?";
+            ItemData item = ItemCatalog.GetOrCreate().GetItem(itemId);
+            return item != null ? item.itemName : itemId;
+        }
+
         // 가공 작업 전체 + 광물 변환에 적용 (무기 여부와 무관)
         public override float CalculateProcessingTime(float originalSeconds, bool isWeapon)
         {
             if (originalSeconds <= 0f) return originalSeconds;
 
-            float result = Mathf.Max(0f, originalSeconds * (1f - processingTimeDiscount));
-            Debug.Log($"[과학자] 가공 시간 감소: {originalSeconds}초 -> {result:F2}초");
-            return result;
+            // 가공 창을 그릴 때마다 불리므로 여기서 로그를 남기지 않는다 (기록은 CharacterAbilityController → AbilityDebug)
+            return Mathf.Max(0f, originalSeconds * (1f - processingTimeDiscount));
         }
 
         public override bool TryGetMineralConversion(ItemData inputItem, out string resultItemId, out int inputCount, out int outputCount)

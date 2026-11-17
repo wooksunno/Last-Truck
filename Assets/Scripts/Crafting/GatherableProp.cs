@@ -124,7 +124,13 @@ namespace CraftingSystem
                 if (tier > 0 && !GatherRules.MeetsRequirement(tier))
                     return Mathf.Max(gatherHoldSeconds, 1f) * GatherRules.UnmetTimeMultiplier;
                 // 캘 수 있는 도구면 빠르게(요구 등급보다 좋은 도구일수록 더 빠르게)
-                return gatherHoldSeconds * GatherRules.ToolSpeedFactor(GatherRules.Player, tier);
+                float seconds = gatherHoldSeconds * GatherRules.ToolSpeedFactor(GatherRules.Player, tier);
+
+                // 광부: 돌 같은 광물 프롭은 채집 시간이 줄어든다 (광물이 아니면 그대로)
+                var player = GatherRules.Player;
+                if (player != null && player.TryGetComponent<LastTruck.CharacterAbilityController>(out var abilityController))
+                    seconds = abilityController.GetCalculatedMiningTime(string.IsNullOrEmpty(itemId) ? null : ItemCatalog.GetOrCreate().GetItem(itemId), seconds);
+                return seconds;
             }
         }
 
@@ -181,7 +187,12 @@ namespace CraftingSystem
 
             int finalAmount = amount;
             if (player.TryGetComponent<LastTruck.CharacterAbilityController>(out var abilityController))
+            {
+                // 1. 탐험가: 자원 획득량 증가
                 finalAmount = abilityController.GetCalculatedResourceAmount(amount);
+                // 2. 광부: 광물(돌 등)이면 추가 획득 (광물이 아니면 그대로)
+                finalAmount = abilityController.GetCalculatedMiningAmount(item, finalAmount);
+            }
 
             // 가방에 안 들어가는 만큼은 발밑에 떨어진다
             inventory.AddOrDrop(item, finalAmount);

@@ -126,14 +126,72 @@ namespace CraftingSystem
         }
 
         /// <summary>레시피 재료를 돌려준다(가공 취소).</summary>
-        public static void Refund(TruckInventory truck, RecipeData recipe)
+        public static void Refund(TruckInventory truck, RecipeData recipe) => Refund(truck, recipe, null);
+
+        /// <summary>
+        /// 레시피 재료를 돌려준다. saved: 능력 할인으로 덜 낸 개수(재료 순서대로, null이면 할인 없음).
+        /// 낸 만큼만 돌려줘야 취소로 재료가 늘어나지 않는다.
+        /// </summary>
+        public static void Refund(TruckInventory truck, RecipeData recipe, int[] saved)
         {
             if (truck == null || recipe == null || recipe.inputs == null) return;
+            for (int i = 0; i < recipe.inputs.Count; i++)
+            {
+                RecipeIngredient ing = recipe.inputs[i];
+                if (ing == null || ing.item == null || ing.count <= 0) continue;
+                int back = ing.count - (saved != null && i < saved.Length ? saved[i] : 0);
+                if (back > 0) truck.AddItem(ing.item, back);
+            }
+        }
+
+        /// <summary>
+        /// 이 사람이 레시피를 1회 만들 때 실제로 내는 재료 (요리사 음식 할인 / 대장장이 무기 할인 반영).
+        /// ability가 null이면 레시피 수량 그대로.
+        /// </summary>
+        public static List<RecipeIngredient> CostFor(RecipeData recipe, LastTruck.CharacterAbilityController ability)
+        {
+            var cost = new List<RecipeIngredient>();
+            if (recipe == null || recipe.inputs == null) return cost;
+            ItemData output = recipe.output != null ? recipe.output.item : null;
             foreach (RecipeIngredient ing in recipe.inputs)
             {
-                if (ing != null && ing.item != null && ing.count > 0)
-                    truck.AddItem(ing.item, ing.count);
+                if (ing == null || ing.item == null || ing.count <= 0) continue;
+                int need = ability != null ? ability.GetCalculatedCraftingCost(ing.count, output) : ing.count;
+                cost.Add(new RecipeIngredient(ing.item, Mathf.Max(1, need)));
             }
+            return cost;
+        }
+
+        /// <summary>능력 할인으로 덜 내는 개수 (재료 순서대로). 할인이 하나도 없으면 null.</summary>
+        public static int[] Savings(RecipeData recipe, LastTruck.CharacterAbilityController ability)
+        {
+            if (recipe == null || recipe.inputs == null || ability == null) return null;
+            ItemData output = recipe.output != null ? recipe.output.item : null;
+            int[] saved = new int[recipe.inputs.Count];
+            bool any = false;
+            for (int i = 0; i < recipe.inputs.Count; i++)
+            {
+                RecipeIngredient ing = recipe.inputs[i];
+                if (ing == null || ing.item == null || ing.count <= 0) continue;
+                saved[i] = Mathf.Max(0, ing.count - Mathf.Max(1, ability.GetCalculatedCraftingCost(ing.count, output)));
+                any |= saved[i] > 0;
+            }
+            return any ? saved : null;
+        }
+
+        /// <summary>제작 창 안내용: "약초 1 (원래 2), 고기 1" 처럼 실제로 내는 재료 목록.</summary>
+        public static string CostText(RecipeData recipe, LastTruck.CharacterAbilityController ability)
+        {
+            if (recipe == null || recipe.inputs == null) return string.Empty;
+            ItemData output = recipe.output != null ? recipe.output.item : null;
+            var parts = new List<string>();
+            foreach (RecipeIngredient ing in recipe.inputs)
+            {
+                if (ing == null || ing.item == null || ing.count <= 0) continue;
+                int need = ability != null ? Mathf.Max(1, ability.GetCalculatedCraftingCost(ing.count, output)) : ing.count;
+                parts.Add(need < ing.count ? $"{ing.item.itemName} ×{need} (원래 {ing.count})" : $"{ing.item.itemName} ×{need}");
+            }
+            return string.Join(", ", parts);
         }
     }
 
@@ -145,6 +203,8 @@ namespace CraftingSystem
         public float total;           // 한 개 가공 시간(초)
         public int queued;            // 아직 가공할 개수 (지금 가공 중인 것 포함). 같은 재료를 골라 칸을 누를 때마다 1씩 늘어난다
         public int readyCount;        // 다 만들어져 받을 수 있는 개수
+        public int discountedQueued;  // queued 중 능력 할인으로 재료를 덜 내고 넣은 개수 (취소할 때 낸 만큼만 돌려주기 위해)
+        public int[] savedPerItem;    // 할인으로 1개당 덜 낸 재료 개수 (재료 순서대로)
         public bool ready => readyCount > 0;   // 받을 결과물이 있음
 
         public bool IsEmpty => recipe == null;
@@ -202,7 +262,10 @@ namespace CraftingSystem
         /// 칸에 재료 1개를 넣는다. 빈 칸이면 가공을 시작하고, 같은 재료가 들어 있는 칸이면 대기 개수를 1 늘린다
         /// (앞의 것이 끝나면 이어서 가공). 다른 재료가 들어 있거나 가득 차 있으면 false.
         /// </summary>
-        public bool Place(int facility, int index, RecipeData recipe, float seconds)
+        public bool Place(int facility, int index, RecipeData recipe, float seconds) => Place(facility, index, recipe, seconds, null);
+
+        /// <summary>saved: 능력 할인으로 덜 낸 재료 개수 (null이면 할인 없음). 취소할 때 낸 만큼만 돌려준다.</summary>
+        public bool Place(int facility, int index, RecipeData recipe, float seconds, int[] saved)
         {
             if (!InRange(facility) || recipe == null || index < 0 || index >= _counts[facility]) return false;
 
@@ -210,15 +273,20 @@ namespace CraftingSystem
             float sec = Mathf.Max(0.05f, seconds);
             if (s.IsEmpty)
             {
-                _slots[facility][index] = new ProcessSlotView { recipe = recipe, remaining = sec, total = sec, queued = 1 };
+                s = new ProcessSlotView { recipe = recipe, remaining = sec, total = sec, queued = 1 };
             }
             else
             {
                 if (s.recipe != recipe || s.queued + s.readyCount >= MaxPerSlot) return false;
-                if (s.queued == 0) { s.remaining = sec; s.total = sec; }   // 완성품만 남아 있던 칸이면 새로 타이머 시작
+                if (s.queued == 0) { s.remaining = sec; s.total = sec; s.discountedQueued = 0; }   // 완성품만 남아 있던 칸이면 새로 타이머 시작
                 s.queued++;
-                _slots[facility][index] = s;
             }
+            if (saved != null)
+            {
+                s.discountedQueued++;
+                s.savedPerItem = saved;
+            }
+            _slots[facility][index] = s;
             Revision++;
             return true;
         }
@@ -226,16 +294,23 @@ namespace CraftingSystem
         /// <summary>
         /// 가공을 멈추고 아직 안 만든 재료 개수를 돌려준다 (재료 환불은 호출한 쪽에서). 완성품은 칸에 남는다. 가공 중이 아니면 false.
         /// </summary>
-        public bool Cancel(int facility, int index, out RecipeData recipe, out int count)
+        public bool Cancel(int facility, int index, out RecipeData recipe, out int count) =>
+            Cancel(facility, index, out recipe, out count, out _, out _);
+
+        /// <summary>discounted: count 중 할인으로 넣은 개수, saved: 그때 1개당 덜 낸 재료 개수.</summary>
+        public bool Cancel(int facility, int index, out RecipeData recipe, out int count, out int discounted, out int[] saved)
         {
-            recipe = null; count = 0;
+            recipe = null; count = 0; discounted = 0; saved = null;
             if (!InRange(facility) || index < 0 || index >= TruckFacilities.MaxSlots) return false;
             ProcessSlotView s = _slots[facility][index];
             if (!s.IsBusy) return false;
 
             recipe = s.recipe;
             count = s.queued;
+            discounted = Mathf.Clamp(s.discountedQueued, 0, s.queued);
+            saved = s.savedPerItem;
             s.queued = 0;
+            s.discountedQueued = 0;
             s.remaining = 0f;
             _slots[facility][index] = s.readyCount > 0 ? s : default;
             Revision++;
@@ -292,6 +367,8 @@ namespace CraftingSystem
                     if (s.remaining <= 0f)
                     {
                         // 1개 완성 → 대기 중인 게 더 있으면 이어서 가공
+                        // (할인 없이 넣은 것부터 끝난 것으로 본다 → 취소할 때 절대 낸 것보다 많이 돌려주지 않는다)
+                        if (s.queued - s.discountedQueued <= 0 && s.discountedQueued > 0) s.discountedQueued--;
                         s.readyCount++;
                         s.queued--;
                         s.remaining = s.queued > 0 ? s.total : 0f;

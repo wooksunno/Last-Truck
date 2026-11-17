@@ -15,6 +15,10 @@ namespace LastTruck
         public override float MarkDuration => markDuration;
         public int BonusDamage => bonusDamage;
 
+        public override string AbilityTitle => "추적 표식";
+        public override string GetDescription() =>
+            $"공격한 적에게 {markDuration:0.#}초 동안 표식을 남기고, 표식이 있는 적에게는 피해를 {bonusDamage} 더 줍니다.";
+
         public override void Execute(Character caster)
         {
         }

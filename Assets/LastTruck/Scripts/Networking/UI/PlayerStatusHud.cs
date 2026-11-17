@@ -162,6 +162,7 @@ namespace LastTruck.Networking
             string name = target.Nickname.ToString();
             bool reviving = reviver.Reviving == target;
             _reviveText.text = reviving ? $"{name} 살리는 중..." : $"[E] 길게 눌러 {name} 살리기";
+            if (reviver.UsingExtendedRange) _reviveText.text += "  (간호사 원거리 구조)";   // 간호사 고유 능력
             _reviveBarFill.transform.parent.gameObject.SetActive(reviving);
             _reviveBarFill.fillAmount = reviving ? target.ReviveProgress01 : 0f;
         }

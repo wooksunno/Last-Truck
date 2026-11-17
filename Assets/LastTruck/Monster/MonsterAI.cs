@@ -67,6 +67,7 @@ public class MonsterAI : MonoBehaviour
         {
             _damageable.Damaged += OnDamaged;
             _damageable.Died += OnDied;
+            _damageable.Stunned += OnStunned;
         }
     }
 
@@ -77,6 +78,7 @@ public class MonsterAI : MonoBehaviour
         {
             _damageable.Damaged -= OnDamaged;
             _damageable.Died -= OnDied;
+            _damageable.Stunned -= OnStunned;
         }
     }
 
@@ -205,6 +207,24 @@ public class MonsterAI : MonoBehaviour
         _attackLockUntil = 0f;
         _stunUntil = Time.time + _stunDuration;
         _stunImmuneUntil = _stunUntil + _stunImmunity;
+        _nextAttackTime = Mathf.Max(_nextAttackTime, _stunUntil);
+
+        if (animator != null)
+        {
+            animator.ResetTrigger(AttackHash);
+            animator.SetTrigger(HitHash);
+        }
+    }
+
+    /// <summary>복서 기절 등: 피격 경직과 달리 면역 시간을 무시하고 지정 시간 동안 멈춘다.</summary>
+    private void OnStunned(float duration)
+    {
+        if (_dead || !enabled || duration <= 0f) return;
+
+        _hitPending = false;      // 휘두르던 공격 취소
+        _attackLockUntil = 0f;
+        _stunUntil = Mathf.Max(_stunUntil, Time.time + duration);
+        _stunImmuneUntil = Mathf.Max(_stunImmuneUntil, _stunUntil + _stunImmunity);
         _nextAttackTime = Mathf.Max(_nextAttackTime, _stunUntil);
 
         if (animator != null)

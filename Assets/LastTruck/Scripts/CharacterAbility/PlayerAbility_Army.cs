@@ -17,6 +17,12 @@ namespace LastTruck
             _currentAttackCount = 0;
         }
 
+        public override string AbilityTitle => "연속 공격 강화";
+        public override string GetDescription() =>
+            $"{requiredAttackCount}번째 공격마다 피해가 {(enhancedDamageMultiplier - 1f) * 100f:0}% 증가합니다.";
+        public override string GetDebugStatus() =>
+            $"다음 강화까지 {Mathf.Max(0, requiredAttackCount - _currentAttackCount)}회 (현재 {_currentAttackCount}/{requiredAttackCount})";
+
         public override int CalculateAttackDamage(int baseDamage, out bool isEnhanced)
         {
             _currentAttackCount++;

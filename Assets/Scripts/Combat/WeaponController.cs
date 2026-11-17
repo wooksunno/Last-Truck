@@ -1671,7 +1671,28 @@ namespace Combat
             if (nearest != null)
             {
                 nearest.TakeDamage(fistDamage, nearestPoint);
+                TryApplyMeleeStun(nearest);   // 복서: 맨손 근접 공격 기절
                 SpawnImpact(nearestPoint, new Color(0.95f, 0.8f, 0.65f));
+            }
+        }
+
+        private LastTruck.CharacterAbilityController _abilityController;
+
+        /// <summary>
+        /// 복서 고유 능력: 근접 공격(맨손 + 근접 무기)이 맞으면 확률적으로 대상을 기절시킨다.
+        /// 확률/시간은 캐릭터 능력(PlayerAbility_Boxer)이 정하고, 다른 캐릭터는 항상 false라 아무 일도 없다.
+        /// </summary>
+        private void TryApplyMeleeStun(Damageable target)
+        {
+            if (target == null) return;
+            if (_abilityController == null)
+                _abilityController = GetComponentInParent<LastTruck.CharacterAbilityController>();
+            if (_abilityController == null) return;
+
+            if (_abilityController.TryGetStun(true, out float stunDuration) && stunDuration > 0f)
+            {
+                target.ApplyStun(stunDuration);
+                LastTruck.AbilityFeedback.Popup(target.transform.position + Vector3.up * 2f, "기절!", LastTruck.AbilityFeedback.BoxerColor, 0.75f);
             }
         }
 
@@ -1916,6 +1937,7 @@ namespace Combat
             if (nearest != null)
             {
                 nearest.TakeDamage(stats.damage, nearestPoint);
+                TryApplyMeleeStun(nearest);   // 복서: 근접 무기 기절
                 SpawnMeleeHit(nearestPoint, stats.effectColor);
                 Combat.CameraShake.Shake(0.1f);
             }

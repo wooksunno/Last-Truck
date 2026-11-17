@@ -32,6 +32,20 @@ namespace LastTruck.Networking
             public int ReadyCount;
             public float Seconds;
             public TickTimer Timer;
+            /// <summary>Queued 중 능력 할인(요리사 등)으로 재료를 덜 내고 넣은 개수. 취소할 때 낸 만큼만 돌려준다.</summary>
+            public int Discounted;
+            /// <summary>할인으로 1개당 덜 낸 재료 개수 (레시피 재료 순서 0~3).</summary>
+            public int Saved0, Saved1, Saved2, Saved3;
+        }
+
+        private static int[] SavedOf(SlotState s) => new[] { s.Saved0, s.Saved1, s.Saved2, s.Saved3 };
+
+        private static void SetSaved(ref SlotState s, int[] saved)
+        {
+            s.Saved0 = saved != null && saved.Length > 0 ? saved[0] : 0;
+            s.Saved1 = saved != null && saved.Length > 1 ? saved[1] : 0;
+            s.Saved2 = saved != null && saved.Length > 2 ? saved[2] : 0;
+            s.Saved3 = saved != null && saved.Length > 3 ? saved[3] : 0;
         }
 
         /// <summary>네트워크 상태에 잡아 둘 설비 수 (현재 7개 + 여유).</summary>
@@ -126,6 +140,8 @@ namespace LastTruck.Networking
                     if (!s.Timer.Expired(Runner)) continue;
 
                     // 1개 완성 → 대기 중인 게 더 있으면 이어서 가공
+                    // (할인 없이 넣은 것부터 끝난 것으로 본다 → 취소할 때 절대 낸 것보다 많이 돌려주지 않는다)
+                    if (s.Queued - s.Discounted <= 0 && s.Discounted > 0) s.Discounted--;
                     s.ReadyCount++;
                     s.Queued--;
                     s.Timer = s.Queued > 0 ? TickTimer.CreateFromSeconds(Runner, Mathf.Max(0.05f, s.Seconds)) : TickTimer.None;
@@ -184,7 +200,7 @@ namespace LastTruck.Networking
                 error = "다른 재료를 가공 중인 칸입니다.";
             else if (Slots[Index(facility, slot)].Queued + Slots[Index(facility, slot)].ReadyCount >= TruckProcessingLocal.MaxPerSlot)
                 error = "이 칸은 가득 찼습니다.";
-            else if (!TruckInventorySync.ConsumeLocal(truck, recipe))
+            else if (!TruckInventorySync.ConsumeLocal(truck, recipe, AbilityOf(source)))   // 요리사 등 재료 할인 반영
                 error = "재료가 부족합니다.";
 
             if (error == null)
@@ -202,8 +218,17 @@ namespace LastTruck.Networking
                     {
                         s.Seconds = Mathf.Max(0.05f, ProcessingSeconds(recipe, source));
                         s.Timer = TickTimer.CreateFromSeconds(Runner, s.Seconds);
+                        s.Discounted = 0;
                     }
                     s.Queued++;
+                }
+
+                // 할인으로 덜 낸 재료 기록 (취소 환불용)
+                int[] saved = TruckFacilities.Savings(recipe, AbilityOf(source));
+                if (saved != null)
+                {
+                    s.Discounted++;
+                    SetSaved(ref s, saved);
                 }
                 Slots.Set(Index(facility, slot), s);
                 Revision++;
@@ -219,6 +244,12 @@ namespace LastTruck.Networking
             _pendingRequests.Remove(requestId);
             try { callback?.Invoke(ok, message); }
             catch (Exception e) { Debug.LogException(e); }
+        }
+
+        private CharacterAbilityController AbilityOf(PlayerRef source)
+        {
+            NetworkPlayer requester = NetworkPlayer.Find(source);
+            return requester != null ? requester.GetComponent<CharacterAbilityController>() : null;
         }
 
         /// <summary>가공 시간 (요청한 사람의 대장장이 능력 반영).</summary>
@@ -252,10 +283,14 @@ namespace LastTruck.Networking
             // 아직 안 만든 재료를 모두 돌려준다. 이미 완성된 것은 칸에 남는다.
             RecipeData recipe = ItemIndexLookup.RecipeAt(s.Recipe - 1);
             TruckInventory truck = FindFirstObjectByType<TruckInventory>();
+            // 할인으로 넣은 것은 낸 만큼만 돌려준다 (취소로 재료가 늘어나지 않게)
+            int discounted = Mathf.Clamp(s.Discounted, 0, s.Queued);
+            int[] saved = SavedOf(s);
             for (int i = 0; i < s.Queued; i++)
-                TruckFacilities.Refund(truck, recipe);
+                TruckFacilities.Refund(truck, recipe, i < discounted ? saved : null);
 
             s.Queued = 0;
+            s.Discounted = 0;
             s.Timer = TickTimer.None;
             Slots.Set(Index(facility, slot), s.ReadyCount > 0 ? s : default);
             Revision++;

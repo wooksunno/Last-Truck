@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
@@ -77,6 +78,14 @@ namespace LastTruck.Networking
         private Character _character;
         private Animator _animator;
         private NetworkHealth _health;
+        private CharacterAbilityController _ability;   // 간호사: 다친 동료에게 다가갈 때 이동 속도 증가
+
+        [Header("간호사 - 다친 동료에게 접근")]
+        [Tooltip("이 거리(m) 안의 동료만 '다가가는 중'으로 본다.")]
+        [SerializeField] private float allyApproachRange = 20f;
+        [Tooltip("이동 방향과 동료 방향의 내적이 이 값 이상이면 '다가가는 중' (0.5 = 약 60도 이내).")]
+        [Range(-1f, 1f)]
+        [SerializeField] private float allyApproachMinDot = 0.5f;
 
         private static readonly int IsRunHash = Animator.StringToHash("isRun");
         private static readonly int IsWalkHash = Animator.StringToHash("isWalk");
@@ -125,6 +134,7 @@ namespace LastTruck.Networking
             _controller = GetComponent<NetworkCharacterController>();
             _characterController = GetComponent<CharacterController>();
             _character = GetComponent<Character>();
+            _ability = GetComponent<CharacterAbilityController>();
             _animator = GetComponentInChildren<Animator>();
             _health = GetComponent<NetworkHealth>();
         }
@@ -140,6 +150,37 @@ namespace LastTruck.Networking
         #endregion
 
         #region 이동 (네트워크 틱)
+
+        /// <summary>
+        /// 간호사: 체력이 낮은(살아 있는) 동료 쪽으로 움직이면 이동 속도가 빨라진다.
+        /// 호스트와 내 컴퓨터(예측)가 같은 동기화 값(위치/체력)으로 계산하므로 결과가 같다.
+        /// </summary>
+        private float AllyApproachSpeedMultiplier(Vector3 moveDirection)
+        {
+            if (_ability == null || moveDirection.sqrMagnitude < 0.01f) return 1f;
+
+            Vector3 moveDir = moveDirection.normalized;
+            float best = 1f;
+            IReadOnlyList<NetworkPlayer> players = NetworkPlayer.All;
+            for (int i = 0; i < players.Count; i++)
+            {
+                NetworkPlayer other = players[i];
+                if (other == null || other.gameObject == gameObject || !other.IsAlive || other.IsSeated) continue;
+
+                NetworkHealth health = other.Health;
+                if (health == null || health.Max <= 0f) continue;
+
+                Vector3 toAlly = other.transform.position - transform.position;
+                toAlly.y = 0f;
+                float distance = toAlly.magnitude;
+                if (distance < 0.5f || distance > allyApproachRange) continue;
+
+                bool approaching = Vector3.Dot(moveDir, toAlly / distance) >= allyApproachMinDot;
+                float multiplier = _ability.GetAllyApproachSpeedMultiplier(health.Current / health.Max, approaching);
+                if (multiplier > best) best = multiplier;
+            }
+            return best;
+        }
 
         public override void FixedUpdateNetwork()
         {
@@ -173,6 +214,7 @@ namespace LastTruck.Networking
             // 활 차징/화염 분사 중 감속 등 PlayerMove 속도 배율은 입력에 실려 온다 (0이면 1로 본다).
             float speedMultiplier = input.SpeedMultiplier > 0f ? Mathf.Min(input.SpeedMultiplier, 2f) : 1f;
             float speed = MoveSpeed * (walking ? sprintSpeedMultiplier : 1f) * speedMultiplier;
+            speed *= AllyApproachSpeedMultiplier(direction);   // 간호사 능력 (다른 캐릭터는 항상 1)
             _controller.maxSpeed = speed;
 
             // NetworkCharacterController는 기본적으로 가속/감속이 있는데, 기존 조작감(키를 누르는 즉시 최고 속도,

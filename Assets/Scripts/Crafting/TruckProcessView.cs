@@ -20,6 +20,8 @@ namespace CraftingSystem
             public ItemData input, output;
             public int inCount, outCount;
             public bool can, selected;
+            public bool discounted;          // 고유 능력(요리사 등)으로 재료가 줄어드는 레시피
+            public string ingredientText;    // 실제로 내는 재료 목록 (마우스를 올리면 안내줄에 표시)
             public Action onClick;
         }
 
@@ -68,6 +70,7 @@ namespace CraftingSystem
             public string statusText;
             public string message;
             public string buttonLabel; public bool buttonEnabled; public Action onButton;   // 현장 시설용 "가공하기" 버튼
+            public string discountBadge;     // 고유 능력 할인 배지 문구 (비어 있으면 표시 안 함)
         }
 
         public class SlotRef

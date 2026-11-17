@@ -57,6 +57,9 @@ namespace LastTruck
             UiToolkitSkin.Slice(right, _skin.panelBrown, 0.4f, new Color(0.55f, 0.45f, 0.38f, 1f));
             body.Add(right);
 
+            if (!string.IsNullOrEmpty(m.discountBadge))
+                right.Add(MakeAbilityBanner(m.discountBadge));   // 요리사 등 고유 능력 재료 할인
+
             var flow = Row("tw-fac-flow");
             flow.Add(FacilitySlot(m.inItem, m.inText, m.onInputClick));
             flow.Add(MakeLabel("→", "tw-fac-arrow"));

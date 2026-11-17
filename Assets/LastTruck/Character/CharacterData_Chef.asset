@@ -21,8 +21,8 @@ MonoBehaviour:
     costReduction: 0
     harvestSpeed: 0
     repairBonus: 0
-  uniqueAbility: {fileID: 0}
+  uniqueAbility: {fileID: 11400000, guid: 4618285b7c7bbfe43b9856e9dde45ac0, type: 2}
   portrait: {fileID: 21300000, guid: 261f6d36ed0c39d43b5c9628b71e59a1, type: 3}
-  description: "\uC170\uD504"
-  modelPrefab: {fileID: 6921172382041415466, guid: d1660dcec01cfb547957fe4ff970502d, type: 3}
+  description: "\uC694\uB9AC\uC0AC"
+  modelPrefab: {fileID: 7786067383137606811, guid: d1660dcec01cfb547957fe4ff970502d, type: 3}
   networkPrefab: {fileID: 8538292646933046803, guid: a1206d875e8d3984697be9884483d74d, type: 3}

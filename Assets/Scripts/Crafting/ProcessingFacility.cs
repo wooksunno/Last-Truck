@@ -52,7 +52,8 @@ namespace CraftingSystem
                 return false;
             }
 
-            bool ok = player.TryCraft(recipe);
+            // 요리사 등 재료 할인은 가공하는 사람의 능력으로 계산한다
+            bool ok = player.TryCraft(recipe, player.GetComponent<LastTruck.CharacterAbilityController>());
             if (ok)
             {
                 // 실제 가공 시설에서 한 번 성공한 레시피는 트럭 가공 탭에서도 바로 가공할 수 있게 등록한다.

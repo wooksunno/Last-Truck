@@ -8,6 +8,15 @@ namespace LastTruck
         public float cooldown;
 
         public abstract void Execute(Character caster);
+
+        /// <summary>화면에 보여줄 능력 이름 (캐릭터 선택 화면 / 디버그 창).</summary>
+        public virtual string AbilityTitle => name;
+
+        /// <summary>능력 설명. 인스펙터 수치를 그대로 읽어서 만들기 때문에 수치를 바꾸면 설명도 같이 바뀐다.</summary>
+        public virtual string GetDescription() => string.Empty;
+
+        /// <summary>디버그 창에 보여줄 실시간 상태 (예: 군인 공격 횟수). 없으면 빈 문자열.</summary>
+        public virtual string GetDebugStatus() => string.Empty;
         public virtual float MarkDuration => 0f;
 
         /// <summary>
@@ -41,6 +50,15 @@ namespace LastTruck
         public virtual float CalculateGatherTime(float baseTime)
         {
             return baseTime;
+        }
+
+        /// <summary>
+        /// 채집 대상 아이템을 아는 경우의 채집 시간 보정 (광부: 광물만 빨라지도록 오버라이드).
+        /// 기본은 아이템과 상관없이 위 CalculateGatherTime(baseTime)을 그대로 쓴다.
+        /// </summary>
+        public virtual float CalculateGatherTime(ItemData targetItem, float baseTime)
+        {
+            return CalculateGatherTime(baseTime);
         }
 
         /// <summary>

@@ -194,9 +194,10 @@ namespace LastTruck.Networking
             previewNameText.text = data != null ? LobbyRules.SafeText(data.DisplayName) : "캐릭터 없음";
             previewDescriptionText.text = data == null
                 ? "캐릭터 목록이 비어 있습니다."
-                : string.IsNullOrWhiteSpace(data.description)
+                : (string.IsNullOrWhiteSpace(data.description)
                     ? "<color=#9AA3B2>(아직 설명이 없습니다)</color>"
-                    : LobbyRules.SafeText(data.description);
+                    : LobbyRules.SafeText(data.description))
+                  + (string.IsNullOrEmpty(data.AbilitySummary) ? string.Empty : "\n\n" + data.AbilitySummary);   // 고유 능력 설명
 
             UpdateStats(catalog, data);
 

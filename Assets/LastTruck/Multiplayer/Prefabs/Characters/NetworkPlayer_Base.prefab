@@ -152,9 +152,15 @@ MonoBehaviour:
   fallbackMoveSpeed: 5
   runAnimationThreshold: 0.15
   jumpImpulse: 7.4
+  jumpGravity: -28
   jumpStateName: Jumping Up
   _IsWalking:
     RawValue: 0
+  flingGroundDecel: 11
+  flingAirDecel: 2.5
+  flingNoControlSpeed: 7
+  allyApproachRange: 20
+  allyApproachMinDot: 0.5
 --- !u!114 &1526707239328083096
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -221,10 +227,14 @@ MonoBehaviour:
   groundCheckDistance: 0.3
   groundMask:
     serializedVersion: 2
-    m_Bits: 4294967295
+    m_Bits: 3959
   jumpKey: 32
   jumpVelocity: 4.7
+  jumpRiseGravity: 2.6
+  jumpFallGravity: 3.6
   jumpStateName: Jumping Up
+  loadFreeItems: 10
+  fullLoadSpeedMultiplier: 0.8
   sprintMultiplier: 1.6
 --- !u!114 &5320129222086671205
 MonoBehaviour:
@@ -273,6 +283,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.PlayerInventory
   maxSlots: 4
+  rawStackLimit: 20
   grantStarterItems: 0
   inventory:
     maxSlots: 32
@@ -292,7 +303,7 @@ MonoBehaviour:
   targetCamera: {fileID: 0}
   hitMask:
     serializedVersion: 2
-    m_Bits: 4294967295
+    m_Bits: 3959
   bowPrefab: {fileID: 8054710306670101129, guid: 909b850cf7df8544398403031c27bca8, type: 3}
   arrowPrefab: {fileID: 1229728463944274662, guid: 36a61e1a922736e4c98bc61b3262c9b5, type: 3}
   minArrowSpeed: 15

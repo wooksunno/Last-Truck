@@ -105,7 +105,8 @@ namespace CraftingSystem
                 int requiredCount = ingredient.count;
                 if (abilityController != null)
                 {
-                    requiredCount = abilityController.GetCalculatedCraftingCost(ingredient.count, isWeapon);
+                    // 대장장이(무기) / 요리사(음식) 재료 할인
+                    requiredCount = abilityController.GetCalculatedCraftingCost(ingredient.count, outputItem);
                 }
 
                 if (inv.GetMaterialCount(ingredient.item) < requiredCount)
@@ -124,7 +125,8 @@ namespace CraftingSystem
                 int requiredCount = ingredient.count;
                 if (abilityController != null)
                 {
-                    requiredCount = abilityController.GetCalculatedCraftingCost(ingredient.count, isWeapon);
+                    // 대장장이(무기) / 요리사(음식) 재료 할인
+                    requiredCount = abilityController.GetCalculatedCraftingCost(ingredient.count, outputItem);
                 }
 
                 if (!inv.RemoveMaterial(ingredient.item, requiredCount))

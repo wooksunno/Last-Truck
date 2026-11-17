@@ -39,6 +39,9 @@ namespace Combat
         /// <summary>싱글플레이: 체력이 0이 된 순간. 구독자가 있으면 Destroy 대신 구독자가 처리한다 (사망 애니메이션 후 제거).</summary>
         public event System.Action Died;
 
+        /// <summary>싱글플레이: 기절(복서 능력 등)이 걸린 순간 (지속 시간). MonsterAI가 이동/공격을 멈춘다.</summary>
+        public event System.Action<float> Stunned;
+
         /// <summary>싱글플레이에서 이미 죽었는가 (사망 애니메이션 중).</summary>
         public bool IsDeadOffline => _dead;
 
@@ -127,6 +130,30 @@ namespace Combat
         //}
 
         /// <summary>
+        /// 지정한 시간(초) 동안 기절시킨다 (이동 + 공격 모두 멈춤). 복서 능력에서 쓴다.
+        /// 멀티플레이: 몬스터 AI는 호스트에서 돌기 때문에 호스트에게 요청한다 (NetworkMonster.RequestStun).
+        /// </summary>
+        public void ApplyStun(float duration)
+        {
+            if (duration <= 0f)
+                return;
+
+            // 기절한 동안 몬스터 외곽선이 붉게 깜빡인다 (기절을 건 사람 화면)
+            if (!_dead) StunRimVisual.Show(this, duration);
+
+            if (IsNetworked)
+            {
+                var networkMonster = GetComponent<LastTruck.Networking.NetworkMonster>();
+                if (networkMonster != null) networkMonster.RequestStun(duration);
+                return;
+            }
+
+            if (_dead) return;
+            Root(duration);   // MonsterAI가 없는 대상도 최소한 움직이지는 못하게
+            Stunned?.Invoke(duration);
+        }
+
+        /// <summary>
         /// 경찰 표식을 부여
         /// </summary>
         public void ApplyPoliceMark(float duration)
@@ -162,6 +189,8 @@ namespace Combat
             {
                 // 1. 기본 데미지(군인 등)
                 finalDamage = abilityController.GetCalculatedDamage(amount, out bool isEnhanced);
+                if (isEnhanced)
+                    LastTruck.AbilityFeedback.Popup(hitPoint, "강화 공격!", LastTruck.AbilityFeedback.ArmyColor);
 
                 bool wasMarked = IsMarked;
 
@@ -173,14 +202,11 @@ namespace Combat
                 {
                     ApplyPoliceMark(markDuration);
 
+                    // 발동 기록(콘솔/디버그 창)은 CharacterAbilityController가 남긴다.
+                    // 화면에는 글자 대신 몬스터 몸에 노란 림라이트 + 발밑 링으로 표시 (PoliceMarkVisual).
+                    PoliceMarkVisual.Show(this, _markUntilTime);
                     if (wasMarked)
-                    {
-                        Debug.Log($"[경찰] 최종 데미지: {finalDamage} (추가 피해 적용됨)");
-                    }
-                    else
-                    {
-                        Debug.Log($"[경찰] 적에게 표식을 남겼습니다. (지속시간: {markDuration}초)");
-                    }
+                        PoliceMarkVisual.Flash(this);   // 표식 추가 피해가 들어간 순간 번쩍
                 }
             }
 
@@ -199,6 +225,8 @@ namespace Combat
 
             if (_currentHealth <= 0)
             {
+                PoliceMarkVisual.Hide(this);
+                StunRimVisual.Hide(this);
                 CraftingSystem.MonsterLoot.Drop(gameObject, maxHealth);
                 // 사망 연출을 맡은 스크립트(MonsterAI 등)가 있으면 그쪽이 애니메이션 후 없앤다.
                 if (Died != null)
@@ -288,6 +316,8 @@ namespace Combat
         void LastTruck.Networking.INetworkHealthListener.OnNetworkDeath()
         {
             // 호스트가 곧 오브젝트를 없앤다 (NetworkHealth). 몬스터면 내 화면에 전리품(고기/가죽)을 떨어뜨린다.
+            PoliceMarkVisual.Hide(this);
+            StunRimVisual.Hide(this);
             CraftingSystem.MonsterLoot.Drop(gameObject, maxHealth);
         }
 

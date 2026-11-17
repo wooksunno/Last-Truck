@@ -117,6 +117,39 @@ namespace CraftingSystem
                         ShowPopup("트럭 거점", BuildTruckContent);
                     };
                     m.onWithdrawCancel = () => { _withdrawItem = null; ShowPopup("트럭 거점", BuildTruckContent); };
+
+                    // 과학자: 고른 광물을 다른 광물로 변환하는 버튼 (낮에만 실제로 변환된다)
+                    CharacterAbilityController ability = LastTruck.Networking.LocalPlayerLookup.AbilityController;
+                    if (ability != null && ability.TryGetMineralConversion(item, true, out string resultId, out int inCount, out int outCount))
+                    {
+                        ItemData result = string.IsNullOrEmpty(resultId) ? null : catalog.GetItem(resultId);
+                        string resultName = result != null ? result.itemName : resultId;
+                        m.convertLabel = $"{resultName} 변환 ({inCount}→{outCount})";
+
+                        // 재료가 모자라거나 밤이면 버튼을 회색(비활성)으로 보여준다
+                        bool enough = have >= inCount;
+                        bool night = global::GameManager.IsNight;
+                        m.convertEnabled = enough && !night;
+                        m.convertDisabledReason = !enough
+                            ? $"재료 부족: {item.itemName} {inCount}개 필요 (보유 {have}개)"
+                            : (night ? "광물 변환은 낮에만 할 수 있습니다." : null);
+
+                        m.onConvert = () =>
+                        {
+                            if (global::GameManager.IsNight)
+                            {
+                                LastTruck.HudToast.Show("광물 변환은 낮에만 할 수 있습니다.");
+                                return;
+                            }
+                            if (truckInv.GetItemCount(item) < inCount)
+                            {
+                                LastTruck.HudToast.Show($"{item.itemName}이(가) 부족합니다. ({inCount}개 필요)");
+                                return;
+                            }
+                            LastTruck.Networking.TruckInventorySync.ConvertMineral(truckInv, item, ability);
+                            ShowPopup("트럭 거점", BuildTruckContent);
+                        };
+                    }
                 }
             }
             return m;
@@ -195,6 +228,7 @@ namespace CraftingSystem
                 m.cards.Add(new LastTruck.TruckStorageView.CraftCard
                 {
                     item = r.output.item, canCraft = canCraft(r), installed = installed(r), selected = r == _selectedRecipe,
+                    discounted = ability != null && ability.HasCraftingDiscount(r),   // 대장장이/요리사 할인 표시
                     onClick = () => { _selectedRecipe = captured; ShowPopup("제작", BuildTruckContent); },
                 });
             }
@@ -204,20 +238,26 @@ namespace CraftingSystem
             if (sel != null && sel.output != null && sel.output.item != null)
             {
                 ItemData item = sel.output.item;
-                bool isWeapon = item.itemType == ItemType.Weapon || item.isWeapon;
                 m.item = item;
                 m.subtitle = TruckCodexView.CategoryNames[TruckCodexView.CategoryOf(item)] + "  ·  결과 ×" + Mathf.Max(1, sel.output.count);
                 foreach (RecipeIngredient ing in sel.inputs)
                 {
                     if (ing == null || ing.item == null || ing.count <= 0) continue;
-                    int need = ability != null ? ability.GetCalculatedCraftingCost(ing.count, isWeapon) : ing.count;
+                    int need = ability != null ? ability.GetCalculatedCraftingCost(ing.count, item) : ing.count;
                     m.ingredients.Add(new LastTruck.TruckStorageView.CraftIngredient
                     {
                         item = ing.item, have = inv.GetMaterialCount(ing.item), need = need, originalNeed = ing.count,
                     });
                 }
+
+                // 고유 능력으로 재료가 줄었으면 상세 위에 능력 배지를 띄운다
+                int saved = 0;
+                foreach (var ci in m.ingredients) saved += Mathf.Max(0, ci.originalNeed - ci.need);
+                if (saved > 0 && ability != null && ability.CurrentAbility != null)
+                    m.discountBadge = ability.CurrentAbility.AbilityTitle;   // 배지에는 능력 이름만 (줄어든 개수는 재료 줄에 표시)
+
                 m.canCraft = canCraft(sel);
-                m.craftLabel = m.canCraft ? "제작하기" : (installed(sel) ? "설치 완료" : "재료가 부족해요");
+                m.craftLabel = m.canCraft ? (saved > 0 ? "할인 제작하기" : "제작하기") : (installed(sel) ? "설치 완료" : "재료가 부족해요");
                 m.onCraft = () =>
                 {
                     LastTruck.Networking.TruckInventorySync.Craft(craft, sel);

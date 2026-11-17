@@ -200,6 +200,29 @@ namespace LastTruck.Networking
             if (amount > 0) RPC_RequestGrantRaw(amount);
         }
 
+        /// <summary>과학자 광물 변환 요청. 비율/낮 여부는 호스트가 요청한 사람의 능력으로 다시 확인한다.</summary>
+        public void RequestConvert(ItemData input)
+        {
+            int index = ItemIndexLookup.IndexOf(input);
+            if (index >= 0) RPC_RequestConvert(index);
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_RequestConvert(int itemIndex, RpcInfo info = default)
+        {
+            PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
+            NetworkPlayer requester = NetworkPlayer.Find(source);
+            CharacterAbilityController ability = requester != null ? requester.GetComponent<CharacterAbilityController>() : null;
+            bool ok = TruckInventorySync.ConvertMineralLocal(Truck, ItemIndexLookup.ItemAt(itemIndex), ability, out string message);
+            if (!string.IsNullOrEmpty(message)) RPC_ConvertResult(source, ok, message);
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_ConvertResult([RpcTarget] PlayerRef target, NetworkBool ok, string message)
+        {
+            HudToast.Show(message);
+        }
+
         private readonly Dictionary<int, Action<bool>> _pendingConsumes = new Dictionary<int, Action<bool>>();
         private int _nextConsumeId = 1;
 
@@ -222,8 +245,11 @@ namespace LastTruck.Networking
         {
             PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
             bool ok;
+            // 재료 할인(요리사 등)은 요청한 사람의 캐릭터 능력으로 계산한다.
+            NetworkPlayer requester = NetworkPlayer.Find(source);
+            CharacterAbilityController ability = requester != null ? requester.GetComponent<CharacterAbilityController>() : null;
             using (TruckInventory.SuppressBag(source != Runner.LocalPlayer))   // 남의 요청은 트럭 재료로만 (호스트 가방 보호)
-                ok = TruckInventorySync.ConsumeLocal(Truck, ItemIndexLookup.RecipeAt(recipeIndex));
+                ok = TruckInventorySync.ConsumeLocal(Truck, ItemIndexLookup.RecipeAt(recipeIndex), ability);
             RPC_ConsumeResult(source, requestId, ok);
         }
 
@@ -448,6 +474,25 @@ namespace LastTruck.Networking
             net.RequestCraft(recipe);
         }
 
+        /// <summary>
+        /// 과학자 고유 능력: 트럭 보관함의 광물을 다른 광물로 변환 (낮에만). 결과는 트럭 보관함에 들어간다.
+        /// 싱글/호스트는 바로, 클라이언트는 호스트에게 요청한다 (호스트가 요청한 사람의 능력으로 다시 확인).
+        /// </summary>
+        public static void ConvertMineral(TruckInventory truck, ItemData input, CharacterAbilityController ability)
+        {
+            if (truck == null || input == null) return;
+
+            NetworkTruckInventory net = IsRemoteClient ? Net : null;
+            if (net == null)
+            {
+                ConvertMineralLocal(truck, input, ability, out string message);
+                if (!string.IsNullOrEmpty(message)) HudToast.Show(message);
+                return;
+            }
+
+            net.RequestConvert(input);
+        }
+
         /// <summary>테스트 버튼 "원재료 +N".</summary>
         public static void GrantRaw(TruckInventory truck, int amount)
         {
@@ -470,7 +515,11 @@ namespace LastTruck.Networking
         /// 트럭 가공을 시작할 때 재료를 뺀다. 결과는 onResult(성공 여부)로 알려준다.
         /// 싱글/호스트는 바로, 클라이언트는 호스트가 실제 수량을 확인한 뒤 응답이 오면 불린다.
         /// </summary>
-        public static void ConsumeIngredients(TruckInventory truck, RecipeData recipe, Action<bool> onResult)
+        public static void ConsumeIngredients(TruckInventory truck, RecipeData recipe, Action<bool> onResult) =>
+            ConsumeIngredients(truck, recipe, onResult, null);
+
+        /// <summary>ability: 재료 할인(요리사 등)을 적용할 사람 (null이면 레시피 수량 그대로).</summary>
+        public static void ConsumeIngredients(TruckInventory truck, RecipeData recipe, Action<bool> onResult, CharacterAbilityController ability)
         {
             if (truck == null || recipe == null)
             {
@@ -481,22 +530,70 @@ namespace LastTruck.Networking
             NetworkTruckInventory net = IsRemoteClient ? Net : null;
             if (net == null)
             {
-                onResult?.Invoke(ConsumeLocal(truck, recipe));
+                onResult?.Invoke(ConsumeLocal(truck, recipe, ability));
                 return;
             }
 
-            net.RequestConsume(recipe, onResult);
+            net.RequestConsume(recipe, onResult);   // 호스트가 요청한 사람의 능력으로 다시 계산한다
         }
 
-        /// <summary>재료가 모두 있으면 빼고 true (가공 탭: 능력 할인 없이 레시피 수량 그대로 - 기존 동작과 같음).</summary>
-        public static bool ConsumeLocal(TruckInventory truck, RecipeData recipe)
+        /// <summary>과학자 광물 변환 실제 처리 (싱글/호스트). 성공하면 true, message는 화면에 띄울 안내.</summary>
+        public static bool ConvertMineralLocal(TruckInventory truck, ItemData input, CharacterAbilityController ability, out string message)
         {
-            if (truck == null || recipe == null || !truck.HasIngredients(recipe)) return false;
-            foreach (RecipeIngredient ingredient in recipe.inputs)
+            message = null;
+            if (truck == null || input == null || ability == null)
             {
-                if (ingredient != null && ingredient.item != null && ingredient.count > 0)
-                    truck.RemoveMaterial(ingredient.item, ingredient.count);
+                message = "광물 변환을 할 수 없습니다.";
+                return false;
             }
+
+            bool isDay = !global::GameManager.IsNight;
+            if (!ability.TryGetMineralConversion(input, isDay, out string resultId, out int inputCount, out int outputCount))
+            {
+                message = isDay ? $"{input.itemName}은(는) 변환할 수 없습니다." : "광물 변환은 낮에만 할 수 있습니다.";
+                return false;
+            }
+
+            ItemData result = string.IsNullOrEmpty(resultId) ? null : ItemCatalog.GetOrCreate().GetItem(resultId);
+            if (result == null || inputCount <= 0 || outputCount <= 0)
+            {
+                message = "변환 결과 아이템을 찾을 수 없습니다.";
+                return false;
+            }
+
+            if (truck.GetItemCount(input) < inputCount || !truck.RemoveItem(input, inputCount))
+            {
+                message = $"{input.itemName}이(가) {inputCount}개 필요합니다.";
+                return false;
+            }
+
+            int added = AddAndCount(truck.Inventory, result, outputCount);
+            if (added < outputCount)
+            {
+                // 보관함에 자리가 없다 → 되돌린다
+                if (added > 0) truck.RemoveItem(result, added);
+                AddAndCount(truck.Inventory, input, inputCount);
+                message = "트럭 보관함에 자리가 없습니다.";
+                return false;
+            }
+
+            message = $"광물 변환: {input.itemName} x{inputCount} → {result.itemName} x{outputCount}";
+            AbilityDebug.Report(ability.CharacterName, "convert", "과학자 " + message);
+            return true;
+        }
+
+        /// <summary>재료가 모두 있으면 빼고 true (능력 할인 없이 레시피 수량 그대로).</summary>
+        public static bool ConsumeLocal(TruckInventory truck, RecipeData recipe) => ConsumeLocal(truck, recipe, null);
+
+        /// <summary>재료가 모두 있으면 빼고 true. ability가 있으면 요리사/대장장이 재료 할인을 반영한 개수만 뺀다.</summary>
+        public static bool ConsumeLocal(TruckInventory truck, RecipeData recipe, CharacterAbilityController ability)
+        {
+            if (truck == null || recipe == null) return false;
+            List<RecipeIngredient> cost = TruckFacilities.CostFor(recipe, ability);
+            foreach (RecipeIngredient c in cost)
+                if (truck.GetMaterialCount(c.item) < c.count) return false;
+            foreach (RecipeIngredient c in cost)
+                truck.RemoveMaterial(c.item, c.count);
             return true;
         }
 

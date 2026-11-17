@@ -98,9 +98,26 @@ namespace LastTruck
             }
 
             MarkAllNotBlocking();
-            if (_target != null)
+            // 동굴 길(CameraZone) 안에서는 아무것도 투명하게 하지 않는다 (동굴 벽이 투명해져 바깥 세상이 보이는 것 방지).
+            // 이미 투명해진 것은 Apply에서 원래대로 서서히 돌아온다.
+            if (_target != null && !IsInNoFadeZone())
                 FindBlockers(cam);
             Apply();
+        }
+
+        private CameraTargetSmoother _smoother;
+        private float _nextFindSmoother;
+
+        /// <summary>카메라가 실제로 따라가는 대상(없으면 Player 태그 대상)이 반투명 금지 구역 안에 있는가.</summary>
+        private bool IsInNoFadeZone()
+        {
+            if (_smoother == null && Time.unscaledTime >= _nextFindSmoother)
+            {
+                _nextFindSmoother = Time.unscaledTime + 1f;
+                _smoother = FindFirstObjectByType<CameraTargetSmoother>();
+            }
+            Transform follow = _smoother != null && _smoother.RealTarget != null ? _smoother.RealTarget : _target;
+            return follow != null && CameraZone.BlocksFadeAt(follow.position);
         }
 
         private void MarkAllNotBlocking()

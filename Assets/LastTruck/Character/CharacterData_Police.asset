@@ -22,3 +22,7 @@ MonoBehaviour:
     harvestSpeed: 0
     repairBonus: 0
   uniqueAbility: {fileID: 11400000, guid: 66ac924b7c5024a4a880997d4cfbd6fd, type: 2}
+  portrait: {fileID: 0}
+  description: "\uACBD\uCC30"
+  modelPrefab: {fileID: 7786067383137606811, guid: 7c266a5779caa7f408167a15ad7bf1f4, type: 3}
+  networkPrefab: {fileID: 0}

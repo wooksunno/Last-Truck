@@ -859,6 +859,7 @@ private void ShowPopup(string title, System.Action builder)
             m.accent = TruckCodexView.CategoryColors[(int)_activeFacility.FacilityType % TruckCodexView.CategoryColors.Length];
             m.listTitle = "가공할 재료를 선택하세요";
             m.listHint = "재료를 고른 뒤 오른쪽의 '가공하기'를 누르세요";
+            CharacterAbilityController facilityAbility = _activePlayer != null ? _activePlayer.GetComponent<CharacterAbilityController>() : null;   // 요리사 등 재료 할인
 
             foreach (RecipeData recipe in _activeFacility.Recipes)
             {
@@ -873,7 +874,9 @@ private void ShowPopup(string title, System.Action builder)
                     output = recipe.output.item,
                     inCount = recipe.inputs[0].count,
                     outCount = recipe.output.count,
-                    can = _activePlayer != null && _activePlayer.HasIngredients(recipe),
+                    can = _activePlayer != null && _activePlayer.HasIngredients(recipe, facilityAbility),
+                    discounted = facilityAbility != null && facilityAbility.HasCraftingDiscount(recipe),
+                    ingredientText = TruckFacilities.CostText(recipe, facilityAbility),
                     selected = !processing && _selectedRecipe == recipe,
                     onClick = () =>
                     {
@@ -889,10 +892,11 @@ private void ShowPopup(string title, System.Action builder)
             if (shown != null && shown.inputs != null && shown.inputs.Count > 0 && shown.inputs[0] != null)
             {
                 ItemData inItem = shown.inputs[0].item;
-                int need = shown.inputs[0].count;
+                int need = TruckFacilities.CostFor(shown, facilityAbility).Count > 0 ? TruckFacilities.CostFor(shown, facilityAbility)[0].count : shown.inputs[0].count;
                 int have = _activePlayer != null && inItem != null ? _activePlayer.GetItemCount(inItem) : 0;
                 m.inItem = inItem;
                 m.inText = have + "/" + need;
+                m.discountBadge = DiscountBadge(shown, facilityAbility);
             }
             else
             {
@@ -909,7 +913,7 @@ private void ShowPopup(string title, System.Action builder)
                 m.outText = "-";
             }
 
-            bool canProcess = shown != null && !processing && _activePlayer != null && _activePlayer.HasIngredients(shown);
+            bool canProcess = shown != null && !processing && _activePlayer != null && _activePlayer.HasIngredients(shown, facilityAbility);
             if (processing)
             {
                 m.timerText = Mathf.Max(0f, job.remaining).ToString("0.0") + "초";
@@ -918,7 +922,7 @@ private void ShowPopup(string title, System.Action builder)
             }
             else
             {
-                m.timerText = shown != null ? shown.processingSeconds.ToString("0.#") + "초" : "-";
+                m.timerText = shown != null ? GetFinalProcessingSeconds(shown).ToString("0.#") + "초" : "-";
                 m.statusText = shown != null ? "" : "재료를 선택하세요";
             }
             m.buttonLabel = processing ? "가공 중" : "가공하기";
@@ -1300,7 +1304,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             if (recipe == null || facility == null || _activePlayer == null || _facilityJobs.ContainsKey(facility))
                 return;
 
-            if (!_activePlayer.HasIngredients(recipe))
+            if (!_activePlayer.HasIngredients(recipe, _activePlayer.GetComponent<CharacterAbilityController>()))
             {
                 Debug.LogWarning("재료가 부족합니다.");
                 return;
@@ -1318,7 +1322,9 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 return;
             }
 
-            var job = new FacilityJob { recipe = recipe, remaining = recipe.processingSeconds, total = recipe.processingSeconds };
+            // 대장장이/과학자 가공 시간 감소 (트럭 가공과 같은 규칙)
+            float seconds = GetFinalProcessingSeconds(recipe);
+            var job = new FacilityJob { recipe = recipe, remaining = seconds, total = seconds };
             _facilityJobs[facility] = job;
             ShowPopup($"{facility.InteractLabel} 가공", BuildFacilityContent);
             StartCoroutine(FacilityProcessRoutine(facility, player, recipe, job));
@@ -1908,6 +1914,14 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
 
         private int ProcRevision => NetworkProcessing ? LastTruck.Networking.NetworkTruckProcessing.Instance.StateRevision : _localProcessing.Revision;
 
+        /// <summary>고유 능력으로 재료가 줄면 배지 문구(능력 이름만), 아니면 null.</summary>
+        private static string DiscountBadge(RecipeData recipe, CharacterAbilityController ability)
+        {
+            int[] saved = TruckFacilities.Savings(recipe, ability);
+            if (saved == null || ability == null || ability.CurrentAbility == null) return null;
+            return ability.CurrentAbility.AbilityTitle;
+        }
+
         // 대장장이 능력 반영 최종 가공 시간
         private float GetFinalProcessingSeconds(RecipeData recipe)
         {
@@ -1981,7 +1995,9 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 });
             }
 
-            // 가공 재료 카드 (고른 재료는 강조)
+            // 가공 재료 카드 (고른 재료는 강조). 요리사 등 재료 할인은 내 캐릭터 능력 기준
+            CharacterAbilityController processAbility = LastTruck.Networking.LocalPlayerLookup.AbilityController;
+            m.discountBadge = DiscountBadge(_selectedProcessRecipe, processAbility);
             foreach (RecipeData recipe in catalog.GetRecipesForFacility(fac))
             {
                 if (recipe == null || recipe.inputs == null || recipe.inputs.Count == 0 ||
@@ -1995,7 +2011,9 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                     output = recipe.output.item,
                     inCount = recipe.inputs[0].count,
                     outCount = recipe.output.count,
-                    can = truckInv != null && truckInv.HasIngredients(recipe),
+                    can = truckInv != null && truckInv.HasIngredients(recipe, processAbility),
+                    discounted = processAbility != null && processAbility.HasCraftingDiscount(recipe),
+                    ingredientText = TruckFacilities.CostText(recipe, processAbility),
                     selected = _selectedProcessRecipe == recipe,
                     onClick = () =>
                     {
@@ -2123,7 +2141,8 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             }
 
             TruckInventory truckInv = truck.TruckInventory;
-            if (truckInv == null || !truckInv.HasIngredients(recipe))
+            CharacterAbilityController ability = LastTruck.Networking.LocalPlayerLookup.AbilityController;   // 요리사 등 재료 할인
+            if (truckInv == null || !truckInv.HasIngredients(recipe, ability))
             {
                 _truckProcessMessage = "재료가 부족합니다.";
                 ShowPopup("트럭 거점", BuildTruckContent);
@@ -2139,12 +2158,13 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             }
 
             // 싱글/호스트: 바로 재료를 빼고 시작한다 (같은 재료 칸이면 대기 개수 +1).
+            int[] saved = TruckFacilities.Savings(recipe, ability);   // 할인으로 덜 낸 재료 (취소 시 낸 만큼만 환불)
             LastTruck.Networking.TruckInventorySync.ConsumeIngredients(truckInv, recipe, ok =>
             {
                 if (ok)
                 {
-                    if (!_localProcessing.Place(FacilitySlotOf(fac), slotIndex, recipe, GetFinalProcessingSeconds(recipe)))
-                        TruckFacilities.Refund(truckInv, recipe);
+                    if (!_localProcessing.Place(FacilitySlotOf(fac), slotIndex, recipe, GetFinalProcessingSeconds(recipe), saved))
+                        TruckFacilities.Refund(truckInv, recipe, saved);
                 }
                 else
                 {
@@ -2163,9 +2183,10 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 return;
             }
 
-            if (_localProcessing.Cancel(FacilitySlotOf(fac), slotIndex, out RecipeData recipe, out int count))
+            // 할인으로 넣은 것은 낸 만큼만 돌려준다 (취소로 재료가 늘어나지 않게)
+            if (_localProcessing.Cancel(FacilitySlotOf(fac), slotIndex, out RecipeData recipe, out int count, out int discounted, out int[] saved))
                 for (int i = 0; i < count; i++)
-                    TruckFacilities.Refund(ActiveTruckInventory, recipe);
+                    TruckFacilities.Refund(ActiveTruckInventory, recipe, i < discounted ? saved : null);
             ShowPopup("트럭 거점", BuildTruckContent);
         }
 
@@ -2348,7 +2369,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
 
                 if (abilityController != null)
                 {
-                    requiredNeed = abilityController.GetCalculatedCraftingCost(originalNeed, isWeapon);
+                    requiredNeed = abilityController.GetCalculatedCraftingCost(originalNeed, recipe.output != null ? recipe.output.item : null);
                 }
 
                 CreateIngredientPreviewSlot(ingredientRow, ingredient.item, have, requiredNeed, originalNeed);

@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1136d65906ee4a44abea798f62a5e429, type: 3}
+  m_Name: CharacterData_Nurse
+  m_EditorClassIdentifier: Assembly-CSharp::LastTruck.CharacterStatsData
+  basicStats:
+    playerName: Nurse
+    maxHealth: 100
+    attackPower: 10
+    moveSpeed: 20
+  utilityStats:
+    costReduction: 0
+    harvestSpeed: 0
+    repairBonus: 0
+  uniqueAbility: {fileID: 11400000, guid: bbc070a8b3a87bf4ea37bbecc4a3cd08, type: 2}
+  portrait: {fileID: 0}
+  description: "\uAC04\uD638\uC0AC"
+  modelPrefab: {fileID: 7786067383137606811, guid: 29a3d99097e14adfa8c520337ecc490b, type: 3}
+  networkPrefab: {fileID: 0}

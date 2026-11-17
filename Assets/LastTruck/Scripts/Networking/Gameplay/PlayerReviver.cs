@@ -18,6 +18,7 @@ namespace LastTruck.Networking
         [SerializeField] private KeyCode reviveKey = KeyCode.E;
 
         private NetworkPlayer _self;
+        private CharacterAbilityController _ability;   // 간호사: 원거리 구조
         private NetworkPlayer _requested;
         private PlayerInteract _interact;
         private bool _interactDisabledByMe;
@@ -28,6 +29,9 @@ namespace LastTruck.Networking
 
         /// <summary>근처에 있는 기절한 동료 (살릴 수 있는 대상, 없으면 null).</summary>
         public NetworkPlayer NearbyDowned { get; private set; }
+
+        /// <summary>간호사 능력으로 기본 거리보다 멀리 있는 동료를 잡았는가 (HUD 안내 문구용).</summary>
+        public bool UsingExtendedRange { get; private set; }
 
         /// <summary>지금 살리는 중인 동료 (없으면 null).</summary>
         public NetworkPlayer Reviving => _requested;
@@ -40,6 +44,7 @@ namespace LastTruck.Networking
         {
             _self = GetComponent<NetworkPlayer>();
             _interact = GetComponent<PlayerInteract>();
+            _ability = GetComponent<CharacterAbilityController>();
         }
 
         private void OnDisable()
@@ -92,6 +97,7 @@ namespace LastTruck.Networking
         {
             NetworkPlayer best = null;
             float bestDistance = float.MaxValue;
+            UsingExtendedRange = false;
             foreach (NetworkPlayer other in NetworkPlayer.All)
             {
                 if (other == null || other == _self || !other.IsDowned || other.IsSeated) continue;
@@ -101,10 +107,13 @@ namespace LastTruck.Networking
                 Vector3 delta = other.transform.position - transform.position;
                 delta.y = 0f;
                 float distance = delta.magnitude;
-                if (distance <= other.ReviveRange && distance < bestDistance)
+                // 간호사: 구조 거리 배율 (호스트도 같은 규칙으로 확인한다 - NetworkPlayer.ReviveRangeFor)
+                float range = _ability != null ? _ability.GetRescueRange(other.ReviveRange) : other.ReviveRange;
+                if (distance <= range && distance < bestDistance)
                 {
                     best = other;
                     bestDistance = distance;
+                    UsingExtendedRange = distance > other.ReviveRange;
                 }
             }
             return best;

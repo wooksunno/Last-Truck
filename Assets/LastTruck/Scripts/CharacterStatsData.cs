@@ -46,6 +46,22 @@ namespace LastTruck
 
         public CharacterAbility UniqueAbility => uniqueAbility;
 
+        /// <summary>
+        /// 캐릭터 선택 화면에 붙이는 고유 능력 설명 (리치 텍스트). 능력 에셋의 수치로 만들어서 수치를 바꾸면 화면도 같이 바뀐다.
+        /// 능력이 없으면 빈 문자열.
+        /// </summary>
+        public string AbilitySummary
+        {
+            get
+            {
+                if (uniqueAbility == null) return string.Empty;
+                string description = uniqueAbility.GetDescription();
+                // 캐릭터 선택 화면: 첫 줄 능력 이름, 둘째 줄 능력 설명 한 문장
+                return $"<color=#7FD7FF><b>{uniqueAbility.AbilityTitle}</b></color>" +
+                       (string.IsNullOrEmpty(description) ? string.Empty : $"\n{description}");
+            }
+        }
+
         // 멀티플레이 캐릭터 선택 화면용 (에디터 메뉴 "LastTruck > Multiplayer"가 자동으로 채운다)
         [Header("캐릭터 선택 화면 (멀티플레이)")]
         [Tooltip("선택 화면/대기실에 보이는 얼굴 초상화. '캐릭터 초상화 촬영' 메뉴가 자동으로 만든다.")]

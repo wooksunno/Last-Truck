@@ -24,6 +24,11 @@ namespace LastTruck
             Debug.Log($"{caster.name} 간호사 능력 적용");
         }
 
+        public override string AbilityTitle => "응급 구조";
+        public override string GetDescription() =>
+            $"쓰러진 동료를 {rescueRangeMultiplier:0.#}배 먼 거리에서 살리고 살린 동료는 {reviveInvincibleDuration:0.#}초간 무적이 되며, " +
+            $"체력이 {lowHpThreshold * 100f:0}% 이하인 동료에게 다가갈 때 {approachSpeedBonus * 100f:0}% 빨라집니다.";
+
         public override float CalculateAllyApproachSpeedBonus(float allyHpRatio, bool isApproaching)
         {
             if (!isApproaching) return 0f;

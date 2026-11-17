@@ -49,6 +49,12 @@ namespace LastTruck.Networking
 
         [Networked] private TickTimer DespawnTimer { get; set; }
 
+        /// <summary>무적 시간 (간호사가 살려 준 직후 등). 호스트만 바꾼다.</summary>
+        [Networked] private TickTimer InvincibleTimer { get; set; }
+
+        /// <summary>지금 무적인가 (피해를 받지 않음).</summary>
+        public bool IsInvincible => Object != null && Object.IsValid && Runner != null && !InvincibleTimer.ExpiredOrNotRunning(Runner);
+
         #endregion
 
         #region 이벤트 / 조회
@@ -167,6 +173,7 @@ namespace LastTruck.Networking
             if (!HasStateAuthority || IsDead) return;
             if (isPlayer && fromPlayer) return; // 팀킬 금지
             if (NetworkGameState.IsGameOver) return;
+            if (IsInvincible) return;            // 간호사 부활 직후 무적 등
 
             amount = Mathf.Clamp(amount, 0f, maxDamagePerHit);
             if (amount <= 0f) return;
@@ -184,6 +191,15 @@ namespace LastTruck.Networking
                 try { DiedOnHost?.Invoke(this); }
                 catch (Exception e) { Debug.LogException(e); }
             }
+        }
+
+        /// <summary>호스트 전용: seconds초 동안 피해를 받지 않게 한다 (이미 더 길게 걸려 있으면 그대로).</summary>
+        public void GrantInvincibility(float seconds)
+        {
+            if (!HasStateAuthority || seconds <= 0f) return;
+            float? left = InvincibleTimer.RemainingTime(Runner);
+            if (left.HasValue && left.Value >= seconds) return;
+            InvincibleTimer = TickTimer.CreateFromSeconds(Runner, seconds);
         }
 
         /// <summary>호스트 전용: 기절한 플레이어를 최대 체력의 fraction만큼으로 일으킨다.</summary>

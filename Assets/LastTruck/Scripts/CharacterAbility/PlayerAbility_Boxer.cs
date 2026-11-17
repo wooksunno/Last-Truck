@@ -15,6 +15,10 @@ namespace LastTruck
             Debug.Log($"{caster.name} 복서 능력 적용");
         }
 
+        public override string AbilityTitle => "기절 펀치";
+        public override string GetDescription() =>
+            $"근접 공격이 적중하면 {stunChance * 100f:0}% 확률로 적을 {stunDuration:0.#}초 동안 기절시킵니다.";
+
         // 맨손 + 모든 근접무기, 근접 공격만 해당
         public override bool TryApplyStun(bool isMeleeAttack, out float duration)
         {
@@ -23,8 +27,7 @@ namespace LastTruck
 
             if (Random.value < stunChance)
             {
-                duration = stunDuration;
-                Debug.Log($"[복서] 기절 발동! {duration}초");
+                duration = stunDuration;   // 발동 기록은 CharacterAbilityController가 남긴다 (AbilityDebug)
                 return true;
             }
             return false;

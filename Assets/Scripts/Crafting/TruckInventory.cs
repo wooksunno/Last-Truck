@@ -209,7 +209,7 @@ public void FillDefaultResources()
                 int requiredCount = ingredient.count;
                 if (abilityController != null)
                 {
-                    requiredCount = abilityController.GetCalculatedCraftingCost(ingredient.count, isWeapon);
+                    requiredCount = abilityController.GetCalculatedCraftingCost(ingredient.count, recipe.output != null ? recipe.output.item : null);
                 }
 
                 if (GetMaterialCount(ingredient.item) < requiredCount)

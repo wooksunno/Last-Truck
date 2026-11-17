@@ -220,8 +220,42 @@ namespace LastTruck.Networking
                 _pendingPlayer = null;
             }
             _attackLockUntil = 0f;
-            _stunUntil = Time.time + _stunDuration;
+            _stunUntil = Mathf.Max(_stunUntil, Time.time + _stunDuration);   // 더 긴 기절(복서)이 걸려 있으면 줄이지 않는다
             _stunImmuneUntil = _stunUntil + _stunImmunity;
+            _nextAttackTime = Mathf.Max(_nextAttackTime, _stunUntil);
+            RPC_PlayHit();
+        }
+
+        /// <summary>
+        /// 기절 요청 (복서 능력 등, Damageable.ApplyStun이 부른다). 호스트면 바로, 클라이언트면 호스트에게 보낸다.
+        /// 피격 경직과 달리 면역 시간을 무시한다.
+        /// </summary>
+        public void RequestStun(float duration)
+        {
+            if (Object == null || !Object.IsValid || duration <= 0f) return;
+            if (HasStateAuthority) ApplyStunOnHost(duration);
+            else RPC_RequestStun(duration);
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_RequestStun(float duration)
+        {
+            ApplyStunOnHost(duration);
+        }
+
+        private void ApplyStunOnHost(float duration)
+        {
+            if (!HasStateAuthority) return;
+            if (_health == null || _health.IsDead || _health.Current <= 0f) return;
+
+            duration = Mathf.Clamp(duration, 0f, 10f);   // 비정상 값 방어
+            if (duration <= 0f) return;
+
+            _pendingTarget = AttackTarget.None;   // 휘두르던 공격 취소
+            _pendingPlayer = null;
+            _attackLockUntil = 0f;
+            _stunUntil = Mathf.Max(_stunUntil, Time.time + duration);
+            _stunImmuneUntil = Mathf.Max(_stunImmuneUntil, _stunUntil + _stunImmunity);
             _nextAttackTime = Mathf.Max(_nextAttackTime, _stunUntil);
             RPC_PlayHit();
         }

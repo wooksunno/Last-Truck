@@ -23,7 +23,17 @@ namespace CraftingSystem
         private bool _isGathering;
 
         public string InteractLabel => displayName;
-        public float RequiredHoldSeconds => gatherHoldSeconds;
+        public float RequiredHoldSeconds
+        {
+            get
+            {
+                // 광부: 광물 노드면 채집 시간이 줄어든다
+                var player = GatherRules.Player;
+                if (gatherHoldSeconds > 0f && player != null && player.TryGetComponent<LastTruck.CharacterAbilityController>(out var abilityController))
+                    return abilityController.GetCalculatedMiningTime(outputItem, gatherHoldSeconds);
+                return gatherHoldSeconds;
+            }
+        }
 
         public void Interact(GameObject player)
         {
@@ -79,10 +89,17 @@ public void Configure(string name, ItemData item, int amount, float seconds, int
             if (requiredTier > 0)
                 player.WearSelectedTool();
 
-            // 가방에 안 들어가는 만큼은 발밑에 떨어진다
-            player.AddOrDrop(outputItem, outputAmount);
+            int finalAmount = outputAmount;
+            if (player.TryGetComponent<LastTruck.CharacterAbilityController>(out var abilityController))
+            {
+                finalAmount = abilityController.GetCalculatedResourceAmount(finalAmount);          // 탐험가
+                finalAmount = abilityController.GetCalculatedMiningAmount(outputItem, finalAmount); // 광부 (광물만)
+            }
 
-            Debug.Log($"[ResourceNode] {displayName}에서 {outputItem.itemName} x{outputAmount} 채집.");
+            // 가방에 안 들어가는 만큼은 발밑에 떨어진다
+            player.AddOrDrop(outputItem, finalAmount);
+
+            Debug.Log($"[ResourceNode] {displayName}에서 {outputItem.itemName} x{finalAmount} 채집.");
         }
 
         private IEnumerator GatherRoutine(PlayerInventory player)

@@ -258,22 +258,34 @@ namespace CraftingSystem
 
         public bool HasIngredients(RecipeData recipe) => inventory.HasIngredients(recipe);
 
+        /// <summary>요리사/대장장이 재료 할인을 반영해 재료가 있는지 (ability가 null이면 레시피 수량 그대로).</summary>
+        public bool HasIngredients(RecipeData recipe, LastTruck.CharacterAbilityController ability)
+        {
+            if (ability == null) return HasIngredients(recipe);
+            foreach (RecipeIngredient c in TruckFacilities.CostFor(recipe, ability))
+                if (inventory.GetItemCount(c.item) < c.count) return false;
+            return recipe != null;
+        }
+
         public int GetItemCount(ItemData item) => inventory.GetItemCount(item);
 
         public bool AddItem(ItemData item, int amount) => inventory.AddItem(item, amount);
 
         public bool RemoveItem(ItemData item, int amount) => inventory.RemoveItem(item, amount);
 
-        public bool TryCraft(RecipeData recipe)
+        public bool TryCraft(RecipeData recipe) => TryCraft(recipe, null);
+
+        /// <summary>ability: 재료 할인(요리사 등)을 적용할 사람 (null이면 레시피 수량 그대로).</summary>
+        public bool TryCraft(RecipeData recipe, LastTruck.CharacterAbilityController ability)
         {
             if (recipe == null || recipe.output == null || recipe.output.item == null)
                 return false;
 
-            if (!inventory.HasIngredients(recipe))
+            if (!HasIngredients(recipe, ability))
                 return false;
 
             var removed = new List<RecipeIngredient>();
-            foreach (RecipeIngredient ingredient in recipe.inputs)
+            foreach (RecipeIngredient ingredient in TruckFacilities.CostFor(recipe, ability))
             {
                 if (ingredient == null || ingredient.item == null || ingredient.count <= 0)
                     continue;

@@ -85,6 +85,14 @@ namespace CraftingSystem
             return it != null ? it.icon : null;
         }
 
+        public const int WeaponCategory = 3;
+
+        /// <summary>게임 UI(제작/도감)에서 "무기" 분류로 보이는 아이템인가. 대장장이 할인도 이 기준을 쓴다.</summary>
+        public static bool IsWeaponItem(ItemData it) => it != null && CategoryOf(it) == WeaponCategory;
+
+        /// <summary>게임 UI에서 "음식" 분류로 보이는 아이템인가. 요리사 할인도 이 기준을 쓴다.</summary>
+        public static bool IsFoodItem(ItemData it) => it != null && CategoryOf(it) == FoodCategory;
+
         public static int CategoryOf(ItemData it)
         {
             if (it == null) return 1;

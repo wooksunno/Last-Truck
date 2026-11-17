@@ -14,6 +14,10 @@ namespace LastTruck
             Debug.Log($"{caster.name} 대장장이 능력 적용");
         }
 
+        public override string AbilityTitle => "무기 제작 달인";
+        public override string GetDescription() =>
+            $"무기를 만들 때 재료가 {weaponMaterialDiscount * 100f:0}% 줄고, 가공 시간이 {processingTimeDiscount * 100f:0}% 단축됩니다.";
+
         // 1. 제작 비용 감소
         public override int CalculateCraftingCost(int originalCost, bool isWeapon)
         {

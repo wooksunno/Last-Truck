@@ -276,7 +276,7 @@ namespace LastTruck.Networking
 
             NetworkPlayer reviver = Find(source);
             if (reviver == null || !reviver.IsAlive || reviver.IsSeated) return;
-            if (HorizontalDistance(reviver.transform.position, transform.position) > reviveRange + 1f) return;
+            if (HorizontalDistance(reviver.transform.position, transform.position) > ReviveRangeFor(reviver) + 1f) return;
 
             if (Reviver != source)
             {
@@ -298,7 +298,7 @@ namespace LastTruck.Networking
 
             NetworkPlayer reviver = Find(Reviver);
             bool valid = IsDowned && reviver != null && reviver.IsAlive && !reviver.IsSeated &&
-                         HorizontalDistance(reviver.transform.position, transform.position) <= reviveRange + 1f &&
+                         HorizontalDistance(reviver.transform.position, transform.position) <= ReviveRangeFor(reviver) + 1f &&
                          !NetworkGameState.IsGameOver;
             if (!valid)
             {
@@ -310,7 +310,19 @@ namespace LastTruck.Networking
             {
                 ClearReviver();
                 _health.Revive(reviveHealthFraction);
+
+                // 간호사: 살려 준 동료에게 잠깐 무적
+                CharacterAbilityController ability = reviver.GetComponent<CharacterAbilityController>();
+                float invincible = ability != null ? ability.GetReviveInvincibleDuration() : 0f;
+                if (invincible > 0f) _health.GrantInvincibility(invincible);
             }
+        }
+
+        /// <summary>이 사람이 살릴 수 있는 거리 (간호사는 능력 배율만큼 멀리서도 살린다).</summary>
+        private float ReviveRangeFor(NetworkPlayer reviver)
+        {
+            CharacterAbilityController ability = reviver != null ? reviver.GetComponent<CharacterAbilityController>() : null;
+            return ability != null ? ability.GetRescueRange(reviveRange) : reviveRange;
         }
 
         private void ClearReviver()

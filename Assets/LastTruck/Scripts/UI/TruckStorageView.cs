@@ -66,6 +66,11 @@ namespace LastTruck
             public int withdrawDefault = 1;
             public Action<int> onWithdraw;
             public Action onWithdrawCancel;
+            // 과학자 광물 변환 버튼 (onConvert가 null이면 버튼을 그리지 않는다)
+            public string convertLabel;
+            public Action onConvert;
+            public bool convertEnabled = true;      // false면 회색(재료 부족/밤). 눌러도 이유만 알려준다
+            public string convertDisabledReason;    // 비활성일 때 아래 안내 줄에 보여줄 이유
         }
 
         // ---- 제작 탭 ----
@@ -76,6 +81,7 @@ namespace LastTruck
             public bool canCraft;
             public bool selected;
             public bool installed;
+            public bool discounted;   // 고유 능력(대장장이/요리사)으로 재료가 줄어드는 레시피
             public Action onClick;
         }
 
@@ -104,6 +110,80 @@ namespace LastTruck
             public string craftLabel;
             public Action onCraft;
             public Action onCodex;
+            public string discountBadge;   // 고유 능력 할인 배지 문구 (비어 있으면 표시 안 함)
+        }
+
+        // ---- 고유 능력 할인 표시 (대장장이 화로 색) ----
+        private static readonly Color ForgeOrange = new Color(1f, 0.52f, 0.16f, 1f);
+        private static readonly Color ForgeGold = new Color(1f, 0.84f, 0.29f, 1f);
+
+        private static void SetBorder(VisualElement e, Color color, float width, float radius)
+        {
+            e.style.borderTopWidth = width; e.style.borderBottomWidth = width; e.style.borderLeftWidth = width; e.style.borderRightWidth = width;
+            SetBorderColor(e, color);
+            e.style.borderTopLeftRadius = radius; e.style.borderTopRightRadius = radius;
+            e.style.borderBottomLeftRadius = radius; e.style.borderBottomRightRadius = radius;
+        }
+
+        private static void SetBorderColor(VisualElement e, Color color)
+        {
+            e.style.borderTopColor = color; e.style.borderBottomColor = color; e.style.borderLeftColor = color; e.style.borderRightColor = color;
+        }
+
+        /// <summary>작은 주황 알약 모양 표시 ("할인", "-1").</summary>
+        private Label MakeDiscountPill(string text)
+        {
+            Label pill = MakeLabel(text, "tw-ability-pill");
+            pill.pickingMode = PickingMode.Ignore;
+            pill.style.backgroundColor = ForgeOrange;
+            pill.style.color = Color.white;
+            pill.style.fontSize = 12;
+            pill.style.unityFontStyleAndWeight = FontStyle.Bold;
+            pill.style.unityTextAlign = TextAnchor.MiddleCenter;
+            pill.style.paddingLeft = 6; pill.style.paddingRight = 6; pill.style.paddingTop = 1; pill.style.paddingBottom = 1;
+            pill.style.marginLeft = 6;
+            SetBorder(pill, ForgeGold, 1f, 8f);
+            return pill;
+        }
+
+        /// <summary>상세 위쪽 배지: 망치 아이콘 + 능력 이름 + 절약한 개수. 테두리가 화로처럼 은은하게 깜빡인다.</summary>
+        private VisualElement MakeAbilityBanner(string text)
+        {
+            var banner = new VisualElement { pickingMode = PickingMode.Ignore };
+            banner.AddToClassList("tw-ability-banner");
+            banner.style.flexDirection = FlexDirection.Row;
+            banner.style.alignItems = Align.Center;
+            banner.style.marginTop = 6; banner.style.marginBottom = 6;
+            banner.style.paddingLeft = 10; banner.style.paddingRight = 10; banner.style.paddingTop = 6; banner.style.paddingBottom = 6;
+            banner.style.backgroundColor = new Color(ForgeOrange.r, ForgeOrange.g, ForgeOrange.b, 0.2f);
+            SetBorder(banner, ForgeOrange, 2f, 8f);
+
+            var icon = new VisualElement { pickingMode = PickingMode.Ignore };
+            icon.style.width = 22; icon.style.height = 22; icon.style.marginRight = 8; icon.style.flexShrink = 0;
+            Sprite hammer = UiIcons.Get("hammer");
+            if (hammer != null)
+            {
+                icon.style.backgroundImage = new StyleBackground(hammer);
+                icon.style.unityBackgroundImageTintColor = ForgeGold;
+                banner.Add(icon);
+            }
+
+            Label label = MakeLabel(text, "tw-ability-banner-text");
+            label.style.color = ForgeGold;
+            label.style.fontSize = 15;
+            label.style.unityFontStyleAndWeight = FontStyle.Bold;
+            label.style.flexShrink = 1;
+            label.style.whiteSpace = WhiteSpace.Normal;
+            banner.Add(label);
+
+            // 은은한 깜빡임 (창이 닫히면 요소가 패널에서 빠지면서 같이 멈춘다)
+            banner.schedule.Execute(() =>
+            {
+                float t = 0.5f + 0.5f * Mathf.Sin(Time.realtimeSinceStartup * 4f);
+                SetBorderColor(banner, Color.Lerp(ForgeOrange, ForgeGold, t));
+                banner.style.backgroundColor = new Color(ForgeOrange.r, ForgeOrange.g, ForgeOrange.b, 0.12f + 0.14f * t);
+            }).Every(50);
+            return banner;
         }
 
         private VisualElement _root, _window;
@@ -327,7 +407,17 @@ namespace LastTruck
                 b.Add(dot);
             }
             if (c.installed) b.Add(MakeLabel("설치됨", "tw-card-tag"));
-            string hint = c.item == null ? "" : c.item.itemName + (c.installed ? "  (이미 설치됨)" : c.canCraft ? "  (지금 만들 수 있어요)" : "  (재료가 부족해요)");
+            if (c.discounted)
+            {
+                // 고유 능력 할인: 카드 왼쪽 위에 주황 "할인" 표시 + 테두리 금색
+                Label tag = MakeDiscountPill("할인");
+                tag.style.position = Position.Absolute;
+                tag.style.top = 3; tag.style.left = 3; tag.style.marginLeft = 0;
+                b.Add(tag);
+                if (!c.selected) SetBorderColor(b, new Color(ForgeGold.r, ForgeGold.g, ForgeGold.b, c.canCraft ? 0.9f : 0.45f));
+            }
+            string hint = c.item == null ? "" : c.item.itemName + (c.installed ? "  (이미 설치됨)" : c.canCraft ? "  (지금 만들 수 있어요)" : "  (재료가 부족해요)")
+                          + (c.discounted ? "  · 고유 능력 재료 할인" : "");
             b.RegisterCallback<PointerEnterEvent>(_ => SetHint(hint));
             return b;
         }
@@ -355,6 +445,9 @@ namespace LastTruck
             head.Add(titles);
             d.Add(head);
 
+            if (!string.IsNullOrEmpty(m.discountBadge))
+                d.Add(MakeAbilityBanner(m.discountBadge));
+
             d.Add(MakeLabel("필요 재료", "tw-detail-need"));
             var list = new ScrollView(ScrollViewMode.Vertical);
             list.AddToClassList("tw-ing-list");
@@ -367,8 +460,53 @@ namespace LastTruck
                 if (ing.item.icon != null) ic.style.backgroundImage = new StyleBackground(ing.item.icon);
                 row.Add(ic);
                 row.Add(MakeLabel(ing.item.itemName, "tw-ing-name"));
-                string count = ing.have + " / " + ing.need + (ing.originalNeed > ing.need ? "  (원래 " + ing.originalNeed + ")" : "");
-                row.Add(MakeLabel(count, enough ? "tw-ing-count tw-ing-count--ok" : "tw-ing-count tw-ing-count--short"));
+
+                bool discounted = ing.originalNeed > ing.need;
+                if (discounted)
+                {
+                    // 할인된 재료 줄: 금빛 바탕 + 왼쪽 주황 띠, 원래 개수는 취소선, 줄어든 개수는 금색 굵게, 오른쪽에 "-N"
+                    row.style.backgroundColor = new Color(ForgeGold.r, ForgeGold.g, ForgeGold.b, 0.14f);
+                    row.style.borderLeftWidth = 4;
+                    row.style.borderLeftColor = ForgeOrange;
+                    row.style.borderTopRightRadius = 6; row.style.borderBottomRightRadius = 6;
+                    string original = ing.originalNeed.ToString(), reduced = ing.need.ToString();
+                    row.RegisterCallback<PointerEnterEvent>(_ => SetHint($"고유 능력 할인: {original}개 → {reduced}개"));
+
+                    // 개수: "보유 / 원래개수(주황 사선으로 그음) 줄어든개수"
+                    string countCls = enough ? "tw-ing-count tw-ing-count--ok" : "tw-ing-count tw-ing-count--short";
+                    var countRow = new VisualElement { pickingMode = PickingMode.Ignore };
+                    countRow.style.flexDirection = FlexDirection.Row;
+                    countRow.style.alignItems = Align.Center;
+                    countRow.style.flexShrink = 0;
+                    countRow.Add(MakeLabel(ing.have + " / ", countCls));
+
+                    var originalBox = new VisualElement { pickingMode = PickingMode.Ignore };
+                    originalBox.style.justifyContent = Justify.Center;
+                    originalBox.style.marginRight = 6;
+                    Label originalLabel = MakeLabel(original, countCls);
+                    originalLabel.style.color = new Color(0.64f, 0.59f, 0.54f, 1f);
+                    originalBox.Add(originalLabel);
+                    Label slash = MakeLabel("/", "tw-ing-slash");   // 원래 개수 위에 사선
+                    slash.style.position = Position.Absolute;
+                    slash.style.left = 0; slash.style.right = 0; slash.style.top = -2; slash.style.bottom = 0;
+                    slash.style.unityTextAlign = TextAnchor.MiddleCenter;
+                    slash.style.color = ForgeOrange;
+                    slash.style.fontSize = 24;
+                    slash.style.unityFontStyleAndWeight = FontStyle.Bold;
+                    originalBox.Add(slash);
+                    countRow.Add(originalBox);
+
+                    Label reducedLabel = MakeLabel(reduced, countCls);
+                    reducedLabel.style.color = ForgeGold;
+                    reducedLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+                    countRow.Add(reducedLabel);
+                    row.Add(countRow);
+                }
+                else
+                {
+                    string count = ing.have + " / " + ing.need;
+                    row.Add(MakeLabel(count, enough ? "tw-ing-count tw-ing-count--ok" : "tw-ing-count tw-ing-count--short"));
+                }
                 list.Add(row);
             }
             d.Add(list);
@@ -380,8 +518,9 @@ namespace LastTruck
             var make = new Button(() => { if (m.canCraft) m.onCraft?.Invoke(); }) { text = "" };
             make.AddToClassList("tw-make");
             make.EnableInClassList("tw-make--off", !m.canCraft);
+            bool discountedCraft = !string.IsNullOrEmpty(m.discountBadge);
             UiToolkitSkin.Slice(make, m.canCraft ? _skin.buttonBrown : _skin.buttonGrey, 0.5f,
-                m.canCraft ? new Color(0.50f, 0.88f, 0.56f, 1f) : new Color(0.55f, 0.55f, 0.60f, 1f));
+                m.canCraft ? (discountedCraft ? ForgeGold : new Color(0.50f, 0.88f, 0.56f, 1f)) : new Color(0.55f, 0.55f, 0.60f, 1f));
             make.Add(MakeLabel(m.craftLabel ?? "제작하기", "tw-make-text"));
             buttons.Add(make);
             d.Add(buttons);
@@ -447,6 +586,8 @@ namespace LastTruck
             UiToolkitSkin.Slice(right, _skin.panelBrown, 0.4f, new Color(0.55f, 0.45f, 0.38f, 1f));
             body.Add(right);
 
+            if (!string.IsNullOrEmpty(m.discountBadge))
+                right.Add(MakeAbilityBanner(m.discountBadge));   // 요리사 등 고유 능력 재료 할인
             right.Add(MakeLabel(m.slotHeader ?? "가공 칸", "tw-detail-need"));
             var slotGrid = new VisualElement();
             slotGrid.AddToClassList("tw-proc-slots");
@@ -493,7 +634,20 @@ namespace LastTruck
             row.Add(ItemIconWithCount(c.output, c.outCount, "tw-pcard-icon"));
             b.Add(row);
             b.Add(MakeLabel(c.output != null ? c.output.itemName : "?", "tw-card-name"));
-            string hint = (c.input != null ? c.input.itemName + " ×" + c.inCount : "?") + "  →  " + (c.output != null ? c.output.itemName + " ×" + c.outCount : "?")
+            if (c.discounted)
+            {
+                // 고유 능력 할인: 카드 왼쪽 위에 주황 "할인" 표시 + 테두리 금색
+                Label tag = MakeDiscountPill("할인");
+                tag.style.position = Position.Absolute;
+                tag.style.top = 3; tag.style.left = 3; tag.style.marginLeft = 0;
+                b.Add(tag);
+                if (!c.selected) SetBorderColor(b, new Color(ForgeGold.r, ForgeGold.g, ForgeGold.b, c.can ? 0.9f : 0.45f));
+            }
+            string recipeText = !string.IsNullOrEmpty(c.ingredientText)
+                ? c.ingredientText
+                : (c.input != null ? c.input.itemName + " ×" + c.inCount : "?");
+            string hint = recipeText + "  →  " + (c.output != null ? c.output.itemName + " ×" + c.outCount : "?")
+                          + (c.discounted ? "   · 고유 능력 재료 할인" : "")
                           + (c.can ? "" : "   (재료가 부족해요)") + (c.selected ? "   · 오른쪽 칸을 누르면 넣어요" : "");
             b.RegisterCallback<PointerEnterEvent>(_ => SetHint(hint));
             return b;
@@ -720,6 +874,16 @@ namespace LastTruck
             spacer.style.flexGrow = 1;
             row.Add(spacer);
 
+            if (m.onConvert != null)
+            {
+                Button convert = MakeConvertButton(string.IsNullOrEmpty(m.convertLabel) ? "변환" : m.convertLabel, () => m.onConvert?.Invoke(), m.convertEnabled);
+                string convertHint = m.convertEnabled || string.IsNullOrEmpty(m.convertDisabledReason)
+                    ? "과학자 능력: 광물 변환 (낮에만, 결과는 트럭 보관함으로)"
+                    : "과학자 능력: 광물 변환 - " + m.convertDisabledReason;
+                convert.RegisterCallback<PointerEnterEvent>(_ => SetHint(convertHint));
+                row.Add(convert);
+            }
+
             Button ok = SmallButton("꺼내기", () => m.onWithdraw?.Invoke(value));
             ok.AddToClassList("tw-btn--ok");
             row.Add(ok);
@@ -728,6 +892,63 @@ namespace LastTruck
             // 마우스 휠로도 개수를 바꾼다
             row.RegisterCallback<WheelEvent>(e => { set(value + (e.delta.y < 0 ? 1 : -1)); e.StopPropagation(); });
             return row;
+        }
+
+        // 과학자 능력 색 (실험실 느낌의 청록)
+        private static readonly Color LabCyan = new Color(0.10f, 0.78f, 0.86f, 1f);
+        private static readonly Color LabDeep = new Color(0.04f, 0.36f, 0.46f, 1f);
+        private static readonly Color LabGlow = new Color(0.62f, 1f, 0.98f, 1f);
+
+        /// <summary>
+        /// 과학자 광물 변환 버튼: 갈색 버튼들 사이에서 눈에 띄도록 청록 바탕 + 깜빡이는 밝은 테두리.
+        /// enabled=false(재료 부족/밤)면 회색으로 어둡게, 깜빡임 없이 그린다 (눌러도 이유 안내만 나온다).
+        /// </summary>
+        private Button MakeConvertButton(string text, Action onClick, bool enabled = true)
+        {
+            if (!enabled)
+            {
+                var off = new Button(() => onClick?.Invoke()) { text = "" };
+                off.AddToClassList("tw-btn");
+                off.style.backgroundImage = StyleKeyword.None;
+                off.style.backgroundColor = new Color(0.20f, 0.21f, 0.22f, 1f);
+                off.style.paddingLeft = 10; off.style.paddingRight = 10;
+                off.style.marginLeft = 4; off.style.marginRight = 6;
+                SetBorder(off, new Color(0.38f, 0.40f, 0.42f, 1f), 2f, 6f);
+
+                Label offLabel = MakeLabel(text, "tw-btn-text");
+                offLabel.style.color = new Color(0.55f, 0.56f, 0.58f, 1f);
+                offLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
+                off.Add(offLabel);
+                return off;
+            }
+
+            var b = new Button(() => onClick?.Invoke()) { text = "" };
+            b.AddToClassList("tw-btn");
+            b.style.backgroundImage = StyleKeyword.None;
+            b.style.backgroundColor = LabDeep;
+            b.style.paddingLeft = 10; b.style.paddingRight = 10;
+            b.style.marginLeft = 4; b.style.marginRight = 6;
+            SetBorder(b, LabCyan, 2f, 6f);
+
+            Label label = MakeLabel(text, "tw-btn-text");
+            label.style.color = Color.white;
+            label.style.unityFontStyleAndWeight = FontStyle.Bold;
+            label.style.unityTextOutlineColor = new Color(0f, 0.12f, 0.16f, 1f);
+            label.style.unityTextOutlineWidth = 0.15f;
+            b.Add(label);
+
+            bool hover = false;
+            b.RegisterCallback<PointerEnterEvent>(_ => hover = true);
+            b.RegisterCallback<PointerLeaveEvent>(_ => hover = false);
+
+            // 테두리가 청록 ↔ 밝은 하늘색으로 깜빡이고, 마우스를 올리면 바탕이 밝아진다
+            b.schedule.Execute(() =>
+            {
+                float t = 0.5f + 0.5f * Mathf.Sin(Time.realtimeSinceStartup * 4f);
+                SetBorderColor(b, Color.Lerp(LabCyan, LabGlow, t));
+                b.style.backgroundColor = hover ? Color.Lerp(LabDeep, LabCyan, 0.55f) : Color.Lerp(LabDeep, LabCyan, 0.12f * t);
+            }).Every(50);
+            return b;
         }
 
         private Button SmallButton(string text, Action onClick)

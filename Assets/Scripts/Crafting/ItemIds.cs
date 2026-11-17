@@ -148,6 +148,19 @@ namespace CraftingSystem
 
         // 맵 특산물 구역 전용 자원 (기존 유지)
         public const string Platinum = PlatinumOre;
+
+        /// <summary>요리사 능력(음식 재료 절약)이 적용되는 "음식" 아이템.</summary>
+        private static readonly System.Collections.Generic.HashSet<string> FoodIds = new System.Collections.Generic.HashSet<string>
+        {
+            GrilledFood,
+            Steak,
+            Jerky,
+            HerbPorridge,
+            HeartyStew,
+            Meat,   // 썩은 고기 손질(트럭 제작)의 결과물. 요리 레시피로 취급한다
+        };
+
+        public static bool IsFood(ItemData item) => item != null && !string.IsNullOrEmpty(item.itemID) && FoodIds.Contains(item.itemID);
     }
 
     public static class ItemMatching
