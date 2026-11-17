@@ -61,6 +61,9 @@ namespace LastTruck
         private float _rt, _typed, _holdFor;
         private bool _journal;
 
+        // 카드 자리: 왼쪽 아래 구석
+        private const float CardScale = 0.84f, CardWidth = 470f, CardBottom = 26f;
+
         public MissionHud(StyleFontDefinition font, Sprite cardSkin, Sprite radioSkin)
         {
             _font = font;
@@ -82,9 +85,13 @@ namespace LastTruck
 
             _card = new VisualElement { pickingMode = PickingMode.Ignore };
             _card.style.position = Position.Absolute;
-            _card.style.left = 26;
-            _card.style.top = 150;            // 왼쪽 가운데쯤: 위쪽 시계/체력과 안 겹치고 시선이 가는 자리
-            _card.style.width = 410;
+            // 왼쪽 아래 구석에 둔다 (화면 가운데를 가리지 않는다).
+            // 예전 크기 그대로 0.84배로 줄여서 그린다: 글자/막대 비율은 유지하고 도전과제 카드와 글자 크기가 비슷해진다.
+            _card.style.left = 24;
+            _card.style.bottom = CardBottom;
+            _card.style.width = CardWidth / CardScale;
+            _card.style.transformOrigin = new TransformOrigin(new Length(0f, LengthUnit.Percent), new Length(100f, LengthUnit.Percent));
+            _card.style.scale = new Scale(new Vector3(CardScale, CardScale, 1f));
             _card.style.paddingLeft = 26; _card.style.paddingRight = 20;
             _card.style.paddingTop = 18; _card.style.paddingBottom = 18;
             LastTruckHud.Skin(_card, _cardSkin, 0.5f, new Color(0.7f, 0.6f, 0.55f, 0.97f));
@@ -342,15 +349,17 @@ namespace LastTruck
         {
             _radio = new VisualElement { pickingMode = PickingMode.Ignore };
             _radio.style.position = Position.Absolute;
-            _radio.style.bottom = 270;           // 알림(HudToast)과 겹치지 않게 조금 위
+            // 화면 아래쪽 가운데에 낮고 좁게: 전투가 벌어지는 화면 가운데를 가리지 않는다 (알림 HudToast는 그 위 190에 뜬다)
+            _radio.style.bottom = 40;
             _radio.style.left = new Length(50f, LengthUnit.Percent);
-            _radio.style.marginLeft = -430;      // 폭 860의 절반: 가운데 맞춤 (translate는 흔들림/미끄러짐에 쓴다)
-            _radio.style.width = 860;
+            _radio.style.marginLeft = -360;      // 폭 720의 절반: 가운데 맞춤 (translate는 흔들림/미끄러짐에 쓴다)
+            _radio.style.width = 720;
             _radio.style.flexDirection = FlexDirection.Row;
             _radio.style.alignItems = Align.Center;
-            _radio.style.paddingLeft = 34; _radio.style.paddingRight = 34;
-            _radio.style.paddingTop = 20; _radio.style.paddingBottom = 20;
-            LastTruckHud.Skin(_radio, _radioSkin, 0.5f, new Color(0.42f, 0.46f, 0.56f, 0.98f));   // 어두운 강철빛 (무전기)
+            _radio.style.paddingLeft = 24; _radio.style.paddingRight = 28;
+            _radio.style.paddingTop = 14; _radio.style.paddingBottom = 14;
+            // 다른 HUD 판과 같은 갈색 판 (예전의 푸른 강철판은 화면에서 혼자 튀었다)
+            LastTruckHud.Skin(_radio, _cardSkin != null ? _cardSkin : _radioSkin, 0.5f, new Color(0.7f, 0.6f, 0.55f, 0.97f));
             if (_radioSkin == null) _radio.style.backgroundColor = new Color(0.07f, 0.09f, 0.13f, 0.93f);
             _radio.style.opacity = 0f;
             _radio.style.display = DisplayStyle.None;
@@ -360,8 +369,8 @@ namespace LastTruck
             eqBox.style.flexDirection = FlexDirection.Row;
             eqBox.style.alignItems = Align.Center;
             eqBox.style.justifyContent = Justify.SpaceBetween;
-            eqBox.style.width = 76; eqBox.style.height = 64;
-            eqBox.style.marginRight = 22;
+            eqBox.style.width = 64; eqBox.style.height = 52;
+            eqBox.style.marginRight = 18;
             eqBox.style.paddingLeft = 8; eqBox.style.paddingRight = 8;
             Radius(eqBox, 12);
             eqBox.style.backgroundColor = new Color(0.02f, 0.05f, 0.04f, 0.9f);
@@ -382,20 +391,20 @@ namespace LastTruck
             col.style.flexGrow = 1; col.style.flexShrink = 1;
 
             var head = Row();
-            head.style.marginBottom = 6;
+            head.style.marginBottom = 3;
             _dot = new VisualElement { pickingMode = PickingMode.Ignore };
             _dot.style.width = 12; _dot.style.height = 12; _dot.style.marginRight = 8;
             Radius(_dot, 6);
             _dot.style.backgroundColor = new Color(1f, 0.3f, 0.3f, 1f);
             head.Add(_dot);
-            _status = Text("수신 중", 17, new Color(1f, 0.45f, 0.45f, 1f));
+            _status = Text("수신 중", 15, new Color(1f, 0.45f, 0.45f, 1f));
             _status.style.marginRight = 14;
             head.Add(_status);
-            _speaker = Text("관제소", 23, Gold);
+            _speaker = Text("관제소", 19, Gold);
             head.Add(_speaker);
             col.Add(head);
 
-            _body = Text("", 28, new Color(0.96f, 0.98f, 1f, 1f));
+            _body = Text("", 22, Cream);
             col.Add(_body);
             _radio.Add(col);
 

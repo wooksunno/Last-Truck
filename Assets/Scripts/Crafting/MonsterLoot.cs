@@ -34,6 +34,8 @@ namespace CraftingSystem
             if (!Dropped.Add(monster.GetInstanceID()))
                 return;
 
+            LastTruck.ProgressMissions.NotifyMonsterKilled();   // 성장 임무의 처치 수
+
             ItemCatalog catalog = ItemCatalog.GetOrCreate();
             ItemData meat = catalog.GetItem(ItemIds.Meat);
             ItemData rotten = catalog.GetItem(ItemIds.RottenMeat);

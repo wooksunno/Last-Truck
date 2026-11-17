@@ -173,6 +173,7 @@ namespace CraftingSystem
         public const string HerbBandage = "herb_bandage"; // 약초 붕대
         public const string VitalityTonic = "vitality_tonic"; // 활력 토닉 (최종 소모품)
         public const string ToolRepairKit = "tool_repair_kit"; // 도구 수리 키트
+        public const string WeaponUpgradeKit = "weapon_upgrade_kit"; // 무기 강화 키트 (왼쪽 클릭 꾹: 내가 주는 피해 +8%, 최대 10단계 - PlayerGear)
 
         // 맵 특산물 구역 전용 자원 (기존 유지)
         public const string Platinum = PlatinumOre;

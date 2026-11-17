@@ -40,6 +40,7 @@ namespace CraftingSystem
             _codexSelectedItem = null;
             _selectedRecipe = null;
             _truckUpgradeOpen = true;
+            _truckAchievementsOpen = false;
             ShowPopup("트럭 거점", BuildTruckContent);
         }
 

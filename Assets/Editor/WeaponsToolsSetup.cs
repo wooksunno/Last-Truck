@@ -51,6 +51,9 @@ public static class WeaponsToolsSetup
                   inputs = new[] { (ItemIds.Copper, 2), (ItemIds.Iron, 1) }, outCount = 1 },
         new Def { id = ItemIds.SignalFlare, name = "신호탄", type = ItemType.Finished, stack = 10,
                   inputs = new[] { (ItemIds.PropellantPowder, 1), (ItemIds.Charcoal, 1) }, outCount = 2 },
+        // 장비 강화: 손에 들고 왼쪽 클릭 꾹 → 내가 주는 피해 +8% (최대 10단계). 성장 임무 보상으로도 받는다.
+        new Def { id = ItemIds.WeaponUpgradeKit, name = "무기 강화 키트", type = ItemType.Finished, stack = 10,
+                  inputs = new[] { (ItemIds.Iron, 2), (ItemIds.StonePowder, 2), (ItemIds.Charcoal, 1) }, outCount = 1 },
     };
 
     struct Held
@@ -274,6 +277,19 @@ public static class WeaponsToolsSetup
             case ItemIds.StoneAxe: rot = Quaternion.AngleAxis(-35f, Vector3.forward); return Inst(Kenney + "tool-axe.fbx");
             case ItemIds.IronAxe: rot = Quaternion.AngleAxis(-35f, Vector3.forward); return Inst(Kenney + "tool-axe-upgraded.fbx");
             case ItemIds.HerbHoe: rot = Quaternion.AngleAxis(-35f, Vector3.forward); return Inst(Kenney + "tool-hoe.fbx");
+            case ItemIds.WeaponUpgradeKit:
+            {
+                // 숫돌 위에 놓인 망치 + 반짝이는 별 조각
+                rot = Quaternion.Euler(-20f, 25f, 0f);
+                var root = new GameObject("UpgradeKit");
+                Prim(root, PrimitiveType.Cube, new Vector3(0f, 0f, 0f), new Vector3(0.5f, 0.14f, 0.3f), new Color(0.45f, 0.47f, 0.52f));
+                Prim(root, PrimitiveType.Cube, new Vector3(0f, -0.1f, 0f), new Vector3(0.56f, 0.06f, 0.36f), new Color(0.4f, 0.26f, 0.14f));
+                Prim(root, PrimitiveType.Cylinder, new Vector3(0.02f, 0.26f, 0f), new Vector3(0.05f, 0.24f, 0.05f), new Color(0.55f, 0.36f, 0.18f), Quaternion.Euler(0f, 0f, -55f));
+                Prim(root, PrimitiveType.Cube, new Vector3(-0.17f, 0.39f, 0f), new Vector3(0.2f, 0.13f, 0.13f), new Color(0.3f, 0.32f, 0.36f), Quaternion.Euler(0f, 0f, -55f));
+                Prim(root, PrimitiveType.Sphere, new Vector3(0.22f, 0.42f, 0f), new Vector3(0.12f, 0.12f, 0.12f), new Color(1f, 0.82f, 0.25f));
+                Prim(root, PrimitiveType.Sphere, new Vector3(0.3f, 0.26f, 0.05f), new Vector3(0.07f, 0.07f, 0.07f), new Color(1f, 0.9f, 0.5f));
+                return root;
+            }
             case ItemIds.Molotov:
             {
                 rot = Quaternion.AngleAxis(-20f, Vector3.forward);

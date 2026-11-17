@@ -149,6 +149,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: ca7acb2cf354a4c4780c6ea7b218d371, type: 2}
   - {fileID: 11400000, guid: 3a86f65da54e4dc40b990c0ace32c72a, type: 2}
   - {fileID: 11400000, guid: 75799fb6ebcd61a4e817ee192fe6c761, type: 2}
+  - {fileID: 11400000, guid: 4fe10524321bcd149b59f5f968586f6f, type: 2}
   recipes:
   - {fileID: 11400000, guid: 13d5933d2e00fbd4cb21d94bdc15bcbe, type: 2}
   - {fileID: 11400000, guid: 8752b05a768434644ba784d36668774a, type: 2}
@@ -272,3 +273,4 @@ MonoBehaviour:
   - {fileID: 11400000, guid: cea57a8c0827ddd479738dd8ca7d25af, type: 2}
   - {fileID: 11400000, guid: 79f300f4a7214c845b80e1624453bb1d, type: 2}
   - {fileID: 11400000, guid: f918b01c682ec3e43a3c29a26c4e8755, type: 2}
+  - {fileID: 11400000, guid: 8ea86f4da01144d43a20c61cfda431fb, type: 2}

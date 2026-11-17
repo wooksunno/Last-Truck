@@ -55,6 +55,7 @@ namespace LastTruck
         private DayNightBadge _badge;
         private MissionHud _mission;
         private WeatherKitHud _weatherKit;
+        private AchievementHud _achievements;
         private GameManager.GamePhase _lastPhase = (GameManager.GamePhase)(-1);
         private int _lastCycle = -1;
         private VisualElement _keyHints;
@@ -132,6 +133,8 @@ namespace LastTruck
             _mission.Build(_hudRoot);
             _weatherKit = new LastTruck.WeatherKitHud(_fontDef);
             _weatherKit.Build(_hudRoot);
+            _achievements = new AchievementHud(_fontDef, _skin.panelBrownDark);   // 도전과제 (성장 임무): 달성 알림만 (목록은 트럭 창의 도전과제 탭)
+            _achievements.Build(_hudRoot);
             BuildKeyHints(_hudRoot);
 
             // 토스트 문서 (팝업 앞)
@@ -441,6 +444,7 @@ namespace LastTruck
             UpdateHpOverhead();
             UpdateDial();
             if (_weatherKit != null) _weatherKit.Tick();
+            if (_achievements != null) _achievements.Tick();
             UpdateTruck();
             UpdateToast();
             UpdateEnding();

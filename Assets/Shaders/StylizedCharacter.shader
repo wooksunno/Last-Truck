@@ -39,6 +39,13 @@ Shader "LastTruck/StylizedCharacter"
 
         [Header(Emission and Feedback)]
         [HDR] _EmissionColor ("Emission", Color) = (0,0,0,1)
+        // 발광 맵(좀비 눈 등): 맵의 밝은 부분만 빛난다. 밤에는 _EmissionNightBoost배로 밝아져 어둠 속에서 눈이 번뜩인다
+        _EmissionMap ("Emission Map", 2D) = "black" {}
+        [HDR] _EmissionMapColor ("Emission Map Color", Color) = (0,0,0,1)
+        _EmissionNightBoost ("Emission Map Night Boost", Range(1,6)) = 1
+        // 밤에 몸 전체를 이 색으로 살짝 띄운다 (몬스터가 어두운 바닥에 묻히지 않게). 0이면 끔
+        _NightTint ("Night Body Tint", Color) = (0.6, 1, 0.55, 1)
+        _NightTintStrength ("Night Body Tint Strength", Range(0,1)) = 0
         [HDR] _FlashColor ("Hit Flash Color", Color) = (1,1,1,1)
         _HitFlash ("Hit Flash", Range(0,1)) = 0
 
@@ -53,6 +60,7 @@ Shader "LastTruck/StylizedCharacter"
     #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
     TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
+    TEXTURE2D(_EmissionMap);
 
     CBUFFER_START(UnityPerMaterial)
         float4 _BaseMap_ST;
@@ -83,6 +91,10 @@ Shader "LastTruck/StylizedCharacter"
         half _OutlineWidth;
         half4 _OutlineNightColor;
         half _OutlineNightGlow;
+        half4 _EmissionMapColor;
+        half _EmissionNightBoost;
+        half4 _NightTint;
+        half _NightTintStrength;
     CBUFFER_END
 
     // AtmosphereController가 매 프레임 설정하는 전역값(낮 0 ~ 밤 1)
@@ -250,6 +262,12 @@ Shader "LastTruck/StylizedCharacter"
 
                 color += rim + extraRim * rimColor * rimStrength * 0.6h;
                 color += _EmissionColor.rgb;
+                // 밤: 몸 전체를 옅은 색으로 띄워서 어두운 땅과 구분되게 한다 (텍스처 밝기를 따라가므로 형태는 유지된다)
+                half bodyLuma = dot(albedo, half3(0.299h, 0.587h, 0.114h));
+                color += _NightTint.rgb * (0.25h + bodyLuma) * _NightTintStrength * night;
+                // 발광 맵: 밤에 더 밝게
+                half3 emisTex = SAMPLE_TEXTURE2D(_EmissionMap, sampler_BaseMap, i.uv).rgb;
+                color += emisTex * _EmissionMapColor.rgb * lerp(1.0h, _EmissionNightBoost, night);
                 color = lerp(color, _FlashColor.rgb, _HitFlash);
 
                 color = MixFog(color, i.fogFactor);

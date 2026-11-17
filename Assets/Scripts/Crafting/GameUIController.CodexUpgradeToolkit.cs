@@ -68,6 +68,54 @@ namespace CraftingSystem
             return true;
         }
 
+        // ---------- 도전과제 탭 (성장 임무 목록) ----------
+
+        public void OpenTruckAchievementsPanel()
+        {
+            if (_activeTruck == null)
+                _activeTruck = FindFirstObjectByType<TruckStation>();
+            if (_activeTruck == null)
+                return;
+
+            _activePlayer = playerInventory;
+            _activeFacility = null;
+            _craftingPanelOpen = false;
+            _truckProcessingPanelOpen = false;
+            _truckCodexOpen = false;
+            _truckUpgradeOpen = false;
+            _codexSelectedItem = null;
+            _selectedRecipe = null;
+            _truckAchievementsOpen = true;
+            ShowPopup("트럭 거점", BuildTruckContent);
+        }
+
+        private void BuildTruckAchievementsPanel()
+        {
+            if (_popupScrollRect != null)
+                _popupScrollRect.vertical = false;
+
+            if (EnsureToolkitWindow())
+            {
+                _storageView.ShowAchievements(new LastTruck.TruckStorageView.AchievementsModel
+                {
+                    tabs = BuildToolkitTabs(ActiveTruckInventory, 5),
+                    onClose = ClosePopup,
+                });
+                _storageToolkitActive = true;
+                return;
+            }
+
+            // UI Toolkit 창을 못 만들 때: 글로만 보여 준다
+            int count = LastTruck.ProgressMissions.Count, cur = LastTruck.ProgressMissions.CurrentIndex;
+            CreateLabel(_popupBody, "도전과제  " + Mathf.Min(cur, count) + " / " + count, 20, FontStyle.Bold);
+            for (int i = 0; i < count; i++)
+            {
+                LastTruck.ProgressMissions.Info info = LastTruck.ProgressMissions.GetInfo(i);
+                string mark = info.done ? "[달성] " : info.isCurrent ? "[진행 " + info.current + "/" + info.goal + "] " : "[잠김] ";
+                CreateLabel(_popupBody, mark + info.title, 16, FontStyle.Normal);
+            }
+        }
+
         /// <summary>강화 탭을 UI Toolkit으로 그렸으면 true.</summary>
         private bool TryShowUpgradeToolkit()
         {

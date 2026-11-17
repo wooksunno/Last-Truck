@@ -34,7 +34,8 @@ namespace LastTruck
         // ---- 조정 값
         public const float DamageLimit = 0.20f;            // 트럭 누적 피해 한도 (최대 내구도 대비)
         public const float PenaltyTruckFraction = 0.30f;   // 실패 시 트럭 내구도
-        private const float BossHp = 8f, BossDamage = 1.8f, BossSize = 1.7f;
+        private const float BossHp = 8f, BossDamage = 1.8f, BossSize = 2.0f;
+        private const float NormalSize = 1.18f;            // 일반 좀비 몸집 (프리팹 원본이 캐릭터보다 작아 보여서 키운다)
         private const float BossWaveDelay = 15f;           // 4일차마다: 밤이 시작되고 이 시간 뒤 중간보스 1마리가 섞여 나온다
         private const float WaveForceSeconds = 40f;        // 웨이브: 이 시간이 지나면 전멸 못 시켜도 다음 웨이브
         private const float WaveCount = 3f;
@@ -93,6 +94,31 @@ namespace LastTruck
         public static bool HasBossWave(int cycle) { return cycle >= 4 && cycle % 4 == 0 && KindFor(cycle) != SurvivalKind.MidBosses; }
 
         public static float HpScale(int cycle) { return 1f + 0.30f * Mathf.Max(0, cycle - 1); }
+        /// <summary>
+        /// 혼자 플레이할 때의 초반 완화: 1일차 밤 좀비 체력 50%, 2일차 65%, 3일차 80%, 4일차부터 100%.
+        /// (혼자서 30마리를 잡아야 하는 첫 밤이 너무 버거워서. 여럿이 하면 그대로다.)
+        /// </summary>
+        public static float SoloHpEase(int cycle)
+        {
+            GameManager gm = GameManager.Instance;
+            if (gm == null || gm.PlayerCount > 1) return 1f;
+            if (cycle <= 1) return 0.5f;
+            if (cycle == 2) return 0.65f;
+            if (cycle == 3) return 0.8f;
+            return 1f;
+        }
+
+        /// <summary>
+        /// 처치 조건의 목표 수. 첫 밤(좀비 30마리)은 혼자 플레이하면 5마리로 줄어든다 (혼자서 첫날부터 30마리는 너무 버겁다).
+        /// </summary>
+        public static int KillGoal(SurvivalKind k)
+        {
+            if (k == SurvivalKind.Kill60) return 60;
+            GameManager gm = GameManager.Instance;
+            bool solo = gm == null || gm.PlayerCount <= 1;
+            return solo ? 5 : 30;
+        }
+
         public static float DamageScale(int cycle) { return 1f + 0.12f * Mathf.Max(0, cycle - 1); }
         public static float CountScale(int cycle) { return 1f + 0.15f * Mathf.Max(0, cycle - 1); }
 
@@ -100,7 +126,7 @@ namespace LastTruck
         {
             switch (k)
             {
-                case SurvivalKind.Kill30: return "좀비 30마리 처치";
+                case SurvivalKind.Kill30: return "좀비 " + KillGoal(k) + "마리 처치";
                 case SurvivalKind.Survive90: return "1분 30초 동안 생존";
                 case SurvivalKind.Kill60: return "좀비 60마리 처치";
                 case SurvivalKind.TruckGuard: return "트럭 피해 20% 이하로 2분 생존";
@@ -115,7 +141,7 @@ namespace LastTruck
         {
             switch (k)
             {
-                case SurvivalKind.Kill30: return "밤이 되면 몰려오는 좀비를 30마리 처치하세요.";
+                case SurvivalKind.Kill30: return "밤이 되면 몰려오는 좀비를 " + KillGoal(k) + "마리 처치하세요.";
                 case SurvivalKind.Survive90: return "해가 뜰 때까지 90초만 버티세요.";
                 case SurvivalKind.Kill60: return "쏟아지는 좀비를 60마리 처치하세요.";
                 case SurvivalKind.TruckGuard: return "트럭 누적 피해가 20%를 넘기면 실패! 실패하면 트럭 내구도가 30%로 떨어져요.";
@@ -259,7 +285,7 @@ namespace LastTruck
 
             switch (_kind)
             {
-                case SurvivalKind.Kill30: gm.OverrideNightQuota(30); break;
+                case SurvivalKind.Kill30: gm.OverrideNightQuota(KillGoal(_kind)); break;
                 case SurvivalKind.Kill60: gm.OverrideNightQuota(60); break;
                 case SurvivalKind.Waves: gm.OverrideNightQuota(Mathf.RoundToInt(WaveCount) * WaveSize(gm)); break;
                 default: gm.OverrideNightQuota(99999); break;
@@ -291,7 +317,7 @@ namespace LastTruck
                 case SurvivalKind.Kill30:
                 case SurvivalKind.Kill60:
                 {
-                    int goal = _kind == SurvivalKind.Kill30 ? 30 : 60;
+                    int goal = KillGoal(_kind);
                     float interval = (_kind == SurvivalKind.Kill30 ? 2.2f : 1.5f) / Mathf.Min(1.6f, CountScale(_cycle));
                     int cap = _kind == SurvivalKind.Kill30 ? 6 : 11;
                     Trickle(dt, gm, interval, cap, gm.NightMonstersKilled + AliveTotal() < goal);
@@ -348,7 +374,7 @@ namespace LastTruck
         private void SpawnNormal(GameManager gm)
         {
             _pending++;
-            _spawner.SpawnTiered(HpScale(_cycle), DamageScale(_cycle), 1f, false, go => { _pending = Mathf.Max(0, _pending - 1); });
+            _spawner.SpawnTiered(HpScale(_cycle) * SoloHpEase(_cycle), DamageScale(_cycle), NormalSize, false, go => { _pending = Mathf.Max(0, _pending - 1); });
         }
 
         private void Trickle(float dt, GameManager gm, float interval, int cap, bool allow)
@@ -382,7 +408,7 @@ namespace LastTruck
                 _bossRequested++;
                 _bossSpawning = true;   // 스폰이 끝날 때까지 다음 보스를 또 부르지 않는다
                 _pending++;
-                _spawner.SpawnTiered(HpScale(_cycle) * BossHp, DamageScale(_cycle) * BossDamage, BossSize, true, go =>
+                _spawner.SpawnTiered(HpScale(_cycle) * SoloHpEase(_cycle) * BossHp, DamageScale(_cycle) * BossDamage, BossSize, true, go =>
                 {
                     _pending = Mathf.Max(0, _pending - 1);
                     _bossSpawning = false;
@@ -456,7 +482,7 @@ namespace LastTruck
             {
                 _extraBossRequested = true;
                 _pending++;
-                _spawner.SpawnTiered(HpScale(_cycle) * BossHp, DamageScale(_cycle) * BossDamage, BossSize, true, go =>
+                _spawner.SpawnTiered(HpScale(_cycle) * SoloHpEase(_cycle) * BossHp, DamageScale(_cycle) * BossDamage, BossSize, true, go =>
                 {
                     _pending = Mathf.Max(0, _pending - 1);
                     if (go == null) { _extraBossRequested = false; return; }
@@ -566,7 +592,7 @@ namespace LastTruck
                 case SurvivalKind.Kill30:
                 case SurvivalKind.Kill60:
                 {
-                    int goal = v.kind == SurvivalKind.Kill30 ? 30 : 60;
+                    int goal = KillGoal(v.kind);
                     v.progress = Mathf.Clamp01((float)gm.NightMonstersKilled / goal);
                     v.progressText = "처치 " + Mathf.Min(goal, gm.NightMonstersKilled) + " / " + goal;
                     v.shortText = Mathf.Min(goal, gm.NightMonstersKilled) + "/" + goal;

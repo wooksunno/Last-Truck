@@ -29,6 +29,9 @@ namespace Combat
         // 멀티플레이: 다른 사람이 쏜 화살을 보여주기만 하는 복제 화살 (피해를 주지 않는다).
         private bool _visualOnly;
 
+        /// <summary>적(피해를 받는 대상)을 실제로 맞혔을 때 한 번 불린다 (쏜 무기의 내구도를 그때 깎는다).</summary>
+        public System.Action HitDamageable;
+
         public void LaunchVisual(Vector3 velocity, float maxDistance, LayerMask hitMask, Transform shooter)
         {
             _visualOnly = true;
@@ -125,7 +128,10 @@ namespace Combat
             {
                 Damageable hitTarget = hit.collider.GetComponentInParent<Damageable>();
                 if (hitTarget != null)
+                {
                     hitTarget.TakeDamage(_damage, hit.point);
+                    if (!_visualOnly) HitDamageable?.Invoke();
+                }
                 Destroy(gameObject);
                 return;
             }
@@ -137,7 +143,10 @@ namespace Combat
 
             Damageable target = _visualOnly ? null : hit.collider.GetComponentInParent<Damageable>();
             if (target != null)
+            {
                 target.TakeDamage(_damage, hit.point);
+                HitDamageable?.Invoke();
+            }
 
             Destroy(gameObject, stuckLifetime);
         }

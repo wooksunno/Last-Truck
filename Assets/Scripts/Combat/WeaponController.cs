@@ -549,6 +549,46 @@ namespace Combat
 
         private const string AttackLayerName = "Attack";
 
+        // ---------- 내구도: 적을 실제로 맞혔을 때만 닳는다 ----------
+        // 공격을 시작할 때 BeginAttackWear로 "이번 공격"을 열어 두고, 피해를 준 순간 WearOnHit이 한 번만 깎는다
+        // (산탄/관통/휘두르기로 여러 마리를 맞혀도 공격 한 번에 1만 닳는다). 허공을 치거나 벽만 맞히면 닳지 않는다.
+        private int _attackSerial, _wornSerial = -1;
+        private string _attackWeaponId;
+
+        private void BeginAttackWear(string weaponId)
+        {
+            _attackSerial++;
+            _attackWeaponId = weaponId;
+        }
+
+        private void WearOnHit()
+        {
+            if (_remoteView || _wornSerial == _attackSerial) return;
+            _wornSerial = _attackSerial;
+            WearIfStillHolding(_attackWeaponId);
+        }
+
+        /// <summary>날아가는 화살/총알용: 적에게 맞는 순간 한 번만 그 무기를 깎는다.</summary>
+        private System.Action ProjectileWear()
+        {
+            string weaponId = _attackWeaponId;
+            bool worn = false;
+            return () =>
+            {
+                if (worn || this == null) return;
+                worn = true;
+                WearIfStillHolding(weaponId);
+            };
+        }
+
+        // 맞는 사이에 다른 칸으로 바꿨으면 엉뚱한 아이템이 닳지 않게 건너뛴다
+        private void WearIfStillHolding(string weaponId)
+        {
+            if (_inventory == null || string.IsNullOrEmpty(weaponId)) return;
+            ItemData held = _inventory.SelectedItem;
+            if (held != null && held.itemID == weaponId) _inventory.WearSelectedTool();
+        }
+
         private IEnumerator DelayedMeleeArc(WeaponStats stats, float delay)
         {
             yield return new WaitForSeconds(delay);
@@ -878,6 +918,7 @@ namespace Combat
                         if (!_pressVetoed && Time.time >= _nextFireTime)
                         {
                             _nextFireTime = Time.time + stats.cooldown;
+                            BeginAttackWear(selected.itemID);   // 내구도는 적을 실제로 맞혔을 때만 닳는다 (허공에 쏘면 안 닳는다)
                             if (holdingRifle && bulletPrefab != null)
                                 FireBullet(stats);
                             else
@@ -889,7 +930,6 @@ namespace Combat
                                 OnGunFired(selected.itemID, true, transform.position + Vector3.up * 1.2f, transform.right, 0);
                             }
                             StartAttackRecovery(stats.cooldown);
-                            _inventory.WearSelectedTool();   // 한 발 쏠 때마다 무기가 닳는다
                         }
                     }
                     break;
@@ -901,6 +941,7 @@ namespace Combat
                         if (!_pressVetoed && Time.time >= _nextFireTime)
                         {
                             _nextFireTime = Time.time + stats.cooldown;
+                            BeginAttackWear(selected.itemID);   // 허공을 휘두르면 닳지 않고, 적을 맞혔을 때만 닳는다
                             AutoFaceNearestTarget(meleeAutoFaceRange);
                             string swing = selected.itemID == ItemIds.WoodSpear ? "AtkStab"
                                          : !string.IsNullOrEmpty(stats.swingAnim) ? stats.swingAnim : "AtkSlash";
@@ -912,7 +953,6 @@ namespace Combat
                             else
                                 FireMeleeArc(stats);
                             StartAttackRecovery(stats.cooldown);
-                            _inventory.WearSelectedTool();   // 한 번 휘두를 때마다 무기가 닳는다
                         }
                     }
                     break;
@@ -940,11 +980,11 @@ namespace Combat
                         if (Time.time >= _nextFireTime)
                         {
                             _nextFireTime = Time.time + stats.cooldown;
-                            FireCone(stats);
+                            bool coneHit = FireCone(stats);
                             Combat.CameraShake.Shake(0.05f);     // 화염 뿜는 동안 은은한 진동
 
-                            // 연사 무기는 뿜은 시간 0.6초마다 1씩 닳는다 (틱마다 닳으면 너무 빨리 부서진다)
-                            _coneWearTime += stats.cooldown;
+                            // 연사 무기는 적에게 닿은 시간 0.6초마다 1씩 닳는다 (허공에 뿜는 동안은 닳지 않는다)
+                            if (coneHit) _coneWearTime += stats.cooldown;
                             if (_coneWearTime >= ConeWearInterval)
                             {
                                 _coneWearTime = 0f;
@@ -981,13 +1021,13 @@ namespace Combat
                         if (fraction >= stats.minChargeFraction)
                         {
                             int scaledDamage = Mathf.Max(1, Mathf.RoundToInt(stats.damage * Mathf.Lerp(0.4f, 1f, fraction)));
+                            BeginAttackWear(selected.itemID);   // 화살이 적에게 맞았을 때만 활이 닳는다
                             if (arrowPrefab != null)
                                 FireArrow(stats, scaledDamage, fraction);
                             else
                                 FireHitscan(stats, scaledDamage);
                             // 활은 쿨다운 대신 당긴 시간만큼(세게 당길수록 오래) 멈칫한다.
                             StartAttackRecovery(stats.chargeTime * fraction);
-                            _inventory.WearSelectedTool();   // 화살 한 발마다 활이 닳는다
                         }
                     }
                     break;
@@ -1617,6 +1657,7 @@ namespace Combat
 
             ArrowProjectile bullet = Instantiate(bulletPrefab, muzzle, Quaternion.LookRotation(dir));
             bullet.Launch(dir * bulletSpeed, stats.damage, stats.range, hitMask, transform);
+            bullet.HitDamageable = ProjectileWear();
             if (!_remoteView) BulletFired?.Invoke(muzzle, dir * bulletSpeed);
 
             SpawnImpact(muzzle, new Color(1f, 0.85f, 0.4f));
@@ -1655,6 +1696,7 @@ namespace Combat
             ArrowProjectile arrow = Instantiate(arrowPrefab, spawnPos, Quaternion.LookRotation(toTarget));
             Vector3 velocity = toTarget.normalized * speed + Vector3.up * (0.5f * arrow.Gravity * flightTime);
             arrow.Launch(velocity, damage, stats.range * 1.5f, hitMask, transform);
+            arrow.HitDamageable = ProjectileWear();
             ArrowFired?.Invoke(spawnPos, velocity);
         }
 
@@ -2001,7 +2043,7 @@ namespace Combat
                     if (h.collider.transform.IsChildOf(transform)) continue;
                     Damageable t = h.collider.GetComponentInParent<Damageable>();
                     if (t == null) { end = h.point; SpawnBulletHit(h.point, h.normal); break; }
-                    if (done.Add(t)) { t.TakeDamage(damage, h.point); SpawnBulletHit(h.point, h.normal); }
+                    if (done.Add(t)) { t.TakeDamage(damage, h.point); WearOnHit(); SpawnBulletHit(h.point, h.normal); }
                 }
                 SpawnTracer(muzzle, end, stats.effectColor);
                 return;
@@ -2018,7 +2060,10 @@ namespace Combat
                 endPoint = hit.point;
                 Damageable target = hit.collider.GetComponentInParent<Damageable>();
                 if (target != null)
+                {
                     target.TakeDamage(damage, hit.point);
+                    WearOnHit();
+                }
 
                 SpawnBulletHit(hit.point, hit.normal);
             }
@@ -2061,6 +2106,7 @@ namespace Combat
                     if (!cleaved.Add(d)) continue;
                     Vector3 p = col.ClosestPoint(origin);
                     d.TakeDamage(stats.damage, p);
+                    WearOnHit();
                     SpawnMeleeHit(p, stats.effectColor);
                     continue;
                 }
@@ -2083,6 +2129,7 @@ namespace Combat
             if (nearest != null)
             {
                 nearest.TakeDamage(stats.damage, nearestPoint);
+                WearOnHit();
                 SpawnMeleeHit(nearestPoint, stats.effectColor);
                 Combat.CameraShake.Shake(0.1f);
             }
@@ -2091,7 +2138,7 @@ namespace Combat
         /// <summary>
         /// 화염방사기: 전방 부채꼴 범위 안의 모든 적에게 동시에 피해를 준다.
         /// </summary>
-        private void FireCone(WeaponStats stats)
+        private bool FireCone(WeaponStats stats)
         {
             Vector3 origin = transform.position + Vector3.up * 1.2f;
             Collider[] hits = Physics.OverlapSphere(origin, stats.range, hitMask);
@@ -2113,6 +2160,7 @@ namespace Combat
                 d.TakeDamage(stats.damage, col.ClosestPoint(origin));
                 damaged.Add(d);
             }
+            return damaged.Count > 0;
         }
 
         private static bool IsWorldInteractable(Collider collider)

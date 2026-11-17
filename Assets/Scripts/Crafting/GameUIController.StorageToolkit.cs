@@ -127,7 +127,7 @@ namespace CraftingSystem
         {
             var tabs = new List<LastTruck.TruckStorageView.Tab>();
             bool anyFacility = TruckFacilities.AnyBuilt(truckInv);
-            for (int i = 0; i < TruckTabLabels.Length; i++)
+            foreach (int i in TruckTabOrder)
             {
                 int idx = i;
                 tabs.Add(new LastTruck.TruckStorageView.Tab
