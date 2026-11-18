@@ -265,6 +265,31 @@ public class GameManager : MonoBehaviour
         StartNight();
     }
 
+    /// <summary>생존 조건을 달성(또는 실패)해서 밤을 끝낸다 (호스트/싱글플레이만).</summary>
+    public void ForceEndNight()
+    {
+        if (IsNetworkMirror || _waitingForNetworkStart || CurrentPhase != GamePhase.Night)
+            return;
+        EndNight();
+    }
+
+    /// <summary>이번 밤의 표시용 쿼터(킬 목표)를 바꾼다. 킬 조건이 아닌 밤은 아주 큰 값으로 두어 킬 수가 잘리지 않게 한다.</summary>
+    public void OverrideNightQuota(int quota)
+    {
+        if (IsNetworkMirror) return;
+        NightMonsterQuota = Mathf.Max(1, quota);
+    }
+
+    /// <summary>접속 인원에 따른 몬스터 수 배율 (1인 = 1).</summary>
+    public float PlayerCountMultiplier
+    {
+        get
+        {
+            if (quotaMultiplierByPlayerCount == null || quotaMultiplierByPlayerCount.Length == 0 || PlayerCount <= 1) return 1f;
+            return quotaMultiplierByPlayerCount[Mathf.Clamp(PlayerCount - 1, 0, quotaMultiplierByPlayerCount.Length - 1)];
+        }
+    }
+
     private void EndNight()
     {
         OnNightEnded?.Invoke();

@@ -169,6 +169,27 @@ namespace LastTruck.Networking
         private readonly List<PendingShot> _shots = new List<PendingShot>();
         private readonly List<Pool> _pools = new List<Pool>();
 
+        /// <summary>호스트가 정한 몸집 배율 (중간보스 등). 1이면 보통. 모든 화면이 모델 크기를 맞춘다.</summary>
+        [Networked] public float TierSize { get; set; }
+
+        // 강함 등급 (호스트): 체력은 NetworkHealth가 최대 체력을 정한 뒤 첫 틱에 곱해 준다.
+        private bool _tierQueued;
+        private float _queuedHp = 1f;
+        private bool _tierSizeApplied;
+
+        /// <summary>호스트: 스폰 직후 부른다. 체력/피해 배율과 몸집(모두에게 동기화)을 정한다.</summary>
+        public void QueueTier(float hpScale, float dmgScale, float size, bool boss)
+        {
+            if (!HasStateAuthority) return;
+            MonsterTier tier = GetComponent<MonsterTier>();
+            if (tier == null) tier = gameObject.AddComponent<MonsterTier>();
+            tier.IsBoss = boss;
+            tier.DamageScale = dmgScale;
+            _queuedHp = hpScale;
+            _tierQueued = true;
+            TierSize = size;
+        }
+
         #endregion
 
         #region 생명주기
@@ -595,6 +616,7 @@ namespace LastTruck.Networking
             if (Time.time < _nextAttackTime) return;
             if (LuringBait() != null || LuringTrap() != null) return;   // 미끼/페로몬 덫에 정신이 팔려 공격하지 않는다
             if (_type != null && _type.selfDestruct) return; // 붐버는 때리지 않고 터진다
+            if (LuringBait() != null || LuringTrap() != null) return;   // 미끼/페로몬 덫에 정신이 팔려 공격하지 않는다
 
             if (_targetPlayer != null && _targetPlayer.IsSeated) _targetPlayer = null; // 방금 트럭에 탔으면 트럭을 노린다
 

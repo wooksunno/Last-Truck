@@ -29,7 +29,7 @@ namespace LastTruck.Networking
         /// </summary>
         public static GameObject Spawn(Vector3 position, Quaternion rotation)
         {
-            return Spawn(position, rotation, null);
+            return Spawn(position, rotation, null, 1f, 1f, 1f, false);
         }
 
         /// <summary>종류를 정해서 스폰한다 (null이면 이번 밤 웨이브 구성으로 고른다).</summary>
@@ -38,13 +38,13 @@ namespace LastTruck.Networking
             return Spawn(position, rotation, kind, 1f, 1f, 1f, false);
         }
 
-        /// <summary>호스트: 강함 등급(체력/피해 배율, 몸집, 중간보스 여부)을 정해서 스폰한다 (종류는 이번 밤 웨이브 구성으로).</summary>
+        /// <summary>호스트: 강함 등급(체력/피해 배율, 몸집, 중간보스 여부)을 정해서 스폰한다 (종류는 웨이브 구성).</summary>
         public static GameObject Spawn(Vector3 position, Quaternion rotation, float hpScale, float damageScale, float size, bool boss)
         {
             return Spawn(position, rotation, null, hpScale, damageScale, size, boss);
         }
 
-        /// <summary>호스트: 종류 + 강함 등급을 정해서 스폰한다.</summary>
+        /// <summary>호스트: 종류(null = 웨이브 구성)와 강함 등급을 정해서 스폰한다. 실패하면 null.</summary>
         public static GameObject Spawn(Vector3 position, Quaternion rotation, MonsterKind? kind, float hpScale, float damageScale, float size, bool boss)
         {
             GameLauncher launcher = GameLauncher.Instance;
@@ -72,9 +72,9 @@ namespace LastTruck.Networking
                 });
             if (spawned == null) return null;
 
-            NetworkMonster spawnedMonster = spawned.GetComponent<NetworkMonster>();
-            if (spawnedMonster != null && (!Mathf.Approximately(hpScale, 1f) || !Mathf.Approximately(damageScale, 1f) || !Mathf.Approximately(size, 1f) || boss))
-                spawnedMonster.QueueTier(hpScale, damageScale, size, boss);
+            NetworkMonster monster = spawned.GetComponent<NetworkMonster>();
+            if (monster != null && (!Mathf.Approximately(hpScale, 1f) || !Mathf.Approximately(damageScale, 1f) || !Mathf.Approximately(size, 1f) || boss))
+                monster.QueueTier(hpScale, damageScale, size, boss);
 
             // 킬 집계: 체력이 0이 되는 순간 호스트의 GameManager에 알린다
             // (오브젝트 파괴 시점으로 세면 게임 종료/씬 전환 때 남은 몬스터까지 킬로 잡힌다).
