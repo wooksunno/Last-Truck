@@ -31,15 +31,16 @@ namespace CraftingSystem
         {
             get
             {
+                // 전체 채집 시간 배율 (GatherRules.GlobalTimeScale)
+                float seconds = gatherHoldSeconds * GatherRules.GlobalTimeScale;
+
                 // 광부: 광물 노드면 채집 시간이 줄어든다
                 var player = GatherRules.Player;
-                if (gatherHoldSeconds > 0f && player != null && player.TryGetComponent<LastTruck.CharacterAbilityController>(out var abilityController))
-                    return abilityController.GetCalculatedMiningTime(outputItem, gatherHoldSeconds);
-                return gatherHoldSeconds;
+                if (seconds > 0f && player != null && player.TryGetComponent<LastTruck.CharacterAbilityController>(out var abilityController))
+                    return abilityController.GetCalculatedMiningTime(outputItem, seconds);
+                return seconds;
             }
         }
-        
-        public float RequiredHoldSeconds => gatherHoldSeconds * GatherRules.GlobalTimeScale;
 
         public void Interact(GameObject player)
         {

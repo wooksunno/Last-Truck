@@ -1,9 +1,19 @@
 fileFormatVersion: 2
-guid: 897d65c45d4cace4d897e6710e9e9055
+guid: e2d6c79776dc3494fa42911d5848652e
 ModelImporter:
   serializedVersion: 24300
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Material.001
+    second: {fileID: 2100000, guid: da8c742c89614b6a97be5f0792c66599, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Truck_Glass
+    second: {fileID: 2100000, guid: 68f5772af969439494cd048238df4bfe, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0
@@ -72,8 +82,8 @@ ModelImporter:
     useFileScale: 1
     strictVertexDataChecks: 0
   tangentSpace:
-    normalSmoothAngle: 0
-    normalImportMode: 1
+    normalSmoothAngle: 60
+    normalImportMode: 0
     tangentImportMode: 3
     normalCalculationMode: 4
     legacyComputeAllNormalsFromSmoothingGroupsWhenMeshHasBlendShapes: 0

@@ -138,6 +138,24 @@ namespace CraftingSystem
             go.AddComponent<MeshFilter>().sharedMesh = filter.sharedMesh;
             go.AddComponent<MeshRenderer>().sharedMaterials = source.sharedMaterials;
 
+            // 문 유리 / 거울면처럼 부품의 자식으로 붙은 메쉬도 파편에 같이 붙인다
+            foreach (MeshFilter childFilter in slot.part.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (childFilter == filter || childFilter.sharedMesh == null) continue;
+                var childRenderer = childFilter.GetComponent<MeshRenderer>();
+                if (childRenderer == null) continue;
+                var child = new GameObject(childFilter.name);
+                child.layer = go.layer;
+                child.transform.SetParent(go.transform, false);
+                child.transform.localPosition = slot.part.transform.InverseTransformPoint(childFilter.transform.position);
+                child.transform.localRotation = Quaternion.Inverse(slot.part.transform.rotation) * childFilter.transform.rotation;
+                child.transform.localScale = childFilter.transform.localScale;
+                child.AddComponent<MeshFilter>().sharedMesh = childFilter.sharedMesh;
+                var cr = child.AddComponent<MeshRenderer>();
+                cr.sharedMaterials = childRenderer.sharedMaterials;
+                cr.shadowCastingMode = childRenderer.shadowCastingMode;
+            }
+
             Bounds b = filter.sharedMesh.bounds;
             var box = go.AddComponent<BoxCollider>();
             box.center = b.center;
