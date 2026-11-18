@@ -4,7 +4,7 @@ Shader "LastTruck/GatherOutline"
 {
     Properties
     {
-        _Color ("윤곽선 색", Color) = (1, 0.92, 0.35, 1)
+        _Color ("윤곽선 색", Color) = (1, 0.93, 0.76, 1)
         _Width ("굵기 (픽셀)", Float) = 7
         _Center ("모델 중심 (오브젝트 좌표)", Vector) = (0, 0, 0, 0)
     }

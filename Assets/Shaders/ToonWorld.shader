@@ -119,6 +119,9 @@ Shader "LastTruck/ToonWorld"
     // 공기 원근감 (AtmosphereController가 설정): 색 / (시작 m, 끝 m, 세기, 채도 빼기)
     float4 _LT_HazeColor;
     float4 _LT_HazeParams;
+    // 파스텔 룩 (PastelLook이 설정, 0 = 원래 모습 ~ 1 = 파스텔). 그림자 면 색조 (라벤더)
+    float _LT_Pastel;
+    float4 _LT_PastelShade;
     ENDHLSL
 
     SubShader
@@ -304,6 +307,19 @@ Shader "LastTruck/ToonWorld"
                 shadeLight *= lerp(1.0h, _NightShadowDarken, night);
                 half3 litLight = ambient + mainLight.color * lerp(1.0h, _MoonLitBoost, moonContrast);
                 half3 light = lerp(shadeLight, litLight, lit);
+
+                // 파스텔 룩: 명암 경계를 부드러운 그라데이션으로 (면 노멀과 부드러운 노멀을 섞음),
+                // 그림자 면은 까맣게 꺼지는 대신 밝은 라벤더빛으로 들어 올린다. _LT_Pastel이 0이면 원래와 똑같다.
+                half pastel = (half)saturate(_LT_Pastel);
+                if (pastel > 0.001h)
+                {
+                    half3 softN = normalize(lerp(N, smoothN, 0.7h));
+                    half softT = smoothstep(0.2h, 0.8h, dot(softN, mainLight.direction) * 0.5h + 0.5h);
+                    half softLit = softT * lerp(0.4h, 1.0h, shadow) * mainLight.distanceAttenuation;
+                    softLit = lerp(lit, softLit, 0.65h);
+                    half3 pastelShade = lerp(shadeLight, litLight * (half3)_LT_PastelShade.rgb, 0.3h);
+                    light = lerp(light, lerp(pastelShade, litLight, softLit), pastel);
+                }
 
                 // 달빛 반짝임: 달 쪽을 향한 면(플랫 셰이딩이라 면 단위로)이 은은하게 빛을 되받는다
                 half3 V = GetWorldSpaceNormalizeViewDir(i.positionWS);
