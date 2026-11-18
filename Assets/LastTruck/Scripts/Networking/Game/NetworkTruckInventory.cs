@@ -23,7 +23,7 @@ namespace LastTruck.Networking
     {
         #region 네트워크 상태
 
-        public const int MaxSlots = 128; // 트럭 칸(120)보다 크게 (모든 아이템 넣기 테스트 명령으로 100칸 넘게 찰 수 있다)
+        public const int MaxSlots = TruckInventory.MinSlots; // 트럭 칸 수와 같게 (모든 아이템 1개씩만 넣어도 130칸이 넘는다)
 
         /// <summary>슬롯별 아이템 번호 + 1 (0 = 빈 칸).</summary>
         [Networked, Capacity(MaxSlots)] private NetworkArray<int> SlotItems => default;
@@ -200,6 +200,13 @@ namespace LastTruck.Networking
             if (amount > 0) RPC_RequestGrantRaw(amount);
         }
 
+        /// <summary>보상 아이템을 트럭 보관함에 넣어 달라고 호스트에게 요청한다 (도전과제 보상 등). 못 넣은 만큼은 요청한 사람 가방으로 돌아온다.</summary>
+        public void RequestGrantItem(ItemData item, int count)
+        {
+            int index = ItemIndexLookup.IndexOf(item);
+            if (index >= 0 && count > 0) RPC_RequestGrantItem(index, count);
+        }
+
         /// <summary>과학자 광물 변환 요청. 비율/낮 여부는 호스트가 요청한 사람의 능력으로 다시 확인한다.</summary>
         public void RequestConvert(ItemData input)
         {
@@ -325,6 +332,19 @@ namespace LastTruck.Networking
         {
             if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestGrantRaw), 60)) return;
             TruckInventorySync.GrantRawLocal(Truck, Mathf.Clamp(amount, 1, 100));
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_RequestGrantItem(int itemIndex, int count, RpcInfo info = default)
+        {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestGrantItem), 30)) return;
+            ItemData item = ItemIndexLookup.ItemAt(itemIndex);
+            TruckInventory truck = Truck;
+            if (item == null || count <= 0) return;
+            count = Mathf.Clamp(count, 1, 100);   // 비정상 요청 방어 (보상은 한 번에 많아야 수십 개)
+            int stored = truck != null ? TruckInventorySync.AddAndCount(truck.Inventory, item, count) : 0;
+            int leftover = count - stored;
+            if (leftover > 0) RPC_GiveItem(info.Source, itemIndex, leftover, 0);
         }
 
         /// <summary>호스트 → 특정 플레이어: 이 아이템을 네 가방에 넣어라 (꺼내기 결과 / 넣기 실패 반환).</summary>
@@ -499,6 +519,21 @@ namespace LastTruck.Networking
         }
 
         /// <summary>테스트 버튼 "원재료 +N".</summary>
+        /// <summary>
+        /// 아이템을 트럭 보관함에 넣는다 (도전과제 보상 등). 싱글/호스트는 바로, 클라이언트는 호스트에게 요청한다.
+        /// 트럭에 못 넣은 만큼은 내 가방(넘치면 발밑)으로.
+        /// </summary>
+        public static void GrantItem(TruckInventory truck, ItemData item, int count, PlayerInventory fallback)
+        {
+            if (item == null || count <= 0) return;
+            NetworkTruckInventory net = IsRemoteClient ? Net : null;
+            if (net != null) { net.RequestGrantItem(item, count); return; }
+
+            int stored = truck != null ? AddAndCount(truck.Inventory, item, count) : 0;
+            int leftover = count - stored;
+            if (leftover > 0 && fallback != null) fallback.AddOrDrop(item, leftover);
+        }
+
         public static void GrantRaw(TruckInventory truck, int amount)
         {
             NetworkTruckInventory net = IsRemoteClient ? Net : null;

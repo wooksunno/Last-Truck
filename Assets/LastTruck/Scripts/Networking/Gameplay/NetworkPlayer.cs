@@ -848,7 +848,10 @@ namespace LastTruck.Networking
 
             // 앉은 자세 (포탑 위는 서 있는다). 운전석이면 핸들을 잡은 팔.
             if (_seatedPose == null) _seatedPose = SeatedPose.Ensure(gameObject);
-            _seatedPose.Apply(seated && !IsOnTurret && IsAlive, NetworkTruck.SeatOfPlayer(Owner) == NetworkTruck.DriverSeat);
+            bool onTurret = seated && IsOnTurret;
+            _seatedPose.Apply(seated && !onTurret && IsAlive, NetworkTruck.SeatOfPlayer(Owner) == NetworkTruck.DriverSeat);
+            // 포탑 위: 매 프레임 받침 위에 붙이고 손잡이를 잡은 사수 자세로 (호스트 틱마다 순간이동해서 떨리던 문제)
+            _seatedPose.ApplyGunner(onTurret && IsAlive);
         }
 
         private SeatedPose _seatedPose;

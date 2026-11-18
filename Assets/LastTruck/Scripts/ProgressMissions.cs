@@ -303,13 +303,13 @@ namespace LastTruck
 
         // ---------------------------------------------------------------- 보상
 
-        /// <summary>보상을 준다. 싱글플레이는 트럭 보관함(자리가 없으면 발밑), 멀티플레이는 내 가방(넘치면 발밑).</summary>
+        /// <summary>보상을 트럭 보관함에 넣는다 (멀티플레이는 호스트에게 요청). 트럭에 못 넣은 만큼은 내 가방, 넘치면 발밑.</summary>
         private string GiveRewards(Reward[] rewards, GameObject player)
         {
             if (rewards == null) return "";
             ItemCatalog catalog = ItemCatalog.GetOrCreate();
             PlayerInventory bag = player != null ? player.GetComponent<PlayerInventory>() : null;
-            TruckInventory truck = Networking.GameLauncher.IsOnlineSession ? null : Truck();
+            TruckInventory truck = Truck();
             var names = new List<string>();
 
             foreach (Reward r in rewards)
@@ -318,7 +318,11 @@ namespace LastTruck
                 if (item == null || r.count <= 0) continue;
                 names.Add(item.itemName + " x" + r.count);
 
-                if (truck != null && truck.AddItem(item, r.count)) continue;
+                if (truck != null || Networking.GameLauncher.IsOnlineSession)
+                {
+                    Networking.TruckInventorySync.GrantItem(truck, item, r.count, bag);
+                    continue;
+                }
                 if (bag != null) bag.AddOrDrop(item, r.count);
                 else if (player != null) DroppedItem.SpawnAt(player.transform.position + player.transform.forward * 0.8f, item, r.count);
             }

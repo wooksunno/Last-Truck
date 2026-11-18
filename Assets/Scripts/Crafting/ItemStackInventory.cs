@@ -95,11 +95,20 @@ namespace CraftingSystem
         /// </summary>
         public int RawStackLimit { get; set; }
 
+        /// <summary>
+        /// true면 한 칸에 개수 제한 없이 쌓인다 (트럭 보관함). 도구/무기처럼 한 칸에 하나뿐인 아이템(maxStack 1)은 그대로 한 칸에 하나.
+        /// (예전에는 트럭도 칸당 99개라, 칸이 다 찬 상태에서 99개를 넘기면 새 칸을 못 만들어 더 넣을 수 없었다.)
+        /// </summary>
+        public bool UnlimitedStacks { get; set; }
+        public const int UnlimitedStackSize = 999999;
+
         /// <summary>이 인벤토리에서 해당 아이템이 한 칸에 들어갈 수 있는 최대 개수.</summary>
         public int StackLimitFor(ItemData item)
         {
             if (item == null) return 1;
             int max = Mathf.Max(1, item.maxStack);
+            if (UnlimitedStacks && max > 1 && !item.HasDurability)
+                return UnlimitedStackSize;
             if (RawStackLimit > 0 && item.itemType == ItemType.Raw)
                 max = Mathf.Min(max, RawStackLimit);
             return max;

@@ -21,9 +21,13 @@ namespace CraftingSystem
         public int MaxSlots => inventory.MaxSlots;
         public int UsedSlotCount => inventory.UsedSlotCount;
 
+        /// <summary>트럭 보관함 최소 칸 수. 아이템 종류(130여 개) + 도구/무기 낱개를 다 넣어도 남게. 멀티 동기화 용량(NetworkTruckInventory.MaxSlots)과 같다.</summary>
+        public const int MinSlots = 256;
+
         private void Awake()
         {
-            inventory.MaxSlots = maxSlots;
+            inventory.MaxSlots = Mathf.Max(maxSlots, MinSlots);
+            inventory.UnlimitedStacks = true;   // 트럭은 한 칸에 개수 제한 없이 쌓는다
             inventory.Changed += OnInventoryChanged;
         }
 

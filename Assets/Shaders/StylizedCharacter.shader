@@ -46,6 +46,8 @@ Shader "LastTruck/StylizedCharacter"
         // 밤에 몸 전체를 이 색으로 살짝 띄운다 (몬스터가 어두운 바닥에 묻히지 않게). 0이면 끔
         _NightTint ("Night Body Tint", Color) = (0.6, 1, 0.55, 1)
         _NightTintStrength ("Night Body Tint Strength", Range(0,1)) = 0
+        // 밤 안개 저항: 밤 안개(어두운 색)에 몸이 묻혀 사라지지 않게 안개를 덜 섞는다 (0 = 보통, 1 = 안개 무시)
+        _NightFogResist ("Night Fog Resist", Range(0,1)) = 0
         [HDR] _FlashColor ("Hit Flash Color", Color) = (1,1,1,1)
         _HitFlash ("Hit Flash", Range(0,1)) = 0
 
@@ -95,6 +97,7 @@ Shader "LastTruck/StylizedCharacter"
         half _EmissionNightBoost;
         half4 _NightTint;
         half _NightTintStrength;
+        half _NightFogResist;
     CBUFFER_END
 
     // AtmosphereController가 매 프레임 설정하는 전역값(낮 0 ~ 밤 1)
@@ -270,7 +273,7 @@ Shader "LastTruck/StylizedCharacter"
                 color += emisTex * _EmissionMapColor.rgb * lerp(1.0h, _EmissionNightBoost, night);
                 color = lerp(color, _FlashColor.rgb, _HitFlash);
 
-                color = MixFog(color, i.fogFactor);
+                color = lerp(MixFog(color, i.fogFactor), color, _NightFogResist * night);
                 return half4(color, 1);
             }
             ENDHLSL
@@ -311,7 +314,7 @@ Shader "LastTruck/StylizedCharacter"
                 // 밤에는 아웃라인이 은은한 달빛 테두리로 빛나서 어두운 바닥에서도 캐릭터 윤곽이 보인다
                 half3 c = lerp(_OutlineColor.rgb, _OutlineNightColor.rgb, saturate(_GameNightFactor) * _OutlineNightGlow);
                 // 밤 안개에 테두리가 완전히 묻히지 않게 일부만 안개를 섞는다
-                c = lerp(MixFog(c, i.fogFactor), c, 0.5h * saturate(_GameNightFactor) * _OutlineNightGlow);
+                c = lerp(MixFog(c, i.fogFactor), c, max(0.5h * _OutlineNightGlow, _NightFogResist) * saturate(_GameNightFactor));
                 return half4(c, 1);
             }
             ENDHLSL
