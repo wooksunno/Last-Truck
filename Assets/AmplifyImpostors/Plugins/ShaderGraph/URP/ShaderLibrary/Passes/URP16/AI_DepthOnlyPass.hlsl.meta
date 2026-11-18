@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 3b69933701284fabb6b39d9970b80e30
+ShaderIncludeImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 119877
+  packageName: Amplify Impostors
+  packageVersion: 1.1.0
+  assetPath: Assets/AmplifyImpostors/Plugins/ShaderGraph/URP/ShaderLibrary/Passes/URP16/AI_DepthOnlyPass.hlsl
+  uploadId: 1034374

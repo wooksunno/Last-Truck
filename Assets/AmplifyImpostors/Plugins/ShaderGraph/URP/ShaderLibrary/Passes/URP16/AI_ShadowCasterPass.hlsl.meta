@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: a7aafc8b29d94175bf3b0f987c775cab
+ShaderIncludeImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 119877
+  packageName: Amplify Impostors
+  packageVersion: 1.1.0
+  assetPath: Assets/AmplifyImpostors/Plugins/ShaderGraph/URP/ShaderLibrary/Passes/URP16/AI_ShadowCasterPass.hlsl
+  uploadId: 1034374

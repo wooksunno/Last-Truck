@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 7918a6d16b8f4784ba5e4faf1d3bbb1d
+AssemblyDefinitionReferenceImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 119877
+  packageName: Amplify Impostors
+  packageVersion: 1.1.0
+  assetPath: Assets/AmplifyImpostors/Plugins/ShaderGraph/URP/Editor/AmplifyImpostors.SG.URP.asmref
+  uploadId: 1034374

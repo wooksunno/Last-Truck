@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 440b1e4803d34731b6bf6b00429d5cbe
+timeCreated: 1481127071
+licenseType: Store
+TextScriptImporter:
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 119877
+  packageName: Amplify Impostors
+  packageVersion: 1.1.0
+  assetPath: Assets/AmplifyImpostors/Plugins/ShaderGraph/Readme.txt
+  uploadId: 1034374

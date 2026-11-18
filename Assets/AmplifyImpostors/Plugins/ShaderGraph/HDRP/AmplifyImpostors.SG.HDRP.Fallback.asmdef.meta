@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: c9febc1c2d754c2a9c46ad41e19d9c49
+AssemblyDefinitionImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 119877
+  packageName: Amplify Impostors
+  packageVersion: 1.1.0
+  assetPath: Assets/AmplifyImpostors/Plugins/ShaderGraph/HDRP/AmplifyImpostors.SG.HDRP.Fallback.asmdef
+  uploadId: 1034374

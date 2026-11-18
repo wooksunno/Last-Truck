@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 9c69ab042ff9cf147ade3f115a83248a
+ShaderIncludeImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 119877
+  packageName: Amplify Impostors
+  packageVersion: 1.1.0
+  assetPath: Assets/AmplifyImpostors/Plugins/ShaderGraph/Shaders/AmplifyImpostorsSphericalSG.hlsl
+  uploadId: 1034374

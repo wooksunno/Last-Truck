@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 60244c6cf0ca407ba417952ff795e68e
+ShaderIncludeImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 119877
+  packageName: Amplify Impostors
+  packageVersion: 1.1.0
+  assetPath: Assets/AmplifyImpostors/Plugins/ShaderGraph/URP/ShaderLibrary/Passes/URP17/AI_PBRGBufferPass.hlsl
+  uploadId: 1034374
