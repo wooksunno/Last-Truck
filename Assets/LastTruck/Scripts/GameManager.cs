@@ -208,7 +208,6 @@ public class GameManager : MonoBehaviour
         CurrentPhase = GamePhase.Night;
         NightMonstersKilled = 0;
         NightMonsterQuota = CalculateNightQuota(CurrentCycle);
-        LastTruck.SurvivalDirector.NightIsStarting(this);   // 생존 조건이 이번 밤의 진행을 맡는다 (쿼터/스폰/종료)
 
         OnNightStarted?.Invoke(NightMonsterQuota);
         OnPhaseChanged?.Invoke(CurrentPhase);
@@ -217,9 +216,6 @@ public class GameManager : MonoBehaviour
 
     private void TickNight()
     {
-        // 생존 조건(SurvivalDirector)이 밤을 진행하는 중이면 그쪽이 ForceEndNight()로 끝낸다.
-        if (LastTruck.SurvivalDirector.ControlsNight) return;
-
         // 밤은 고정 시간이 아니라 "쿼터를 다 채웠는가"로 종료 판정.
         // 실제 몬스터 스폰/처치는 외부 시스템이 담당하고, 이 매니저는 판정만 함.
         if (NightMonstersKilled >= NightMonsterQuota)
@@ -228,29 +224,16 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    /// <summary>생존 조건을 달성(또는 실패)해서 밤을 끝낸다 (호스트/싱글플레이만).</summary>
-    public void ForceEndNight()
+    /// <summary>
+    /// 테스트용(채팅 명령 /night): 바로 밤으로 넘긴다. night > 0이면 그 회차의 밤으로 (웨이브 구성/쿼터가 그 밤 기준).
+    /// 이미 밤이면 지금 밤을 끝내고 새 밤을 시작한다. 호스트(또는 싱글)에서만.
+    /// </summary>
+    public void DebugStartNight(int night)
     {
-        if (IsNetworkMirror || _waitingForNetworkStart || CurrentPhase != GamePhase.Night)
-            return;
-        EndNight();
-    }
-
-    /// <summary>이번 밤의 표시용 쿼터(킬 목표)를 바꾼다. 킬 조건이 아닌 밤은 아주 큰 값으로 두어 킬 수가 잘리지 않게 한다.</summary>
-    public void OverrideNightQuota(int quota)
-    {
-        if (IsNetworkMirror) return;
-        NightMonsterQuota = Mathf.Max(1, quota);
-    }
-
-    /// <summary>접속 인원에 따른 몬스터 수 배율 (1인 = 1).</summary>
-    public float PlayerCountMultiplier
-    {
-        get
-        {
-            if (quotaMultiplierByPlayerCount == null || quotaMultiplierByPlayerCount.Length == 0 || PlayerCount <= 1) return 1f;
-            return quotaMultiplierByPlayerCount[Mathf.Clamp(PlayerCount - 1, 0, quotaMultiplierByPlayerCount.Length - 1)];
-        }
+        if (IsNetworkMirror || _waitingForNetworkStart) return;
+        if (CurrentPhase == GamePhase.Night) OnNightEnded?.Invoke();
+        if (night > 0) CurrentCycle = night;
+        StartNight();
     }
 
     private void EndNight()
@@ -313,6 +296,24 @@ public class GameManager : MonoBehaviour
         _waitingForNetworkStart = false;
         CurrentCycle = 1;
         StartDay();
+    }
+
+    /// <summary>방장 변경으로 이 컴퓨터가 새 방장이 되어 낮/밤 진행을 이어받았을 때 발생 (몬스터 스포너가 남은 밤 쿼터를 이어서 스폰).</summary>
+    public event Action HostTakenOver;
+
+    /// <summary>
+    /// 멀티플레이 방장 변경: 지금까지 따라가던(미러) 값을 그대로 이어받아 이 컴퓨터가 직접 진행한다.
+    /// 페이즈 이벤트는 다시 발생시키지 않는다 (이미 같은 페이즈를 보고 있으므로).
+    /// </summary>
+    public void TakeOverAsHost()
+    {
+        if (!IsNetworkMirror && !_waitingForNetworkStart)
+            return;
+
+        IsNetworkMirror = false;
+        _waitingForNetworkStart = false;
+        _mirrorStarted = false;
+        HostTakenOver?.Invoke();
     }
 
     /// <summary>클라이언트: 이제부터 호스트 값을 따라간다.</summary>

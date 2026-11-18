@@ -85,6 +85,9 @@ namespace LastTruck.Networking
         }
 
         public bool IsPlayer => isPlayer;
+
+        /// <summary>호스트: 스폰 직전(onBeforeSpawned)에 넣으면 이 값을 최대 체력으로 쓴다 (몬스터 종류별 체력).</summary>
+        public float SpawnMaxOverride { get; set; }
         public bool IsAlive => Object != null && Object.IsValid && !IsDead;
 
         private INetworkHealthListener[] _listeners = new INetworkHealthListener[0];
@@ -101,15 +104,23 @@ namespace LastTruck.Networking
 
         public override void Spawned()
         {
-            if (HasStateAuthority)
+            // 방장 변경으로 이어받은 오브젝트(IsResume)는 이전 방장의 체력 값을 그대로 쓴다.
+            if (HasStateAuthority && !Object.IsResume)
             {
                 float max = fallbackMaxHealth;
-                foreach (INetworkHealthListener listener in _listeners)
+                if (SpawnMaxOverride > 0f)
                 {
-                    if (listener != null && listener.NetworkMaxHealth > 0f)
+                    max = SpawnMaxOverride;
+                }
+                else
+                {
+                    foreach (INetworkHealthListener listener in _listeners)
                     {
-                        max = listener.NetworkMaxHealth;
-                        break;
+                        if (listener != null && listener.NetworkMaxHealth > 0f)
+                        {
+                            max = listener.NetworkMaxHealth;
+                            break;
+                        }
                     }
                 }
                 Max = max;
@@ -156,23 +167,31 @@ namespace LastTruck.Networking
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-        private void RPC_RequestDamage(float amount, Vector3 hitPoint, NetworkBool fromPlayer)
+        private void RPC_RequestDamage(float amount, Vector3 hitPoint, NetworkBool fromPlayer, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestDamage), 80)) return;
+            // 너무 먼 대상에게 준 피해는 버린다 (총기 사거리보다 넉넉하게).
+            if (!RpcGuard.Near(Runner, info.Source, transform.position, MaxRemoteHitDistance)) return;
             ApplyDamage(amount, hitPoint, fromPlayer);
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-        private void RPC_RequestHeal(float amount)
+        private void RPC_RequestHeal(float amount, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestHeal), 20)) return;
             ApplyHeal(amount);
         }
+
+        /// <summary>클라이언트가 보낸 피해 요청을 받아줄 최대 거리(m).</summary>
+        private const float MaxRemoteHitDistance = 120f;
 
         /// <summary>호스트 전용: 실제로 체력을 깎는다.</summary>
         public void ApplyDamage(float amount, Vector3 hitPoint, bool fromPlayer)
         {
             if (!HasStateAuthority || IsDead) return;
             if (isPlayer && fromPlayer) return; // 팀킬 금지
-            if (NetworkGameState.IsGameOver) return;
+
+            if (NetworkGameState.IsGameOver || NetworkGameState.IsHeld) return;
             if (IsInvincible) return;            // 간호사 부활 직후 무적 등
 
             amount = Mathf.Clamp(amount, 0f, maxDamagePerHit);

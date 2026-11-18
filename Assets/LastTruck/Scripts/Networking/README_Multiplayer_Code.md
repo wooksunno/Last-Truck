@@ -411,3 +411,121 @@ InRoom/InGame ─(RequestLeaveSession 또는 연결 끊김)─> Leaving ─> (Me
   FBX 클립 이름이 전부 "Take 001"이라 `MonsterAnimationSet` 컴포넌트에 클립을 직접 연결 (attackHitTiming 0.45, stunImmunitySeconds 1, corpseLingerSeconds 0.5).
   경직: 호스트 `DamagedOnHost` → 공격 취소 + `RPC_PlayHit`, 사망: `Dead` + 콜라이더 끔, DespawnDelay = 사망 클립 + 0.5초. 싱글 MonsterAI도 Damageable `Damaged/Died` 이벤트로 동일.
   메뉴 1이 원본에 콜라이더가 없으면 CapsuleCollider를 맞춰 추가하고, 원본이 바뀌면 Monster_Network를 다시 만든다.
+
+## 13. 서버 안정화: 방장 변경(호스트 마이그레이션) / 재접속 / 검증 / AOI / F3 (`NDH/feat(v3)`)
+
+### 13-1. 설정 (`Photon/Fusion/Resources/NetworkProjectConfig.fusion`)
+- `HostMigration.EnableAutoUpdate = true`, `UpdateDelay = 5` (5초마다 스냅샷 → 방장이 나가면 최대 5초 전 상태로 이어감).
+- `Simulation.ReplicationFeatures = 2` (Interest Management, AOI). 몬스터만 AOI, 나머지는 Global.
+- Fusion은 실제 시간으로 돌아서(`SimulationTimeMode` Unscaled) `Time.timeScale = 0` 일시정지 중에도 재연결은 계속된다.
+
+### 13-2. 새 파일
+| 파일 | 역할 |
+|---|---|
+| `GameLauncher.Session.cs` (partial) | 재접속 정보, `OnHostMigration`, `HostMigrationResume`, 돌아온 사람 캐릭터 붙이기, `LogSession`/`RecentLog` |
+| `Session/SessionTicket.cs` | 접속 토큰 `LT1\n버전\n기기ID\n비번`, `GameVersion`(`Application.version/n프로토콜`), `DeviceId`(PlayerPrefs GUID) |
+| `Session/NetworkPause.cs` | 게임 전체 멈춤. 이유(reason)별 Begin/End/EndAll. timeScale 0, 소리, EventSystem, 로딩 문구 |
+| `Session/RpcGuard.cs` | 요청 RPC 검증: `Allow`(초당 횟수), `Near`(거리) |
+| `Game/NetworkInterest.cs` | AOI 켜짐 확인, 스폰 직전 `ObjectInterest` 지정 |
+| `UI/NetworkStatsHud.cs` | F3 네트워크 상태 창 (OnGUI) |
+
+### 13-3. 방장 변경 흐름
+1. 클라이언트 `OnHostMigration` → 게임 중이 아니면 방 목록. 게임 중이면 `NetworkPause.Begin(migration)`, 내 가방을 `NetworkPlayer.PendingLocalBag`에 저장,
+   화면의 네트워크 오브젝트는 남겨 두고(멈춘 모습) 내 옛 캐릭터 입력 스크립트를 끈 뒤 `Shutdown(false, HostMigration)`.
+2. 새 러너 `StartGame(HostMigrationToken, HostMigrationResume)`. 씬은 이어받음(`IsSceneTakeOverEnabled`), 씬 오브젝트는 자동 복원.
+3. 새 방장 `HostMigrationResume`: 스냅샷의 프리팹 오브젝트를 `Spawn + CopyStateFrom`(LobbyPlayerEntry, 씬 오브젝트 제외).
+   캐릭터는 주인 없음 + `HostBeginClaimWait(20초)`, 트럭 좌석은 PlayerRef가 바뀌므로 전원 하차. 들어온 사람은 기기ID로 원래 캐릭터를 되찾음.
+4. `NetworkGameState`(IsResume) → `GameManager.TakeOverAsHost()` → `HostTakenOver` → `MonsterSpawner`가 2초 뒤 남은 몬스터 목록 재구성 + 부족분 스폰.
+5. 새 방장의 `NetworkGameState.Held` = 되찾기 대기 캐릭터가 있음 → 모든 컴퓨터 `NetworkPause(hold)`. 몬스터 `FixedUpdateNetwork`, 피해, 이동 입력(`AllowPlayerControl`)이 멈춘다.
+6. 내 캐릭터를 다시 받으면(최대 15초) 남겨 둔 옛 오브젝트 삭제 + `NetworkPause.End(migration)`. 실패 → 방 목록 + 알림.
+
+### 13-4. 나간 사람 / 재접속 (3분)
+- 방은 게임 중에도 열림, 세션 속성 `ing=1`. 방 목록은 `재접속 가능`(내가 있던 방, 3분 안) / `게임 중`으로 표시, 재접속만 허용.
+- `OnPlayerLeft`(게임 중) → `NetworkPlayer.HostMarkDeparted(180초)`: 트럭 하차, 입력 권한 None, 캐릭터 숨김(렌더러/콜라이더), `All`에서 빠짐(몬스터/게임 오버/HUD 제외).
+- 가방은 주인이 0.4초 간격으로 `RPC_ReportBag` → 호스트 `[Networked]` 배열에 보관. 돌아오면 `HostReattach` → `RestoreBag` → 주인 컴퓨터가 가방 복원.
+- 3분 지나면 `HostExpireDeparted`: 가방을 트럭 인벤토리로 옮기고 Despawn.
+- `OnConnectRequest`: 버전 다름 / 비번 틀림 / 게임 중 + 기다리는 캐릭터 없음 → 거절.
+
+### 13-5. 검증 (`RpcGuard`)
+- 클라이언트 → 호스트 요청 RPC 전부에 `RpcInfo` + 초당 횟수 제한(기본 15, 트럭 인벤토리 60, 가공/채집 30, 터렛 조준 60, 피해 80). 넘친 요청은 버리고 F3 기록에 남김.
+- 피해 요청: 기존 `maxDamagePerHit` 상한 + 보낸 사람과 대상 거리 120m 이내.
+
+### 13-6. AOI / F3 / 시간 제한
+- `NetworkGameState.HostUpdateInterest`: 매 틱 플레이어(탑승 중이면 트럭) 위치에 `AddPlayerAreaOfInterest(반경 interestRadius=60m, 인스펙터)`. 0이면 끔.
+- 몬스터 스폰 `onBeforeSpawned`에서 AreaOfInterest, 캐릭터/복원 오브젝트는 Global.
+- F3: 버전, 방, 역할, 핑, 틱, 접속/캐릭터 수, 보이는 몬스터 수, AOI, 일시정지, 최근 기록 8줄.
+- 게임 씬 불러오기 60초 초과 → 방 목록 + 알림. `NetworkGameState.HostName`으로 새 방장 닉네임 공유.
+
+### 13-7. 그 외
+- 로비 버그: 방 만들기 창을 다시 열 때 토글은 `SetIsOnWithoutNotify`라 "공개/비공개" 글자가 안 바뀌던 문제 → `RefreshPasswordFieldState`에서 글자도 갱신.
+- 트럭 클라이언트 운전자 예측: 호스트가 `TruckVelocity/AngularVelocity`를 올리고, 운전자 화면만 RTT+2틱(최대 0.35초)만큼 앞당겨 그림.
+
+### 13-8. 2PC 테스트 후 수정
+- 새 방장이 자기 캐릭터를 못 붙이던 문제: 복원 콜백 시점엔 내 플레이어가 아직 방에 없음 → `StartGame` 완료 직후 `HostAttachReturningPlayer(LocalPlayer)` 한 번 더. 기기 ID로 못 찾으면 닉네임으로.
+- 한 사람에게 캐릭터 2개가 붙어 같이 움직이던 문제: 이미 캐릭터가 있는 플레이어에게는 다시 붙이지 않음.
+- 같은 PC에서 여러 개 실행(에디터+빌드, ParrelSync)하면 PlayerPrefs가 같아 기기 ID가 겹침 → 이름 있는 Mutex로 실행 슬롯 번호를 붙여 구분 (`SessionTicket.AcquireInstanceSlot`).
+- 카메라: `LocalPlayerBinder`가 다른 네트워크 캐릭터를 보고 있던 카메라도 새 내 캐릭터로 바꿈.
+- 접속 거절 문구: 공개 방/재접속이면 "비밀번호" 대신 실제 상황에 맞는 문구.
+- 새 방장 화면에서 내 캐릭터가 사라지고 "캐릭터를 찾지 못했습니다"가 뜨던 문제: Fusion은 `IInputAuthorityGained/Lost`를 **클라이언트가 복제 받을 때만** 부르고,
+  호스트가 자기 캐릭터에 `AssignInputAuthority`하면 부르지 않는다 → `NetworkPlayer.HostSetInputAuthority`가 로컬 플레이어면 직접 `OnLocalAuthorityGained/Lost` 호출 (카메라/HUD/입력 다시 연결).
+- 복원 직후 주인 없는 캐릭터에 되찾기 대기가 안 걸리는 경우 대비: `StartGame` 완료 뒤 `HostEnsureClaimWait`.
+- 재접속한 사람이 게임 위에 대기실 화면이 뜬 채 멈추던 문제: 게임 중인 방에 들어가면 접속이 끝나기 전에 씬 로딩이 시작됨 → `OnSceneLoadStart`에서 JoiningSession도 StartingGame으로, `JoinSessionByName` 성공 후 게임 씬이면 InRoom으로 돌리지 않음.
+- 재접속자 화면에 대기실이 남던 문제(2차): 방장 변경 뒤 방에 들어가면 게임 씬이 메뉴 위에 덧붙여 불러와짐 → `OnSceneLoadDone`이 게임 씬을 활성화하고 메뉴 씬을 내림.
+- 방장 변경 시간 단축: 지금 방에 있는 모두가 캐릭터를 받으면 남은 주인 없는 캐릭터(나간 방장)는 바로 자리 비움 → 멈춤 즉시 해제 (`NetworkGameState.HostResolveReclaiming`).
+  되찾기 대기 20→10초, 스냅샷 주기 5→2초, 방장이 ESC로 나갈 땐 `PushHostMigrationSnapshot()`으로 직전 상태를 올리고 나감(최대 2초).
+- 재접속자가 여전히 대기실에 남던 진짜 원인(3차): 방장이 바뀐 뒤 새 방장의 **네트워크 씬 목록이 비어** 있어서 재접속자가 게임 씬을 아예 불러오지 않음
+  (네트워크 오브젝트만 메뉴 씬에 생김). → `EnsureGameSceneRegistered`: 새 방장이 떠 있는 게임 씬을 `LoadScene(Additive)` + 씬 이어받기로 목록에 올림(다시 불러오지 않음, Single은 런타임 오브젝트를 지우므로 금지).
+  재접속자는 Additive로 받으므로 `OnSceneLoadDone`이 게임 씬 활성화 + 메뉴 씬 내림. 이미 게임 중이면 `OnSceneLoadStart` 로딩 화면 생략.
+- 멈춤 안내 UI: `UI/NetworkPauseOverlay.cs` (반투명 배경 + 카드 + 회전 로딩 점 + 경과 시간, unscaled 시간, sortingOrder 90). `NetworkPause.Begin(reason, message, title)`.
+- 참고(Fusion 소스 확인): `Shutdown`은 `destroyGameObject=false`여도 네트워크 오브젝트를 모두 파괴한다. `GetResumeSnapshotNetworkObjects`는 씬 오브젝트를 돌려주지 않는다(씬 오브젝트는 `GetResumeSnapshotNetworkSceneObjects`). 게임 시스템은 모두 NetworkGameState 프리팹에 있어 영향 없음.
+
+## 14. 몬스터 종류 / 웨이브 / 채팅 / 배너
+
+### 14-1. 몬스터 종류 (`Monsters/MonsterCatalog.cs`, `NetworkMonster.cs`)
+- 프리팹은 그대로 1개(Monster_Network, 원본 `LastTruck/Monster/Prefab/Zombie.prefab` = Synty City Zombies). 종류는 `[Networked] KindValue`(MonsterKind 번호)로 구분하고 수치/모습은 표에서 읽는다.
+- 표: `Resources/MonsterCatalog.asset` (메뉴 `LastTruck > Multiplayer > 2. 몬스터 종류·웨이브 표 만들기`). 에셋이 없으면 코드 기본값(기획표)을 쓴다.
+- 기획표 → 코드: 이동 속도 값 × `speedScale`(0.2) = m/s, 공격 속도는 "초당 횟수" (쿨다운 = 1/값), 밤마다 체력 +12% / 공격력 +8% (`healthPerNight`, `damagePerNight`).
+- 스폰: `NetworkMonsterSpawning.Spawn` → `MonsterWaveDirector.HostPickKind()`(이번 밤 비율, 보스 수) → onBeforeSpawned에서 `NetworkMonster.InitializeBeforeSpawn(kind, night)` (체력은 `NetworkHealth.SpawnMaxOverride`).
+- 모습: `ZombieVariant.ApplyNames`(종류별 몸 메시 목록에서 NetworkId로 선택 → 모든 화면 같음), 크기, 색(_BaseColor 곱), 애니메이션 속도.
+
+| 종류 | 체력 | 공격 | 공격/초 | 속도 | 범위 / 특징 | Synty 몸 |
+|---|---|---|---|---|---|---|
+| 워커 | 50 | 8 | 0.7 | 10 | 단일 | 일반 시민들 |
+| 탱커 | 200 | 15 | 1.0 | 15 | 앞쪽 반원 2.4m, 크기 1.3 | Footballer, RiotCop, Firefighter |
+| 붐버 | 30 | 30 | - | 20 | 플레이어를 본 뒤(14m) 6초 후 4.5m 원 폭발(트럭 ×1.5), 깜빡임 | HotDogSuit, Roadworker, FastfoodWorker |
+| 버서커 | 90 | 14 | 1.3 | 20 | 단일, 인식 16m, 붉은색 | Military, Gangster, Punk, Prisoner |
+| 빅 보이 | 400 | 40 | 1.6 | 25 | 앞쪽 반원 4m, 크기 1.8, 웨이브 bossCount | Biker, Jock |
+| 스나이퍼 | 40 | 12 | 0.8 | 13 | 13m에서 투사체(떨어진 곳 1.1m 안이면 맞음) | Police, Diver |
+| 타겟터 | 60 | 14 | 0.8 | 15 | 12m, 트럭 우선 | Bellboy, Clown, Cheerleader |
+| 오염체 | 70 | 5 | 0.5 | 10 | 9m 포물선 → 오염 지대 3초(반경 2.2m, 1초마다 5) | BioHazardSuit, Patient, Paramedic |
+
+- 원거리/오염/폭발 연출은 `MonsterEffects`(코드로 만든 구슬·바닥 원·폭발, Sprites/Default 셰이더), RPC로 모두에게. 피해 판정은 호스트.
+
+### 14-1b. 종류별 프리팹 (`Monster_{종류}.prefab`)
+- 위치: `Assets/LastTruck/Multiplayer/Prefabs/Monsters/Monster_Walker.prefab` … `Monster_Polluter.prefab` (8개, `Monster_Network.prefab`의 Variant).
+- 만드는 법: 메뉴 `LastTruck > Multiplayer > 3. 몬스터 종류별 프리팹 만들기` (메뉴 1도 없는 것만 자동 생성). `NetworkPrefabRegistry.monsterKindPrefabs`에 종류 순서대로 연결, Fusion 프리팹 테이블 재빌드.
+- 프리팹에서 고치는 것: 루트 Scale(크기), `MonsterAppearance`(종류/색/애니메이션 속도), `ZombieVariant.Allowed Bodies`(Synty 몸 메시 목록). 모델을 통째로 바꿔도 된다.
+- 수치(체력/공격/속도/사거리/특수 공격)는 계속 `MonsterCatalog`에서 종류로 읽는다. 표의 모습 값(scale/tint/bodies/animationSpeed)은 프리팹을 처음 만들 때 기본값으로만 쓴다.
+- 스폰: `NetworkMonsterSpawning.Spawn` → `registry.GetMonsterPrefab(kind)` (비어 있으면 기본 프리팹 + 표 모습 값).
+- 주의: 메뉴 1이 원본 변경으로 `Monster_Network`를 다시 만들면 Variant 부모가 끊긴다 → 메뉴 3에서 다시 만들 것.
+
+### 14-2. 웨이브 (구조만, `MonsterWaveData`)
+- `fromNight` 이상인 밤 중 가장 큰 항목을 쓴다: 제목, 설명, 종류별 비율(weights), 보스 수(bossCount).
+- 기본: 1밤 워커만 / 2밤 탱커·붐버 / 3밤 원거리 + 빅 보이 1 / 4밤 오염체·버서커 / 5밤~ 전부 + 빅 보이 1.
+- 밤 시작: `WaveAnnouncer`가 각 컴퓨터에서 배너 + 채팅 경고 (GameManager.OnNightStarted는 클라이언트도 불림 → 네트워크 불필요).
+- 빅 보이 등장: 호스트 `NetworkGameState.HostAnnounce` → 모두에게 배너 + 경고.
+
+### 14-3. 채팅 (`UI/ChatHud.cs`, `NetworkGameState` RPC)
+- 좌하단, Enter로 열고 Enter 보내기 / Esc 닫기. 10초 뒤 흐려지고 열면 다시 보임. 최대 80자, `<`/`>`는 전각으로 바꿔 리치 텍스트 막음.
+- 보내기: `RPC_SendChat`(호스트, 초당 3회 제한) → `RPC_Chat(보낸 사람, 내용, 종류)` → 모두. 색: 플레이어 닉네임 하늘색 + 흰 글자 / 시스템 노랑 / 경고 주황.
+- 시스템 메시지: 나감(3분 재접속), 다시 들어옴, 3분 지나 가방 → 트럭, 새 방장(멈춤이 풀린 뒤 `TakePendingAnnouncement`), 방장 나감(각자), 밤/아침.
+- 입력 중 조작 막기: `GameLauncher.OnInput`이 빈 입력, 내 캐릭터의 키 읽는 스크립트를 잠시 끔(`NetworkPlayer.SetChatSuspended`), ESC 메뉴/트럭 키/부활/WorldClickInteractor(Esc·Tab·클릭)에 `ChatHud.IsTyping` 확인.
+
+### 14-3b. 테스트 명령 (`Game/DebugCommands.cs`)
+- 채팅에 `/`로 시작하는 글을 보내면 호스트가 실행하고 결과를 모두에게 알린다 (누가 했는지 표시).
+- `/giveall [개수]`: ItemCatalog의 모든 아이템을 트럭에 (도구/무기는 1개씩 최대 내구도, 나머지는 한 묶음 최대치 또는 [개수]). `/cleartruck`: 트럭 비우기.
+- `/night [회차]`: 바로 밤 시작 (`GameManager.DebugStartNight`, 회차를 주면 그 밤의 웨이브/쿼터). `/killall`: 몬스터 모두 처치. `/help`.
+- 트럭 인벤토리 네트워크 칸 64 → 128 (아이템 104종이 다 들어가도록), `NetProtocol` 13.
+
+### 14-4. 배너 (`UI/WaveBanner.cs`)
+- 화면 가운데 위쪽(+230), 제목 60 / 설명 28, 0.35초 나타남 → 4초 → 0.6초 사라짐 (실제 시간).

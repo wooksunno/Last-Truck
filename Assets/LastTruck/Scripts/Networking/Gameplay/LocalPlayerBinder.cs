@@ -25,11 +25,11 @@ namespace LastTruck.Networking
                 // CameraTargetSmoother가 붙은 카메라는 대상이 항상 중간 대상(Proxy)이라 무조건 내 캐릭터로 바꿔 준다
                 // (스무더가 새 대상을 이어받는다).
                 bool smoothed = vcam.GetComponent<CameraTargetSmoother>() != null;
-                if (smoothed || IsReplaceablePlayerTarget(vcam.Target.TrackingTarget)) vcam.Target.TrackingTarget = target;
+                if (smoothed || IsReplaceablePlayerTarget(vcam.Target.TrackingTarget, player)) vcam.Target.TrackingTarget = target;
             }
             foreach (CameraFollow follow in Object.FindObjectsByType<CameraFollow>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             {
-                if (IsReplaceablePlayerTarget(follow.target)) follow.target = target;
+                if (IsReplaceablePlayerTarget(follow.target, player)) follow.target = target;
             }
 
             // 2. HP 바
@@ -54,11 +54,16 @@ namespace LastTruck.Networking
         /// 바꿔도 되는 대상인가? 비어 있거나, 꺼져 있거나(지우는 중인 싱글플레이 캐릭터),
         /// 네트워크가 아닌 플레이어 캐릭터면 true. 트럭 등 다른 대상을 보고 있으면 건드리지 않는다.
         /// </summary>
-        private static bool IsReplaceablePlayerTarget(Transform current)
+        private static bool IsReplaceablePlayerTarget(Transform current, NetworkPlayer newLocal)
         {
             if (current == null) return true;
             if (!current.gameObject.activeInHierarchy) return true;
-            return current.GetComponentInParent<PlayerMove>() != null && current.GetComponentInParent<NetworkPlayer>() == null;
+
+            // 다른 네트워크 캐릭터(방장 변경 전 내 캐릭터, 잘못 붙었던 캐릭터 등)를 보고 있으면 새 내 캐릭터로 바꾼다.
+            NetworkPlayer watched = current.GetComponentInParent<NetworkPlayer>();
+            if (watched != null) return watched != newLocal;
+
+            return current.GetComponentInParent<PlayerMove>() != null;
         }
     }
 }

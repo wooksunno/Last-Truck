@@ -184,6 +184,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RequestPlace(int recipeIndex, int facility, int slot, int requestId, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestPlace), 30)) return;
             PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
             RecipeData recipe = ItemIndexLookup.RecipeAt(recipeIndex);
             string error = null;
@@ -273,8 +274,9 @@ namespace LastTruck.Networking
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-        private void RPC_RequestCancel(int facility, int slot)
+        private void RPC_RequestCancel(int facility, int slot, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestCancel), 30)) return;
             if (!ValidFacility(facility) || slot < 0 || slot >= MaxSlots) return;
 
             SlotState s = Slots[Index(facility, slot)];
@@ -310,6 +312,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RequestClaim(int facility, int slot, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestClaim), 30)) return;
             if (!ValidFacility(facility) || slot < 0 || slot >= MaxSlots) return;
 
             PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
@@ -342,8 +345,9 @@ namespace LastTruck.Networking
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-        private void RPC_ReturnOutput(int facility, int slot, int recipeIndex, int count)
+        private void RPC_ReturnOutput(int facility, int slot, int recipeIndex, int count, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_ReturnOutput), 30)) return;
             if (!ValidFacility(facility) || slot < 0 || slot >= MaxSlots || count <= 0) return;
 
             SlotState s = Slots[Index(facility, slot)];
@@ -386,6 +390,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RequestUpgrade(int facility, int requestId, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestUpgrade), 30)) return;
             PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
             string error = null;
             TruckInventory truck = FindFirstObjectByType<TruckInventory>();

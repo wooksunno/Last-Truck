@@ -23,7 +23,7 @@ namespace LastTruck.Networking
     {
         #region 네트워크 상태
 
-        public const int MaxSlots = 64;
+        public const int MaxSlots = 128; // 트럭 칸(120)보다 크게 (모든 아이템 넣기 테스트 명령으로 100칸 넘게 찰 수 있다)
 
         /// <summary>슬롯별 아이템 번호 + 1 (0 = 빈 칸).</summary>
         [Networked, Capacity(MaxSlots)] private NetworkArray<int> SlotItems => default;
@@ -243,6 +243,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RequestConsume(int recipeIndex, int requestId, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestConsume), 60)) return;
             PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
             bool ok;
             // 재료 할인(요리사 등)은 요청한 사람의 캐릭터 능력으로 계산한다.
@@ -265,6 +266,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RequestDeposit(int itemIndex, int count, int durability, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestDeposit), 60)) return;
             TruckInventory truck = Truck;
             ItemData item = ItemIndexLookup.ItemAt(itemIndex);
             if (item == null || count <= 0) return;
@@ -277,6 +279,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RequestWithdraw(int itemIndex, int count, int durability, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestWithdraw), 60)) return;
             TruckInventory truck = Truck;
             ItemData item = ItemIndexLookup.ItemAt(itemIndex);
             if (truck == null || item == null || count <= 0) return;
@@ -299,6 +302,7 @@ namespace LastTruck.Networking
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         private void RPC_RequestCraft(int recipeIndex, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestCraft), 60)) return;
             TruckInventory truck = Truck;
             RecipeData recipe = ItemIndexLookup.RecipeAt(recipeIndex);
             if (truck == null || recipe == null) return;
@@ -317,8 +321,9 @@ namespace LastTruck.Networking
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-        private void RPC_RequestGrantRaw(int amount)
+        private void RPC_RequestGrantRaw(int amount, RpcInfo info = default)
         {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestGrantRaw), 60)) return;
             TruckInventorySync.GrantRawLocal(Truck, Mathf.Clamp(amount, 1, 100));
         }
 

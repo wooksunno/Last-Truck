@@ -14,5 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::LastTruck.Networking.NetworkPrefabRegistry
   gameStatePrefab: {fileID: 7615849450806733799, guid: b3028d7a9080bc541ade3d1e509fb7cd, type: 3}
   monsterPrefab: {fileID: 4028303704984821361, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+  monsterKindPrefabs:
+  - {fileID: 9090805545212073277, guid: 9fd856d692ffe104fb202fcf6b5eae2d, type: 3}
+  - {fileID: 8917399181220393124, guid: 586ec86aca279e548b5233d57f16e4fc, type: 3}
+  - {fileID: 5515988573103144218, guid: 7a44d99f22fdb0b419ce4e2f2060a0d6, type: 3}
+  - {fileID: 852409341937309752, guid: 79019223a75614d4e9db1dfe95577e06, type: 3}
+  - {fileID: 5284980691429597028, guid: 5e343d2f56b4ae44a8f42d4b4ead6218, type: 3}
+  - {fileID: 8691321679248170847, guid: 9b54a94bb300fec41910218618eb7085, type: 3}
+  - {fileID: 6018626210408360202, guid: 6955dd8c86841d845bfb4da5a33a1a9b, type: 3}
+  - {fileID: 3383176890406934515, guid: 523f909428db8ce4bb8315935d4d3c01, type: 3}
   uiFont: {fileID: 12800000, guid: 22a428bbf4b419f49a2110a1106d6b32, type: 3}
   tmpFont: {fileID: 11400000, guid: ee08c7788285ac84ba3740e218a4da0f, type: 2}

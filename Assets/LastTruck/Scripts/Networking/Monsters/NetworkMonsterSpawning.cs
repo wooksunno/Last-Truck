@@ -29,11 +29,11 @@ namespace LastTruck.Networking
         /// </summary>
         public static GameObject Spawn(Vector3 position, Quaternion rotation)
         {
-            return Spawn(position, rotation, 1f, 1f, 1f, false);
+            return Spawn(position, rotation, null);
         }
 
-        /// <summary>호스트: 강함 등급(체력/피해 배율, 몸집, 중간보스 여부)을 정해서 스폰한다.</summary>
-        public static GameObject Spawn(Vector3 position, Quaternion rotation, float hpScale, float damageScale, float size, bool boss)
+        /// <summary>종류를 정해서 스폰한다 (null이면 이번 밤 웨이브 구성으로 고른다).</summary>
+        public static GameObject Spawn(Vector3 position, Quaternion rotation, MonsterKind? kind)
         {
             GameLauncher launcher = GameLauncher.Instance;
             NetworkRunner runner = launcher != null ? launcher.Runner : null;
@@ -47,12 +47,18 @@ namespace LastTruck.Networking
                 return null;
             }
 
-            NetworkObject spawned = runner.Spawn(registry.monsterPrefab, position, rotation);
+            // 몬스터만 관심 영역(AOI) 대상: 멀리 있는 몬스터는 그 플레이어에게 보내지 않는다.
+            MonsterKind pickedKind = kind ?? MonsterWaveDirector.HostPickKind();
+            int night = MonsterWaveDirector.CurrentNight;
+            NetworkObject prefab = registry.GetMonsterPrefab(pickedKind);
+            NetworkObject spawned = runner.Spawn(prefab, position, rotation, PlayerRef.None,
+                (r, obj) =>
+                {
+                    NetworkInterest.Apply(r, obj, true);
+                    NetworkMonster monster = obj.GetComponent<NetworkMonster>();
+                    if (monster != null) monster.InitializeBeforeSpawn(pickedKind, night);
+                });
             if (spawned == null) return null;
-
-            NetworkMonster monster = spawned.GetComponent<NetworkMonster>();
-            if (monster != null && (!Mathf.Approximately(hpScale, 1f) || !Mathf.Approximately(damageScale, 1f) || !Mathf.Approximately(size, 1f) || boss))
-                monster.QueueTier(hpScale, damageScale, size, boss);
 
             // 킬 집계: 체력이 0이 되는 순간 호스트의 GameManager에 알린다
             // (오브젝트 파괴 시점으로 세면 게임 종료/씬 전환 때 남은 몬스터까지 킬로 잡힌다).
@@ -65,17 +71,6 @@ namespace LastTruck.Networking
                 };
             }
             return spawned.gameObject;
-        }
-
-        /// <summary>호스트: 몬스터를 네트워크에서 치운다 (생존 조건을 달성해서 남은 몬스터를 정리할 때).</summary>
-        public static void Despawn(GameObject monster)
-        {
-            if (monster == null) return;
-            GameLauncher launcher = GameLauncher.Instance;
-            NetworkRunner runner = launcher != null ? launcher.Runner : null;
-            NetworkObject obj = monster.GetComponent<NetworkObject>();
-            if (runner == null || !runner.IsRunning || !runner.IsServer || obj == null || !obj.IsValid) return;
-            runner.Despawn(obj);
         }
 
         /// <summary>

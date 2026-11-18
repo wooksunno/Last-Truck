@@ -342,6 +342,33 @@ namespace CraftingSystem
             NotifyChanged();
         }
 
+        /// <summary>
+        /// 칸 위치를 그대로 살려서 덮어쓴다 (null/빈 칸도 그 자리에 빈 칸으로 남긴다).
+        /// 멀티플레이 재접속/방장 변경 때 내 가방(1~4번 칸)을 원래 칸 그대로 복구할 때 쓴다.
+        /// </summary>
+        public void ReplaceAllKeepPositions(IList<InventorySlot> newSlots)
+        {
+            slots.Clear();
+            if (newSlots != null)
+            {
+                int last = -1;
+                for (int i = 0; i < newSlots.Count; i++)
+                {
+                    if (newSlots[i] != null && !newSlots[i].IsEmpty) last = i;
+                }
+                for (int i = 0; i <= last && i < maxSlots; i++)
+                {
+                    InventorySlot slot = newSlots[i];
+                    slots.Add(slot != null && !slot.IsEmpty
+                        ? new InventorySlot(slot.item, slot.count) { durability = slot.durability }
+                        : new InventorySlot());
+                }
+                if (!KeepSlotPositions) slots.RemoveAll(s => s.IsEmpty);
+            }
+
+            NotifyChanged();
+        }
+
         public bool TransferAllTo(ItemStackInventory target)
         {
             if (target == null)
