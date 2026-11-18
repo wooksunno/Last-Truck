@@ -117,6 +117,27 @@ namespace LastTruck.Networking
         /// <summary>호스트가 정한 이동 속도 (애니메이션 Idle/Walk용).</summary>
         [Networked] private float MoveSpeed { get; set; }
 
+        /// <summary>호스트가 정한 몸집 배율 (중간보스 등). 1이면 보통. 모든 화면이 모델 크기를 맞춘다.</summary>
+        [Networked] public float TierSize { get; set; }
+
+        // 강함 등급 (호스트): 체력은 NetworkHealth가 최대 체력을 정한 뒤 첫 틱에 곱해 준다.
+        private bool _tierQueued;
+        private float _queuedHp = 1f;
+        private bool _tierSizeApplied;
+
+        /// <summary>호스트: 스폰 직후 부른다. 체력/피해 배율과 몸집(모두에게 동기화)을 정한다.</summary>
+        public void QueueTier(float hpScale, float dmgScale, float size, bool boss)
+        {
+            if (!HasStateAuthority) return;
+            MonsterTier tier = GetComponent<MonsterTier>();
+            if (tier == null) tier = gameObject.AddComponent<MonsterTier>();
+            tier.IsBoss = boss;
+            tier.DamageScale = dmgScale;
+            _queuedHp = hpScale;
+            _tierQueued = true;
+            TierSize = size;
+        }
+
         /// <summary>몬스터 종류 (MonsterKind 번호).</summary>
         [Networked] public int KindValue { get; private set; }
         /// <summary>스폰된 밤 번호 (체력/공격력 배율).</summary>
@@ -331,8 +352,42 @@ namespace LastTruck.Networking
                 _pendingPlayer = null;
             }
             _attackLockUntil = 0f;
-            _stunUntil = Time.time + _stunDuration;
+            _stunUntil = Mathf.Max(_stunUntil, Time.time + _stunDuration);   // 더 긴 기절(복서)이 걸려 있으면 줄이지 않는다
             _stunImmuneUntil = _stunUntil + _stunImmunity;
+            _nextAttackTime = Mathf.Max(_nextAttackTime, _stunUntil);
+            RPC_PlayHit();
+        }
+
+        /// <summary>
+        /// 기절 요청 (복서 능력 등, Damageable.ApplyStun이 부른다). 호스트면 바로, 클라이언트면 호스트에게 보낸다.
+        /// 피격 경직과 달리 면역 시간을 무시한다.
+        /// </summary>
+        public void RequestStun(float duration)
+        {
+            if (Object == null || !Object.IsValid || duration <= 0f) return;
+            if (HasStateAuthority) ApplyStunOnHost(duration);
+            else RPC_RequestStun(duration);
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_RequestStun(float duration)
+        {
+            ApplyStunOnHost(duration);
+        }
+
+        private void ApplyStunOnHost(float duration)
+        {
+            if (!HasStateAuthority) return;
+            if (_health == null || _health.IsDead || _health.Current <= 0f) return;
+
+            duration = Mathf.Clamp(duration, 0f, 10f);   // 비정상 값 방어
+            if (duration <= 0f) return;
+
+            _pendingTarget = AttackTarget.None;   // 휘두르던 공격 취소
+            _pendingPlayer = null;
+            _attackLockUntil = 0f;
+            _stunUntil = Mathf.Max(_stunUntil, Time.time + duration);
+            _stunImmuneUntil = Mathf.Max(_stunImmuneUntil, _stunUntil + _stunImmunity);
             _nextAttackTime = Mathf.Max(_nextAttackTime, _stunUntil);
             RPC_PlayHit();
         }
@@ -345,6 +400,15 @@ namespace LastTruck.Networking
         {
             if (!HasStateAuthority) return;
             if (NetworkGameState.IsHeld) return; // 게임 전체 멈춤 (방장 변경 중)
+
+            if (_tierQueued && _health != null && _health.Max > 0f)
+            {
+                float max = _health.Max * Mathf.Max(0.1f, _queuedHp);
+                _health.Max = max;
+                _health.Current = max;
+                _tierQueued = false;
+            }
+
             if (_agent == null || !_agent.enabled) return;
             if (!_agent.isOnNavMesh)
             {
@@ -463,8 +527,51 @@ namespace LastTruck.Networking
             if (nearest != null) _targetPlayer = nearest;
         }
 
+        /// <summary>독버섯 미끼에 이끌리는 중인가 (플레이어가 바로 곁에 있으면 플레이어가 먼저). 미끼를 돌려준다.</summary>
+        private CraftingSystem.PoisonBait LuringBait()
+        {
+            CraftingSystem.PoisonBait bait = CraftingSystem.PoisonBait.FindFor(_damageable, transform.position);
+            if (bait == null) return null;
+            if (_targetPlayer != null && CraftingSystem.PoisonBait.PlayerIsCloser(transform.position, _targetPlayer.transform.position)) return null;
+            return bait;
+        }
+
+        /// <summary>독성 유인 페로몬을 바른 덫에 이끌리는 중인가 (플레이어가 바로 곁에 있으면 플레이어가 먼저).</summary>
+        private CraftingSystem.TrapPlaced LuringTrap()
+        {
+            if (_targetPlayer != null && CraftingSystem.PoisonBait.PlayerIsCloser(transform.position, _targetPlayer.transform.position)) return null;
+            return CraftingSystem.TrapPlaced.FindLureFor(transform.position);
+        }
+
         private void MoveTowardTarget()
         {
+            // 독버섯 미끼: 플레이어/트럭 대신 미끼로 가서 먹는다 (먹는 동안은 멈춰 서서 독에 중독된다)
+            CraftingSystem.PoisonBait bait = LuringBait();
+            if (bait != null)
+            {
+                if (bait.Reached(transform.position))
+                {
+                    bait.Feed(_damageable);
+                    _agent.isStopped = true;
+                }
+                else
+                {
+                    _agent.isStopped = false;
+                    _agent.SetDestination(bait.transform.position);
+                }
+                return;
+            }
+
+            // 페로몬 덫: 냄새를 따라 덫으로 가서 걸린다
+            CraftingSystem.TrapPlaced lureTrap = LuringTrap();
+            if (lureTrap != null)
+            {
+                _agent.isStopped = false;
+                if (lureTrap.Reached(transform.position)) lureTrap.TryCatch(_damageable);
+                else _agent.SetDestination(lureTrap.transform.position);
+                return;
+            }
+
             Vector3 destination;
             if (_targetPlayer != null)
             {
@@ -486,6 +593,7 @@ namespace LastTruck.Networking
         private void TryAttack()
         {
             if (Time.time < _nextAttackTime) return;
+            if (LuringBait() != null || LuringTrap() != null) return;   // 미끼/페로몬 덫에 정신이 팔려 공격하지 않는다
             if (_type != null && _type.selfDestruct) return; // 붐버는 때리지 않고 터진다
 
             if (_targetPlayer != null && _targetPlayer.IsSeated) _targetPlayer = null; // 방금 트럭에 탔으면 트럭을 노린다
@@ -538,11 +646,12 @@ namespace LastTruck.Networking
             }
 
             float reach = attackRange + (_agent != null ? _agent.radius : 0.5f) + hitRangeTolerance;
+            float dmgScale = MonsterTier.DamageOf(gameObject);
 
             // 반원/원 공격: 범위 안의 모두
             if (_type != null && _type.hitShape != MonsterHitShape.Single)
             {
-                AreaHit(transform.position, Mathf.Max(reach, _type.hitRadius), _type.hitShape == MonsterHitShape.FrontArc, playerDamage, truckDamage);
+                AreaHit(transform.position, Mathf.Max(reach, _type.hitRadius), _type.hitShape == MonsterHitShape.FrontArc, playerDamage * dmgScale, truckDamage * dmgScale);
                 return;
             }
 
@@ -553,13 +662,13 @@ namespace LastTruck.Networking
 
                 NetworkHealth targetHealth = player.Health;
                 if (targetHealth != null && !targetHealth.IsDead)
-                    targetHealth.ApplyDamage(playerDamage, player.transform.position + Vector3.up, false);
+                    targetHealth.ApplyDamage(playerDamage * dmgScale, player.transform.position + Vector3.up, false);
             }
             else if (target == AttackTarget.Truck)
             {
                 if (_truck == null || _truck.IsBroken) return;
                 if (HorizontalDistance(transform.position, ClosestPointOnTruck(transform.position)) > reach) return;
-                _truck.Take_Damage(truckDamage);
+                _truck.Take_Damage(truckDamage * dmgScale);
             }
         }
 
@@ -785,6 +894,15 @@ namespace LastTruck.Networking
             bool dead = _health != null && _health.IsDead;
             if (dead && !_deathApplied) ApplyDeath();
             RenderFuse(dead);
+
+            // 몸집 (중간보스): 호스트가 정한 값을 모든 화면에서 한 번 적용
+            if (!_tierSizeApplied && TierSize > 1.01f)
+            {
+                _tierSizeApplied = true;
+                MonsterTier tier = GetComponent<MonsterTier>();
+                if (tier == null) tier = gameObject.AddComponent<MonsterTier>();
+                tier.ApplySize(TierSize);
+            }
 
             if (_animator == null || !_animator.isActiveAndEnabled) return;
             float target = dead ? 0f : MoveSpeed;
