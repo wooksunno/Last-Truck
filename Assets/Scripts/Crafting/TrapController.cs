@@ -48,12 +48,12 @@ namespace CraftingSystem
             bool popupOpen = GameUIController.Instance != null && GameUIController.Instance.IsPopupOpen;
             bool canPlace = hasTrap && !nearbyWorldInteractable && !popupOpen;
 
-            if (Input.GetKeyDown(KeyCode.E))
+            if (KeyBindings.Down(GameAction.Interact))
                 _pressVetoed = !canPlace;
-            if (Input.GetKeyUp(KeyCode.E))
+            if (KeyBindings.Up(GameAction.Interact))
                 _pressVetoed = false;
 
-            bool holding = canPlace && !_pressVetoed && Input.GetKey(KeyCode.E);
+            bool holding = canPlace && !_pressVetoed && KeyBindings.Held(GameAction.Interact);
 
             if (!holding)
             {

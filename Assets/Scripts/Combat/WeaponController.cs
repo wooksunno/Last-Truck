@@ -957,7 +957,7 @@ namespace Combat
             switch (stats.behavior)
             {
                 case WeaponBehavior.Hitscan:
-                    if (Input.GetMouseButtonDown(0))
+                    if (KeyBindings.Down(GameAction.Attack))
                     {
                         _pressVetoed = RaycastHitsWorldInteractable(stats.range);
                         if (!_pressVetoed && Time.time >= _nextFireTime)
@@ -980,7 +980,7 @@ namespace Combat
                     break;
 
                 case WeaponBehavior.MeleeArc:
-                    if (Input.GetMouseButtonDown(0))
+                    if (KeyBindings.Down(GameAction.Attack))
                     {
                         _pressVetoed = RaycastHitsWorldInteractable(stats.range);
                         if (!_pressVetoed && Time.time >= _nextFireTime)
@@ -1003,10 +1003,10 @@ namespace Combat
                     break;
 
                 case WeaponBehavior.ContinuousCone:
-                    if (Input.GetMouseButtonDown(0))
+                    if (KeyBindings.Down(GameAction.Attack))
                         _pressVetoed = RaycastHitsWorldInteractable(stats.range);
 
-                    if (!_pressVetoed && Input.GetMouseButton(0))
+                    if (!_pressVetoed && KeyBindings.Held(GameAction.Attack))
                     {
                         // 근처에 적이 있으면 그쪽으로, 없으면 지금 바라보는 방향으로 그대로 뿜는다
                         AutoFaceNearestTarget(stats.range);
@@ -1037,7 +1037,7 @@ namespace Combat
                             }
                         }
                     }
-                    else if (_isFlameActive && (Input.GetMouseButtonUp(0) || !Input.GetMouseButton(0)))
+                    else if (_isFlameActive && (KeyBindings.Up(GameAction.Attack) || !KeyBindings.Held(GameAction.Attack)))
                     {
                         StopFlameEffect();
                         StartAttackRecovery(stats.cooldown);
@@ -1045,7 +1045,7 @@ namespace Combat
                     break;
 
                 case WeaponBehavior.ChargeAndRelease:
-                    if (Input.GetMouseButtonDown(0))
+                    if (KeyBindings.Down(GameAction.Attack))
                     {
                         _pressVetoed = RaycastHitsWorldInteractable(stats.range);
                         if (!_pressVetoed)
@@ -1055,11 +1055,11 @@ namespace Combat
                             SetCharging(true);
                         }
                     }
-                    else if (_isCharging && Input.GetMouseButton(0))
+                    else if (_isCharging && KeyBindings.Held(GameAction.Attack))
                     {
                         AutoFaceNearestTarget(stats.range);
                     }
-                    else if (Input.GetMouseButtonUp(0) && _isCharging)
+                    else if (KeyBindings.Up(GameAction.Attack) && _isCharging)
                     {
                         SetCharging(false);
                         float fraction = GetChargeFraction(stats);
@@ -1078,7 +1078,7 @@ namespace Combat
                     break;
 
                 case WeaponBehavior.Throw:
-                    if (Input.GetMouseButtonDown(0))
+                    if (KeyBindings.Down(GameAction.Attack))
                     {
                         _pressVetoed = RaycastHitsWorldInteractable(stats.range);
                         if (!_pressVetoed && Time.time >= _nextFireTime)
@@ -1816,7 +1816,7 @@ namespace Combat
             if (!handEmpty || _fistAttacking)
                 return;
 
-            if (Input.GetMouseButtonDown(0) && Time.time >= _nextFistTime)
+            if (KeyBindings.Down(GameAction.Attack) && Time.time >= _nextFistTime)
             {
                 bool vetoed = RaycastHitsWorldInteractable(fistStrikeRadius);
                 if (!vetoed)

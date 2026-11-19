@@ -24,7 +24,7 @@ namespace CraftingSystem
 
         private void Update()
         {
-            if (!Input.GetKeyDown(openKey))
+            if (!KeyBindings.Down(GameAction.Interact))   // (openKey 대신 설정 창의 상호작용 키)
                 return;
 
             if (GameUIController.Instance != null && GameUIController.Instance.IsPopupOpen)

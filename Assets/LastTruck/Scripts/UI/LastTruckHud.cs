@@ -364,11 +364,11 @@ namespace LastTruck
             _keyHints.style.top = new Length(46f, LengthUnit.Percent);
             _keyHints.style.alignItems = Align.FlexEnd;
 
-            _keyHints.Add(MakeKeyHint("탐색", "E"));
+            _keyHints.Add(MakeKeyHint("탐색", KeyBindings.DisplayName(KeyBindings.Get(GameAction.Interact))));   // 설정 창에서 바꾼 키
             _keyHints.Add(MakeKeyHint("공격", "클릭"));
             _keyHints.Add(MakeKeyHint("임무 확인", "J"));
             _keyHints.Add(MakeKeyHint("생존 임무", "K"));
-            if (LastTruck.Networking.GameLauncher.IsOnlineSession) _keyHints.Add(MakeKeyHint("부활", "F"));
+            if (LastTruck.Networking.GameLauncher.IsOnlineSession) _keyHints.Add(MakeKeyHint("부활", KeyBindings.DisplayName(KeyBindings.Get(GameAction.Interact))));   // 부활도 상호작용 키 (PlayerReviver)
             root.Add(_keyHints);
         }
 
@@ -433,6 +433,10 @@ namespace LastTruck
         private void Update()
         {
             if (!_built) return;
+
+            // 메뉴 화면(타이틀/방 목록/대기실)에서는 조작 안내를 숨긴다
+            if (_keyHints != null)
+                _keyHints.style.display = LastTruck.Networking.LobbyToolkitView.Instance != null ? DisplayStyle.None : DisplayStyle.Flex;
 
             if (Time.unscaledTime >= _nextResolve)
             {

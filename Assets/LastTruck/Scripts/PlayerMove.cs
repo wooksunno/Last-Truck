@@ -19,6 +19,7 @@ namespace LastTruck
         [SerializeField] private LayerMask groundMask = ~0;
 
         [Header("점프 (싱글플레이. 멀티플레이는 NetworkPlayerMovement)")]
+        [Tooltip("(예전 값 - 지금은 설정 창 [조작키]의 '점프' 키를 쓴다)")]
         [SerializeField] private KeyCode jumpKey = KeyCode.Space;
         [Tooltip("점프할 때 위로 주는 속도 (m/s).")]
         [SerializeField] private float jumpVelocity = 4.7f;
@@ -352,14 +353,14 @@ namespace LastTruck
             }
             else
             {
-                hAxis = Input.GetAxisRaw("Horizontal");
-                vAxis = Input.GetAxisRaw("Vertical");
+                hAxis = KeyBindings.Horizontal;
+                vAxis = KeyBindings.Vertical;
                 wDown = PlayerStamina.Sprinting;   // 이름은 wDown이지만 지금은 "달리기"다 (Shift + 스태미나가 남아 있을 때)
             }
 
             if (_networkControlled) return;
 
-            if (!shouldLockMovement && Input.GetKeyDown(jumpKey)) _jumpRequested = true;
+            if (!shouldLockMovement && KeyBindings.Down(GameAction.Jump)) _jumpRequested = true;
 
             if (anim != null)
             {

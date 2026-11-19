@@ -312,14 +312,14 @@ namespace CraftingSystem
 
             if (popup) return;
 
-            if (Input.GetMouseButton(0) && Time.time >= _nextLocalShot)
+            if (KeyBindings.Held(GameAction.Attack) && Time.time >= _nextLocalShot)
             {
                 _nextLocalShot = Time.time + 1f / CurrentRate();
                 if (Online && !HasAuthority) LastTruck.Networking.NetworkTruck.SendTurretFire(_lastAim);
                 else if (!HostFire(_lastAim, out string msg) && msg != null) LastTruck.HudToast.Show(msg);
             }
 
-            if (Input.GetKeyDown(KeyCode.R))
+            if (KeyBindings.Down(GameAction.Reload))
             {
                 if (Online && !HasAuthority) LastTruck.Networking.NetworkTruck.SendTurretCraftAmmo();
                 else { HostCraftAmmo(out string msg); LastTruck.HudToast.Show(msg); }
@@ -583,8 +583,8 @@ namespace CraftingSystem
             if (!TryConsumeAmmo(kind.ammoPerShot, out int ammoDamage))
             {
                 message = kind.ammoPerShot > 1
-                    ? $"탄환이 모자라요 (한 발에 {kind.ammoPerShot}개). R: 트럭 보관함의 나무/돌/광석으로 탄환 만들기"
-                    : "탄환이 없어요. R: 트럭 보관함의 나무/돌/광석으로 탄환 만들기";
+                    ? $"탄환이 모자라요 (한 발에 {kind.ammoPerShot}개). {KeyBindings.DisplayName(KeyBindings.Get(GameAction.Reload))}: 트럭 보관함의 나무/돌/광석으로 탄환 만들기"
+                    : $"탄환이 없어요. {KeyBindings.DisplayName(KeyBindings.Get(GameAction.Reload))}: 트럭 보관함의 나무/돌/광석으로 탄환 만들기";
                 return false;
             }
             _lastHostShot = Time.time;
@@ -804,8 +804,8 @@ namespace CraftingSystem
             var turretItem = ItemCatalog.GetOrCreate().GetItem(_state.PartAt(TruckPartSlot.Roof));
             string turretName = turretItem != null ? turretItem.itemName : "포탑";
             if (_fp) DrawCrosshair();
-            string text = $"{turretName} 사수   마우스: 조준   좌클릭: {(IsMortar ? "포탄 발사 (점선 = 떨어질 곳)" : "레이저 발사")}   R: 탄환 만들기   탄환 {AmmoCount()}발   공격 {_state.StatValue(TruckStat.TurretAttack):0} · {CurrentRate():0.0}/초 · 사거리 {_state.StatValue(TruckStat.TurretRange):0}m"
-                          + (Online ? "   T: 좌석으로   E: 내리기" : "   T: 운전석으로   E: 내리기");
+            string text = $"{turretName} 사수   마우스: 조준   좌클릭: {(IsMortar ? "포탄 발사 (점선 = 떨어질 곳)" : "레이저 발사")}   {KeyBindings.DisplayName(KeyBindings.Get(GameAction.Reload))}: 탄환 만들기   탄환 {AmmoCount()}발   공격 {_state.StatValue(TruckStat.TurretAttack):0} · {CurrentRate():0.0}/초 · 사거리 {_state.StatValue(TruckStat.TurretRange):0}m"
+                          + $"   {KeyBindings.DisplayName(KeyBindings.Get(GameAction.Turret))}: {(Online ? "좌석으로" : "운전석으로")}   {KeyBindings.DisplayName(KeyBindings.Get(GameAction.Interact))}: 내리기";
             var style = new GUIStyle(GUI.skin.box) { fontSize = Mathf.Max(14, Screen.height / 45), alignment = TextAnchor.MiddleCenter };
             style.normal.textColor = Color.white;
             Vector2 size = style.CalcSize(new GUIContent(text)) + new Vector2(24f, 12f);

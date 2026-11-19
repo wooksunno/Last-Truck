@@ -253,9 +253,9 @@ namespace LastTruck
         {
             if (useExternalInput) return;
 
-            moveInput = Input.GetAxis("Vertical");
-            steerInput = Input.GetAxisRaw("Horizontal"); // 부드럽게 꺾는 것은 Steer()에서 한다 (입력 지연 없이)
-            isBrakingInput = Input.GetKey(KeyCode.Space);
+            moveInput = KeyBindings.VerticalSmooth;
+            steerInput = KeyBindings.Horizontal; // 부드럽게 꺾는 것은 Steer()에서 한다 (입력 지연 없이)
+            isBrakingInput = KeyBindings.Held(GameAction.Jump);
         }
 
         private void Move()

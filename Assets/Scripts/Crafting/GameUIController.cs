@@ -161,7 +161,8 @@ private int _withdrawMax;
                 CraftUI.Img(key, CraftUI.Round, new Color(0.96f, 0.75f, 0.35f, 1f));
                 RectTransform keyText = CraftUI.Mk("Text", key);
                 CraftUI.Stretch(keyText);
-                CraftUI.Txt(keyText, "Tab", 20, FontStyle.Bold, new Color(0.18f, 0.12f, 0.06f), TextAnchor.MiddleCenter);
+                CraftUI.Txt(keyText, KeyBindings.DisplayName(KeyBindings.Get(GameAction.Inventory)), 20, FontStyle.Bold,   // 설정 창에서 바꾼 인벤토리 키
+                    new Color(0.18f, 0.12f, 0.06f), TextAnchor.MiddleCenter);
 
                 // UI 스킨이 있으면 나무 판 + 단추 모양으로 (금색 링은 숨긴다)
                 var skin = LastTruck.LastTruckUiSkin.Get();

@@ -106,11 +106,11 @@ namespace CraftingSystem
             // 트럭 거점: 근처에서 Tab으로 열기/닫기 + 안내 표시
             bool nearTruck = IsNearTruck();
             // 안내는 "트럭 근처에서 트럭 쪽을 바라볼 때"만 보이고, Tab을 누르고 있는 동안은 숨긴다 (화면을 가리지 않게)
-            bool showHint = nearTruck && ui != null && !ui.IsPopupOpen && !Input.GetKey(KeyCode.Tab) && IsLookingAtTruck();
+            bool showHint = nearTruck && ui != null && !ui.IsPopupOpen && !KeyBindings.Held(GameAction.Inventory) && IsLookingAtTruck();
             if (ui != null)
                 ui.SetTruckHint(showHint, _truckAnchor);
 
-            if (Input.GetKeyDown(KeyCode.Tab) && ui != null && playerInventory != null)
+            if (KeyBindings.Down(GameAction.Inventory) && ui != null && playerInventory != null)
             {
                 if (ui.IsPopupOpen)
                 {

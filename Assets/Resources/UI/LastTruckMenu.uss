@@ -1,0 +1,212 @@
+/* Last Truck 메뉴 화면 (타이틀 / 방 목록 / 대기실 / 설정 / 제작진 / 캐릭터 선택).
+   녹슨 금속 판 + 해저드 테이프 + 스텐실 글씨. 이미지는 Resources/UI/Menu, 글꼴은 Resources/UI/Fonts.
+   글꼴(Pretendard / Black Ops One)은 코드(LobbyToolkitView)가 실행 중에 붙인다. */
+
+.mn-root { flex-grow: 1; font-size: 20px; color: #f2e6d6; -unity-font-style: normal; }
+.mn-text { color: #f2e6d6; -unity-text-outline-width: 0; white-space: normal; margin: 0; padding: 0; }
+.mn-dimtext { opacity: 0.6; }
+.mn-orange { color: #e8a14a; }
+.mn-green { color: #8fd27a; }
+.mn-row { flex-direction: row; align-items: center; }
+.mn-grow { flex-grow: 1; }
+.mn-fill { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+.mn-center { position: absolute; left: 0; top: 0; right: 0; bottom: 0; align-items: center; justify-content: center; }
+
+/* ---------------- 배경 ---------------- */
+.mn-bg { position: absolute; left: 0; top: 0; right: 0; bottom: 0; overflow: hidden; background-color: #2a1d3d; }
+.mn-bg-layer { position: absolute; left: -3%; top: -3%; width: 106%; height: 106%; -unity-background-scale-mode: scale-and-crop; }
+.mn-bg-sky { background-image: resource("UI/Menu/bg_sky"); }
+.mn-bg-far { background-image: resource("UI/Menu/bg_far"); }
+.mn-bg-mid { background-image: resource("UI/Menu/bg_mid"); }
+.mn-bg-ground { background-image: resource("UI/Menu/bg_ground"); }
+.mn-bg-fx { background-image: resource("UI/Menu/bg_fx"); }
+.mn-dust { position: absolute; width: 4px; height: 4px; border-top-left-radius: 2px; border-top-right-radius: 2px; border-bottom-left-radius: 2px; border-bottom-right-radius: 2px; background-color: rgb(255, 214, 160); }
+.mn-shade { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background-color: rgba(8, 4, 6, 0.55); }
+.mn-version { position: absolute; right: 40px; bottom: 28px; font-size: 18px; opacity: 0.6; }
+
+/* ---------------- 화면 전환 ---------------- */
+.mn-screen { position: absolute; left: 0; top: 0; right: 0; bottom: 0; opacity: 1; transition-property: opacity; transition-duration: 0.18s; }
+.mn-screen--hidden { opacity: 0; }
+
+/* ---------------- 금속 판 ---------------- */
+.mn-plate { background-image: resource("UI/Menu/panel"); -unity-slice-left: 30; -unity-slice-right: 30; -unity-slice-top: 30; -unity-slice-bottom: 30; -unity-slice-scale: 1px; padding: 34px 40px 34px 40px; }
+.mn-plate--dark { background-image: resource("UI/Menu/panel_dark"); }
+.mn-bolt { position: absolute; width: 20px; height: 20px; background-image: resource("UI/Menu/bolt"); }
+.mn-bolt--tl { left: 12px; top: 12px; }
+.mn-bolt--tr { right: 12px; top: 12px; }
+.mn-bolt--bl { left: 12px; bottom: 12px; }
+.mn-bolt--br { right: 12px; bottom: 12px; }
+.mn-tape { height: 16px; background-image: resource("UI/Menu/tape"); background-repeat: repeat; background-size: 16px 16px; margin-top: 16px; margin-bottom: 18px; }
+.mn-well { background-color: rgba(15, 10, 8, 0.55); border-width: 2px; border-color: #1a120d; }
+.mn-sep { border-top-width: 2px; border-color: #5b4a40; margin-top: 26px; margin-bottom: 22px; height: 0; }
+
+.mn-h1 { font-size: 42px; color: #e8a14a; }
+.mn-h1-en { font-size: 22px; color: #e8a14a; opacity: 0.6; margin-left: 14px; padding-top: 10px; }
+.mn-h2 { font-size: 24px; }
+.mn-label { font-size: 20px; opacity: 0.7; }
+.mn-small { font-size: 16px; opacity: 0.6; }
+
+/* ---------------- 버튼 ---------------- */
+.mn-btn { background-image: resource("UI/Menu/btn"); -unity-slice-left: 12; -unity-slice-right: 12; -unity-slice-top: 12; -unity-slice-bottom: 16; background-color: rgba(0, 0, 0, 0); border-width: 0; margin: 0; padding: 0 20px 6px 20px; flex-direction: row; align-items: center; justify-content: center; overflow: hidden; height: 60px; font-size: 24px; color: #f2e6d6; -unity-text-align: middle-center; }
+.mn-btn:hover { background-image: resource("UI/Menu/btn_hover"); }
+.mn-btn:active { translate: 0 2px; }
+.mn-btn--primary { background-image: resource("UI/Menu/btn_primary"); }
+.mn-btn--primary:hover { background-image: resource("UI/Menu/btn_primary_hover"); }
+.mn-btn--green { background-image: resource("UI/Menu/btn_green"); }
+.mn-btn--green:hover { background-image: resource("UI/Menu/btn_green_hover"); }
+.mn-btn--red { background-image: resource("UI/Menu/btn_red"); }
+.mn-btn--on { background-image: resource("UI/Menu/btn_primary"); }
+.mn-btn--on:hover { background-image: resource("UI/Menu/btn_primary_hover"); }
+.mn-btn:disabled { background-image: resource("UI/Menu/btn_off"); opacity: 0.55; }
+.mn-btn--left { justify-content: flex-start; padding-left: 40px; }
+.mn-btn-text { color: #f2e6d6; -unity-text-align: middle-center; }
+.mn-btn-icon { width: 26px; height: 26px; margin-right: 10px; -unity-background-image-tint-color: #f2e6d6; flex-shrink: 0; }
+.mn-btn--icononly { padding-left: 0; padding-right: 0; }
+.mn-btn--icononly .mn-btn-icon { margin-right: 0; }
+.mn-stripe { position: absolute; left: 0; top: 0; bottom: 6px; width: 14px; background-image: resource("UI/Menu/stripe"); background-repeat: repeat; background-size: 20px 20px; }
+
+/* ---------------- 입력 칸 ---------------- */
+.mn-field { margin: 0; }
+.mn-field > .unity-base-text-field__input { background-color: #1b1310; border-width: 2px; border-color: #5b4a40; border-top-left-radius: 0; border-top-right-radius: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; color: #f2e6d6; font-size: 24px; padding: 6px 14px 6px 14px; min-height: 54px; -unity-text-align: middle-left; }
+.mn-field:focus > .unity-base-text-field__input { border-color: #e8a14a; }
+.mn-field .unity-text-element { color: #f2e6d6; }
+.mn-field--title > .unity-base-text-field__input { font-size: 36px; color: #e8a14a; min-height: 62px; border-color: #e8a14a; }
+
+/* ---------------- 슬라이더 ---------------- */
+.mn-slider { flex-grow: 1; margin: 0 18px 0 18px; }
+.mn-slider .unity-base-slider__drag-container { height: 34px; }
+.mn-slider .unity-base-slider__tracker { height: 12px; margin-top: -6px; background-color: #1b1310; border-width: 2px; border-color: #5b4a40; border-top-left-radius: 0; border-top-right-radius: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.mn-slider .unity-base-slider__dragger { width: 22px; height: 32px; margin-top: -16px; background-color: #e8a14a; border-width: 3px; border-color: #3e1a0a; border-top-left-radius: 0; border-top-right-radius: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.mn-slider .unity-base-slider__dragger-border { display: none; }
+
+/* ---------------- 스크롤 ---------------- */
+.mn-scroll { flex-grow: 1; }
+.mn-scroll .unity-scroller--vertical { width: 10px; }
+.mn-scroll .unity-scroller__low-button, .mn-scroll .unity-scroller__high-button { display: none; }
+.mn-scroll .unity-base-slider__tracker { background-color: rgba(0, 0, 0, 0.3); border-width: 0; }
+.mn-scroll .unity-base-slider__dragger { background-color: #5b4a40; border-width: 0; }
+
+/* ---------------- 타이틀 ---------------- */
+.mn-title-col { position: absolute; left: 140px; top: 0; bottom: 0; width: 900px; justify-content: center; padding-bottom: 60px; }
+.mn-logo-box { height: 180px; margin-left: -6px; }
+.mn-logo { position: absolute; left: 0; top: 0; font-size: 150px; color: #e8a14a; text-shadow: 0 6px 0 #5a2a14; letter-spacing: 6px; white-space: nowrap; }
+.mn-logo-glow { color: rgba(255, 150, 60, 0.0); text-shadow: 0 0 30px rgba(255, 150, 60, 0.6); }
+.mn-subtitle { font-size: 28px; color: #f3d7b0; letter-spacing: 10px; opacity: 0.85; margin-top: 4px; margin-left: 6px; margin-bottom: 56px; }
+.mn-title-btn { width: 440px; height: 66px; font-size: 28px; margin-bottom: 16px; }
+.mn-title-btn--play { height: 84px; font-size: 36px; margin-bottom: 22px; }
+
+/* ---------------- 방 목록 / 대기실 공통 배치 ---------------- */
+.mn-two { flex-direction: row; width: 1700px; height: 860px; }
+.mn-left { width: 1140px; height: 860px; }
+.mn-right { width: 510px; height: 860px; margin-left: 50px; padding: 34px 34px 40px 34px; }
+
+/* 방 목록 */
+.mn-banner { margin-top: 16px; padding: 14px 20px 14px 20px; background-color: rgba(110, 170, 80, 0.15); border-left-width: 5px; border-color: #8fd27a; color: #d9f0cf; font-size: 19px; }
+.mn-list-head { flex-direction: row; padding: 0 20px 0 20px; margin-top: 16px; margin-bottom: 8px; font-size: 17px; opacity: 0.6; }
+.mn-col-icon { width: 44px; flex-shrink: 0; }
+.mn-col-name { flex-grow: 1; flex-shrink: 1; overflow: hidden; }
+.mn-col-state { width: 170px; flex-shrink: 0; }
+.mn-col-count { width: 90px; flex-shrink: 0; -unity-text-align: middle-right; }
+.mn-srow { flex-direction: row; align-items: center; height: 62px; padding: 0 20px 0 20px; margin: 0 0 8px 0; background-color: rgba(255, 255, 255, 0.03); border-width: 0; border-color: rgba(0,0,0,0); font-size: 22px; }
+.mn-srow:hover { background-color: rgba(232, 161, 74, 0.12); }
+.mn-srow--off { opacity: 0.38; }
+.mn-srow--off:hover { background-color: rgba(255, 255, 255, 0.03); }
+.mn-srow--rejoin { height: 72px; background-color: rgba(110, 170, 80, 0.22); border-width: 2px; border-color: #8fd27a; font-size: 23px; }
+.mn-srow--rejoin:hover { background-color: rgba(110, 170, 80, 0.32); }
+.mn-srow-name { -unity-text-overflow-position: end; text-overflow: ellipsis; white-space: nowrap; }
+.mn-row-icon { width: 24px; height: 24px; -unity-background-image-tint-color: #e8a14a; }
+.mn-row-icon--green { -unity-background-image-tint-color: #8fd27a; }
+.mn-empty { -unity-text-align: middle-center; opacity: 0.55; font-size: 22px; margin-top: 120px; }
+
+.mn-code-row { flex-direction: row; margin-top: 16px; justify-content: space-between; }
+.mn-code-cell { width: 62px; height: 72px; background-color: #1b1310; border-width: 2px; border-color: #3b2f29; margin: 0; padding: 0; }
+.mn-code-cell > .unity-base-text-field__input { background-color: rgba(0,0,0,0); border-width: 0; font-size: 38px; color: #e8a14a; -unity-text-align: middle-center; padding: 0; margin: 0; height: 100%; }
+.mn-code-cell:focus { border-color: #e8a14a; }
+.mn-code-cell .unity-text-element { color: #e8a14a; -unity-text-align: middle-center; }
+
+/* 대기실 */
+.mn-room-title { flex-direction: row; align-items: center; height: 66px; padding: 0 16px 0 16px; border-width: 2px; border-color: rgba(0, 0, 0, 0); }
+.mn-room-title--edit:hover { border-color: rgba(232, 161, 74, 0.55); background-color: rgba(232, 161, 74, 0.06); }
+.mn-room-title-text { font-size: 42px; color: #e8a14a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 900px; }
+.mn-pencil { width: 24px; height: 24px; margin-left: 14px; background-image: resource("UI/Menu/icon_pencil"); -unity-background-image-tint-color: #e8a14a; }
+.mn-slot { flex-direction: row; align-items: center; height: 150px; padding: 0 22px 0 22px; margin-bottom: 14px; }
+.mn-slot--empty { border-width: 3px; border-color: #5b4a40; background-color: rgba(0, 0, 0, 0); justify-content: center; }
+.mn-portrait { width: 110px; height: 110px; background-color: #3b2f29; border-width: 3px; border-color: #22180f; -unity-background-scale-mode: scale-to-fit; margin-right: 22px; }
+.mn-slot-name { font-size: 28px; }
+.mn-slot-host { font-size: 18px; color: #e8a14a; margin-left: 10px; padding-top: 6px; }
+.mn-slot-char { font-size: 18px; opacity: 0.7; margin-top: 6px; }
+.mn-pill { width: 150px; height: 52px; -unity-text-align: middle-center; font-size: 22px; background-color: #3b2f29; border-width: 2px; border-color: #1a120d; }
+.mn-pill--ready { background-color: #4e7a34; }
+.mn-pill--host { background-color: #7c3816; }
+.mn-codebox { flex-grow: 1; height: 86px; background-color: #1b1310; border-width: 3px; border-color: #e8a14a; -unity-text-align: middle-center; font-size: 54px; color: #e8a14a; letter-spacing: 8px; }
+.mn-pwbox { flex-grow: 1; height: 64px; background-color: #1b1310; border-width: 3px; border-color: #5b4a40; -unity-text-align: middle-center; font-size: 30px; letter-spacing: 4px; }
+.mn-copy { width: 86px; height: 86px; margin-left: 10px; }
+.mn-copy--small { width: 64px; height: 64px; }
+.mn-toast { font-size: 16px; color: #8fd27a; height: 22px; margin-top: 6px; opacity: 0; transition-property: opacity; transition-duration: 0.25s; }
+.mn-toast--show { opacity: 1; }
+.mn-room-bottom { position: absolute; left: 34px; right: 34px; bottom: 40px; }
+.mn-status { font-size: 17px; opacity: 0.75; margin-bottom: 12px; -unity-text-align: middle-center; }
+
+/* ---------------- 모달 / 창 ---------------- */
+.mn-modal-dim { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background-color: rgba(8, 4, 6, 0.6); align-items: center; justify-content: center; }
+.mn-modal { width: 760px; }
+.mn-modal-title { font-size: 34px; color: #e8a14a; }
+.mn-form-row { flex-direction: row; align-items: center; margin-top: 16px; }
+.mn-form-label { width: 150px; font-size: 22px; opacity: 0.8; }
+.mn-modal-buttons { flex-direction: row; justify-content: flex-end; margin-top: 28px; }
+.mn-modal-buttons > .mn-btn { width: 180px; margin-left: 14px; }
+.mn-hint { font-size: 16px; opacity: 0.6; margin-top: 8px; }
+
+/* 설정 */
+.mn-settings { width: 1320px; height: 860px; }
+.mn-tabs { flex-direction: row; margin-top: 6px; }
+.mn-tab { margin-right: 10px; height: 56px; padding-left: 30px; padding-right: 30px; }
+.mn-set-body { flex-grow: 1; margin-top: 22px; }
+.mn-set-row { flex-direction: row; align-items: center; height: 74px; padding: 0 24px 0 24px; margin-bottom: 10px; }
+.mn-set-label { width: 220px; font-size: 24px; }
+.mn-set-value { width: 70px; font-size: 22px; -unity-text-align: middle-right; }
+.mn-cycler { flex-direction: row; align-items: center; flex-grow: 1; }
+.mn-cycler-value { flex-grow: 1; height: 56px; -unity-text-align: middle-center; font-size: 22px; background-color: #1b1310; border-width: 2px; border-color: #5b4a40; margin: 0 10px 0 10px; }
+.mn-cycler-btn { width: 56px; height: 56px; padding: 0 0 6px 0; font-size: 26px; }
+.mn-keys { flex-direction: row; flex-grow: 1; }
+.mn-keycol { flex-grow: 1; flex-basis: 0; padding: 10px; }
+.mn-keycol--right { margin-left: 24px; }
+.mn-keyrow { flex-direction: row; align-items: center; justify-content: space-between; height: 46px; padding: 0 14px 0 14px; }
+.mn-keyrow--alt { background-color: rgba(255, 255, 255, 0.03); }
+.mn-keyrow--wait { background-color: rgba(232, 161, 74, 0.15); border-left-width: 4px; border-color: #e8a14a; }
+.mn-keyrow--flash { background-color: rgba(143, 210, 122, 0.18); }
+.mn-keyrow-label { font-size: 20px; }
+.mn-keybtn { width: 220px; height: 40px; font-size: 18px; padding-bottom: 5px; }
+.mn-keybtn--wait { color: #e8a14a; }
+.mn-set-foot { flex-direction: row; align-items: center; margin-top: 14px; }
+.mn-set-foot-text { flex-grow: 1; font-size: 17px; opacity: 0.7; }
+.mn-set-foot .mn-btn { width: 200px; height: 62px; margin-left: 16px; }
+
+/* 제작진 */
+.mn-credits { width: 900px; }
+.mn-credit-line { font-size: 22px; margin-top: 10px; }
+
+/* ---------------- 캐릭터 선택 ---------------- */
+.cs-panel { width: 1700px; height: 900px; }
+.cs-body { flex-direction: row; flex-grow: 1; margin-top: 4px; }
+.cs-preview { width: 480px; margin-right: 24px; align-items: center; justify-content: center; }
+.cs-portrait { width: 420px; height: 420px; -unity-background-scale-mode: scale-to-fit; }
+.cs-info { flex-grow: 1; padding: 24px 30px 24px 30px; }
+.cs-name { font-size: 40px; color: #e8a14a; }
+.cs-desc { font-size: 19px; margin-top: 10px; margin-bottom: 14px; opacity: 0.9; }
+.cs-stat { flex-direction: row; align-items: center; height: 38px; }
+.cs-stat-label { width: 150px; font-size: 19px; opacity: 0.8; }
+.cs-stat-bar { flex-grow: 1; height: 16px; background-color: #1b1310; border-width: 2px; border-color: #5b4a40; }
+.cs-stat-fill { height: 100%; background-color: #e8a14a; }
+.cs-stat-value { width: 70px; font-size: 19px; -unity-text-align: middle-right; }
+.cs-bottom { flex-direction: row; align-items: center; height: 180px; margin-top: 18px; }
+.cs-slots { flex-grow: 1; height: 100%; padding: 10px; }
+.cs-slot-row { flex-direction: row; }
+.cs-slot { width: 130px; height: 150px; margin-right: 10px; padding: 6px; background-color: rgba(255, 255, 255, 0.04); border-width: 3px; border-color: rgba(0, 0, 0, 0); align-items: center; }
+.cs-slot:hover { background-color: rgba(232, 161, 74, 0.12); }
+.cs-slot--preview { border-color: #e8a14a; background-color: rgba(232, 161, 74, 0.15); }
+.cs-slot-portrait { width: 100px; height: 100px; -unity-background-scale-mode: scale-to-fit; }
+.cs-slot-name { font-size: 16px; margin-top: 4px; white-space: nowrap; }
+.cs-slot-check { position: absolute; right: 6px; top: 6px; width: 26px; height: 26px; background-image: resource("UI/Menu/icon_check"); -unity-background-image-tint-color: #8fd27a; display: none; }
+.cs-slot--equipped .cs-slot-check { display: flex; }
+.cs-confirm { width: 260px; height: 96px; margin-left: 24px; font-size: 34px; }

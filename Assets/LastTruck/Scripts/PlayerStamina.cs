@@ -106,8 +106,8 @@ namespace LastTruck
 
             // 걸어 다닐 수 있는 상태인가 (UI가 열려 있거나 기절/트럭 탑승이면 달리지 않는다)
             bool canMove = _move != null && _move.isActiveAndEnabled && !_move.IsMovementBlocked;
-            bool moving = Mathf.Abs(Input.GetAxisRaw("Horizontal")) > 0.01f || Mathf.Abs(Input.GetAxisRaw("Vertical")) > 0.01f;
-            Tick(canMove && moving && Input.GetKey(KeyCode.LeftShift), dt);
+            bool moving = Mathf.Abs(KeyBindings.Horizontal) > 0.01f || Mathf.Abs(KeyBindings.Vertical) > 0.01f;
+            Tick(canMove && moving && KeyBindings.Held(GameAction.Sprint), dt);
         }
 
         /// <summary>음식/각성제로 스태미나를 즉시 채운다. 지쳐서 못 달리는 상태도 풀린다.</summary>

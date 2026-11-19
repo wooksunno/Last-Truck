@@ -14,7 +14,7 @@ namespace LastTruck.Networking
         // ---- 닉네임 (중복 허용) ----
         public const string NicknamePrefix = "player";
         public const int NicknameMinLength = 2;
-        public const int NicknameMaxLength = 16;
+        public const int NicknameMaxLength = 12;
 
         // ---- 방 제목 ----
         public const string DefaultTitleSuffix = "'s room";
@@ -35,6 +35,10 @@ namespace LastTruck.Networking
         public const string PropVersion = "ver";    // 게임 버전 (SessionTicket.GameVersion) - 같은 버전 방만 보인다
         public const string PropInGame = "ing";     // 1 = 게임 중 (재접속만 가능)
         public const string PropSeed = "seed";      // 맵 시드 (재접속/방장 변경 뒤에도 같은 맵)
+        public const string PropCode = "code";      // 6자리 방 코드 (코드로 참가)
+
+        // ---- 방 코드 ----
+        public const int RoomCodeLength = 6;
 
         public static string DefaultRoomTitle(string nickname) => nickname + DefaultTitleSuffix;
 

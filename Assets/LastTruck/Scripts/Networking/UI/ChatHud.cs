@@ -223,7 +223,7 @@ namespace LastTruck.Networking
         {
             if (!_open)
             {
-                bool enter = Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter);
+                bool enter = KeyBindings.Down(GameAction.Chat) || Input.GetKeyDown(KeyCode.KeypadEnter);   // 채팅 키 (설정 창) / 숫자패드 Enter
                 if (enter && _closedFrame != Time.frameCount && CanOpen()) Open();
             }
             else

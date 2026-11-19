@@ -81,7 +81,7 @@ namespace LastTruck.Networking
         public NetworkRunner Runner => _runner;
         public IReadOnlyList<SessionInfo> Sessions => _sessions;
         public bool IsHost => _runner != null && _runner.IsRunning && _runner.IsServer;
-        public string RoomTitle => _roomTitle;
+        // RoomTitle은 GameLauncher.Menu.cs (참가자는 방장이 바꾼 이름을 따라간다)
         public bool RoomIsPrivate => _roomIsPrivate;
         /// <summary>호스트에게만 값이 있다 (대기실에서 방장에게 비밀번호를 보여주기 위함).</summary>
         public string HostPassword => IsHost ? _hostPassword : null;
@@ -144,9 +144,10 @@ namespace LastTruck.Networking
 
         private void Start()
         {
-            Screen.SetResolution(800, 800, FullScreenMode.Windowed);
             if (_isDuplicate) return;
-            EnterLobby();
+            GameSettings.ApplyAll();   // 저장된 화면/소리 설정 (없으면 예전처럼 800x800 창 모드)
+            // 새 메뉴(LobbyToolkitView)는 타이틀 화면에서 조용히 접속하므로 여기서 접속하지 않는다.
+            if (!MenuControlsLobbyConnect) EnterLobby();
         }
 
         private void OnDestroy()
@@ -190,8 +191,10 @@ namespace LastTruck.Networking
             await ShutdownRunnerAsync();
             if (op != _operationId) return;
 
+            bool quiet = _quietLobbyConnect;
+            _quietLobbyConnect = false;
             SetState(LauncherState.ConnectingLobby);
-            SystemUI.ShowLoading("서버에 접속하는 중...");
+            if (!quiet) SystemUI.ShowLoading("서버에 접속하는 중...");
 
             _sessions = new List<SessionInfo>();
             SessionListUpdated?.Invoke(_sessions);
@@ -205,7 +208,8 @@ namespace LastTruck.Networking
                 await ShutdownRunnerAsync();
                 SetState(LauncherState.Offline);
                 SystemUI.HideLoading();
-                SystemUI.Alert("서버 접속 실패", result.Message, EnterLobby, "다시 시도");
+                // 타이틀 화면에서 조용히 접속하다 실패했으면 알리지 않는다 (플레이를 누르면 다시 시도한다).
+                if (!quiet) SystemUI.Alert("서버 접속 실패", result.Message, EnterLobby, "다시 시도");
                 return;
             }
 
@@ -228,6 +232,8 @@ namespace LastTruck.Networking
             _roomIsPrivate = isPrivate;
             _cachedHostNickname = PlayerProfile.Nickname;
             _hostPassword = isPrivate ? password : null;
+            string roomCode = GenerateRoomCode();
+            _roomCode = roomCode;
 
             SetState(LauncherState.CreatingSession);
             SystemUI.ShowLoading("방을 만드는 중...", CancelCurrentOperation);
@@ -247,6 +253,7 @@ namespace LastTruck.Networking
                     [LobbyRules.PropHasPassword] = isPrivate ? 1 : 0,
                     [LobbyRules.PropVersion] = SessionTicket.GameVersion,
                     [LobbyRules.PropInGame] = 0,
+                    [LobbyRules.PropCode] = roomCode,   // 코드로 참가 (로비에서 보이려면 방을 만들 때 넣어야 한다)
                 },
                 ConnectionToken = SessionTicket.Build(password),
                 SceneManager = _runner.GetComponent<NetworkSceneManagerDefault>(),
@@ -303,6 +310,7 @@ namespace LastTruck.Networking
             _cachedHostNickname = string.Empty;
             _roomIsPrivate = isPrivate;
             _hostPassword = null;
+            _roomCode = null;
 
             SetState(LauncherState.JoiningSession);
             SystemUI.ShowLoading("방에 들어가는 중...", CancelCurrentOperation);
@@ -1111,8 +1119,9 @@ namespace LastTruck.Networking
             data.ArmorTier = (byte)Mathf.Clamp(CraftingSystem.PlayerArmor.LocalTier, 0, CraftingSystem.PlayerArmor.MaxTier);
 
             Camera cam = Camera.main;
-            float h = Input.GetAxisRaw("Horizontal");
-            float v = Input.GetAxisRaw("Vertical");
+            // 이동/버튼 키는 설정 창 [조작키]에서 바꾼 값을 따른다 (KeyBindings)
+            float h = KeyBindings.Horizontal;
+            float v = KeyBindings.Vertical;
 
             if (cam != null)
             {
@@ -1147,18 +1156,18 @@ namespace LastTruck.Networking
                 if (seat == NetworkTruck.DriverSeat && NetworkGameState.AllowPlayerControl && !dialogOpen)
                 {
                     driving = true;
-                    data.TruckThrottle = Input.GetAxis("Vertical");
-                    data.TruckSteer = Input.GetAxisRaw("Horizontal"); // 부드럽게 꺾는 것은 TruckMove.Steer가 한다
+                    data.TruckThrottle = KeyBindings.VerticalSmooth;
+                    data.TruckSteer = KeyBindings.Horizontal; // 부드럽게 꺾는 것은 TruckMove.Steer가 한다
                 }
             }
 
             var buttons = new NetworkButtons();
-            buttons.Set(NetworkInputButton.TruckBrake, driving && Input.GetKey(KeyCode.Space));
+            buttons.Set(NetworkInputButton.TruckBrake, driving && KeyBindings.Held(GameAction.Jump));
             buttons.Set(NetworkInputButton.Walk, PlayerStamina.Sprinting);   // Walk 버튼 = 달리기 (Shift + 스태미나가 남아 있을 때)
-            buttons.Set(NetworkInputButton.Attack, Input.GetMouseButton(0));
-            buttons.Set(NetworkInputButton.Interact, Input.GetKey(KeyCode.E));
+            buttons.Set(NetworkInputButton.Attack, KeyBindings.Held(GameAction.Attack));
+            buttons.Set(NetworkInputButton.Interact, KeyBindings.Held(GameAction.Interact));
             // 점프: 걸어 다닐 때만 (트럭 탑승 중 Space는 브레이크)
-            buttons.Set(NetworkInputButton.Jump, seat < 0 && canMove && NetworkGameState.AllowPlayerControl && Input.GetKey(KeyCode.Space));
+            buttons.Set(NetworkInputButton.Jump, seat < 0 && canMove && NetworkGameState.AllowPlayerControl && KeyBindings.Held(GameAction.Jump));
             data.Buttons = buttons;
 
             input.Set(data);

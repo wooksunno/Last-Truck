@@ -7,6 +7,7 @@ namespace LastTruck
         [Header("상호작용 설정")]
         public float interactRange = 3f;
         public LayerMask interactLayer;
+        [Tooltip("(예전 값 - 지금은 설정 창 [조작키]의 '상호작용' 키를 쓴다)")]
         public KeyCode interactKey = KeyCode.E;
 
         [Header("나무/돌 채집 연출")]
@@ -96,7 +97,7 @@ namespace LastTruck
             // 홀드형 상호작용 (누르고 있기)
             if (holdable != null && holdable.RequiredHoldSeconds > 0f)
             {
-                if (Input.GetKey(interactKey))
+                if (KeyBindings.Held(GameAction.Interact))
                 {
                     // 진행도는 "초"가 아니라 "비율"로 쌓는다.
                     // (초로 쌓으면 느린 도구로 캐다가 빠른 도구로 바꿨을 때, 쌓인 시간이 빠른 도구 기준으로 계산돼 바로 완료되던 문제)
@@ -121,7 +122,7 @@ namespace LastTruck
             {
                 ResetHoldState();
 
-                if (Input.GetKeyDown(interactKey))
+                if (KeyBindings.Down(GameAction.Interact))
                 {
                     currentInteractable.Interact(gameObject);
                 }

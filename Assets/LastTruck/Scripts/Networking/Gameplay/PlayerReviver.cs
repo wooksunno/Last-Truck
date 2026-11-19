@@ -66,7 +66,7 @@ namespace LastTruck.Networking
             bool canAct = _self.IsAlive && !_self.IsSeated && NetworkGameState.AllowPlayerControl;
             NearbyDowned = canAct ? FindNearbyDowned() : null;
 
-            bool holding = NearbyDowned != null && Input.GetKey(reviveKey) && !IsBlockedByUI();
+            bool holding = NearbyDowned != null && KeyBindings.Held(GameAction.Interact) && !IsBlockedByUI();   // (reviveKey 대신 설정 창의 상호작용 키)
             if (!holding)
             {
                 StopReviving();
