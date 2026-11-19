@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: a4cc8bf17fbb80e43a0842ce172b1b91
+ShaderIncludeImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 119877
+  packageName: Amplify Impostors
+  packageVersion: 1.1.0
+  assetPath: Assets/AmplifyImpostors/Plugins/ShaderGraph/URP/ShaderLibrary/AIDepthOffset.hlsl
+  uploadId: 1034374

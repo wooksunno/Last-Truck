@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 390931348c044f5cae3f276cb9d9bfbe
+AssemblyDefinitionImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 119877
+  packageName: Amplify Impostors
+  packageVersion: 1.1.0
+  assetPath: Assets/AmplifyImpostors/Plugins/ShaderGraph/URP/AmplifyImpostors.SG.URP.Fallback.asmdef
+  uploadId: 1034374

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 25098f4c2dd44d042ad9dec22de6adeb
+ShaderIncludeImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 119877
+  packageName: Amplify Impostors
+  packageVersion: 1.1.0
+  assetPath: Assets/AmplifyImpostors/Plugins/ShaderGraph/URP/ShaderLibrary/Passes/URP14/AI_PBRForwardPass.hlsl
+  uploadId: 1034374

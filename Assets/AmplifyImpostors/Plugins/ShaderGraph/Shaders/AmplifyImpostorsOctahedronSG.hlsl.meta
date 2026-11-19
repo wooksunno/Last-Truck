@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: ce3b5a48a6c88154a9fc53e38f46337f
+ShaderIncludeImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 119877
+  packageName: Amplify Impostors
+  packageVersion: 1.1.0
+  assetPath: Assets/AmplifyImpostors/Plugins/ShaderGraph/Shaders/AmplifyImpostorsOctahedronSG.hlsl
+  uploadId: 1034374

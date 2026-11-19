@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 7c8d0f817b098af499c8af834d820dce
+ShaderIncludeImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 119877
+  packageName: Amplify Impostors
+  packageVersion: 1.1.0
+  assetPath: Assets/AmplifyImpostors/Plugins/ShaderGraph/Shaders/AmplifyImpostorsCommonSG.hlsl
+  uploadId: 1034374

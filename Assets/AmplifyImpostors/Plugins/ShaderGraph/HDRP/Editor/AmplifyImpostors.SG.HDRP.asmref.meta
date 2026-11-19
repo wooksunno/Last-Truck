@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 6aa33ce1f1dc4163a0866cb033dc99a8
+AssemblyDefinitionReferenceImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 119877
+  packageName: Amplify Impostors
+  packageVersion: 1.1.0
+  assetPath: Assets/AmplifyImpostors/Plugins/ShaderGraph/HDRP/Editor/AmplifyImpostors.SG.HDRP.asmref
+  uploadId: 1034374

@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 7a405f58bac896e46ad633cb1274d4ba
+timeCreated: 1525095235
+licenseType: Store
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 119877
+  packageName: Amplify Impostors
+  packageVersion: 1.1.0
+  assetPath: Assets/AmplifyImpostors/Plugins/EditorResources/Shaders/Runtime/AmplifyImpostorsTemplate_v2.shader
+  uploadId: 1034374

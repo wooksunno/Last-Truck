@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 9587d58ea8f1dac478d1adbf2a63d31f
+timeCreated: 1524073284
+licenseType: Store
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 119877
+  packageName: Amplify Impostors
+  packageVersion: 1.1.0
+  assetPath: Assets/AmplifyImpostors/Plugins/EditorResources/Shaders/Baking/GBufferToOutput.shader
+  uploadId: 1034374

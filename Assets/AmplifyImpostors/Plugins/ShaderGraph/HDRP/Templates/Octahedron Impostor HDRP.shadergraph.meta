@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 7e0e23a378edd11488a4247eb3d6196b
+ScriptedImporter:
+  internalIDToNameTable: []
+  externalObjects: {}
+  serializedVersion: 2
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+  script: {fileID: 11500000, guid: 625f186215c104763be7675aa2d941aa, type: 3}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 119877
+  packageName: Amplify Impostors
+  packageVersion: 1.1.0
+  assetPath: Assets/AmplifyImpostors/Plugins/ShaderGraph/HDRP/Templates/Octahedron
+    Impostor HDRP.shadergraph
+  uploadId: 1034374
