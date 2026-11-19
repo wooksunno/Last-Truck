@@ -145,12 +145,54 @@ namespace Combat
             {
                 var networkMonster = GetComponent<LastTruck.Networking.NetworkMonster>();
                 if (networkMonster != null) networkMonster.RequestStun(duration);
+                BroadcastAbilityFx(AbilityFx.Stun, duration, transform.position);   // 다른 플레이어 화면에도 기절 연출
                 return;
             }
 
             if (_dead) return;
             Root(duration);   // MonsterAI가 없는 대상도 최소한 움직이지는 못하게
             Stunned?.Invoke(duration);
+        }
+
+        /// <summary>캐릭터 능력 연출 종류 (멀티플레이에서 다른 플레이어 화면에 보여 줄 때 쓴다).</summary>
+        public enum AbilityFx : byte
+        {
+            PoliceMark = 1,       // 경찰 표식 림라이트
+            PoliceMarkFlash = 2,  // 표식 + 추가 피해 번쩍
+            Stun = 3,             // 복서 기절: 붉은 외곽선 + "기절!" 글자
+            ArmyEnhanced = 4,     // 군인 강화 공격: "강화 공격!" 글자
+        }
+
+        /// <summary>멀티플레이: 내 화면에 띄운 능력 연출을 다른 플레이어들에게도 보낸다 (싱글이면 아무것도 안 함).</summary>
+        private void BroadcastAbilityFx(AbilityFx fx, float duration, Vector3 point)
+        {
+            if (!IsNetworked) return;
+            var networkMonster = GetComponent<LastTruck.Networking.NetworkMonster>();
+            if (networkMonster != null) networkMonster.BroadcastAbilityFx((byte)fx, duration, point);
+        }
+
+        /// <summary>다른 플레이어가 보낸 능력 연출을 이 화면에 보여 준다 (연출만, 피해/표식 판정은 바꾸지 않는다).</summary>
+        public void ShowRemoteAbilityFx(byte fx, float duration, Vector3 point)
+        {
+            if (_dead) return;
+            duration = Mathf.Clamp(duration, 0f, 30f);
+            switch ((AbilityFx)fx)
+            {
+                case AbilityFx.PoliceMark:
+                    if (duration > 0f) PoliceMarkVisual.Show(this, Time.time + duration);
+                    break;
+                case AbilityFx.PoliceMarkFlash:
+                    if (duration > 0f) PoliceMarkVisual.Show(this, Time.time + duration);
+                    PoliceMarkVisual.Flash(this);
+                    break;
+                case AbilityFx.Stun:
+                    if (duration > 0f) StunRimVisual.Show(this, duration);
+                    LastTruck.AbilityFeedback.Popup(transform.position + Vector3.up * 2f, "기절!", LastTruck.AbilityFeedback.BoxerColor, 0.75f);
+                    break;
+                case AbilityFx.ArmyEnhanced:
+                    LastTruck.AbilityFeedback.Popup(point, "강화 공격!", LastTruck.AbilityFeedback.ArmyColor);
+                    break;
+            }
         }
 
         /// <summary>
@@ -191,7 +233,10 @@ namespace Combat
                 // 1. 기본 데미지(군인 등)
                 finalDamage = abilityController.GetCalculatedDamage(amount, out bool isEnhanced);
                 if (isEnhanced)
+                {
                     LastTruck.AbilityFeedback.Popup(hitPoint, "강화 공격!", LastTruck.AbilityFeedback.ArmyColor);
+                    BroadcastAbilityFx(AbilityFx.ArmyEnhanced, 0f, hitPoint);
+                }
 
                 bool wasMarked = IsMarked;
 
@@ -208,6 +253,9 @@ namespace Combat
                     PoliceMarkVisual.Show(this, _markUntilTime);
                     if (wasMarked)
                         PoliceMarkVisual.Flash(this);   // 표식 추가 피해가 들어간 순간 번쩍
+
+                    // 다른 플레이어 화면에도 표식 림라이트 (추가 피해 순간이면 번쩍까지)
+                    BroadcastAbilityFx(wasMarked ? AbilityFx.PoliceMarkFlash : AbilityFx.PoliceMark, _markUntilTime - Time.time, hitPoint);
                 }
             }
 

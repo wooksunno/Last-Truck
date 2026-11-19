@@ -111,6 +111,10 @@ namespace LastTruck
             _wheels = GetComponentsInChildren<WheelCollider>(true);
             BuildAxles();
 
+            // 캐릭터와 트럭 충돌은 아래 IgnoreCharacter로 꺼 두므로(트럭이 튕겨 나가는 문제),
+            // 대신 트럭에 힘을 주지 않는 별도의 벽을 만들어 플레이어가 트럭을 통과하지 못하게 한다.
+            if (_playerBlocker == null) _playerBlocker = TruckPlayerBlocker.Create(transform, _truckColliders);
+
             // 무게 + 힘 비율
             float ratio = 1f;
             if (mass > 0f && _rb.mass > 0f)
@@ -340,6 +344,11 @@ namespace LastTruck
         }
 
         private static readonly List<GameObject> IgnoredCharacters = new List<GameObject>();
+
+        /// <summary>트럭과 충돌을 끈 캐릭터 목록 (TruckPlayerBlocker가 앉은 사람을 구분할 때 쓴다).</summary>
+        public static IReadOnlyList<GameObject> Characters => IgnoredCharacters;
+
+        private TruckPlayerBlocker _playerBlocker;
 
         private void IgnoreWith(GameObject other, bool always = false)
         {

@@ -375,6 +375,23 @@ namespace LastTruck.Networking
             ApplyStunOnHost(duration);
         }
 
+        /// <summary>
+        /// 캐릭터 능력 연출(경찰 표식, 복서 기절, 군인 강화 공격)을 다른 플레이어 화면에도 보여 준다.
+        /// 때린 사람 화면에는 이미 떠 있으므로 보낸 사람은 받지 않는다. 연출만 하고 게임 판정은 바꾸지 않는다.
+        /// </summary>
+        public void BroadcastAbilityFx(byte fx, float duration, Vector3 point)
+        {
+            if (Object == null || !Object.IsValid) return;
+            RPC_AbilityFx(fx, duration, point);
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.All, InvokeLocal = false)]
+        private void RPC_AbilityFx(byte fx, float duration, Vector3 point)
+        {
+            var damageable = GetComponent<Combat.Damageable>();
+            if (damageable != null) damageable.ShowRemoteAbilityFx(fx, duration, point);
+        }
+
         private void ApplyStunOnHost(float duration)
         {
             if (!HasStateAuthority) return;

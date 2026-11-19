@@ -147,7 +147,8 @@ namespace LastTruck
         private void Hit_Ani(Vector3 attackerPosition = default, bool hasAttacker = false)
         {
             if (anim == null) anim = GetComponentInChildren<Animator>();
-            if (anim != null)
+            // 이미 쓰러졌으면 피격 모션으로 죽는 모션(Death_A)을 끊지 않는다.
+            if (anim != null && !IsAnimDead())
             {
                 anim.SetTrigger("doHit");
             }
@@ -181,11 +182,29 @@ namespace LastTruck
             Debug.Log("[PlayerStats] 기절했습니다 (싱글플레이: 살려줄 동료가 없어 게임 오버).");
         }
 
+        private static readonly int IsDeadHash = Animator.StringToHash("isDead");
+
+        // isDead 파라미터가 없는 Animator(구버전 컨트롤러)에서도 경고 없이 동작하도록 확인한다.
+        private bool HasIsDeadParam()
+        {
+            if (anim == null) return false;
+            foreach (AnimatorControllerParameter p in anim.parameters)
+                if (p.nameHash == IsDeadHash) return true;
+            return false;
+        }
+
+        private bool IsAnimDead() => HasIsDeadParam() && anim.GetBool(IsDeadHash);
+
         private void Die()
         {
             if (anim == null) anim = GetComponentInChildren<Animator>();
             if (anim != null)
             {
+                // Animator: AnyState --(doDie)--> Dying(Death_A, 1회 재생 후 마지막 포즈 유지)
+                // isDead=true 이면 피격/공격 AnyState 전이가 막혀 쓰러진 포즈가 유지된다.
+                if (IsAnimDead()) return; // 이미 죽었으면 다시 재생하지 않는다.
+                anim.ResetTrigger("doHit");
+                if (HasIsDeadParam()) anim.SetBool(IsDeadHash, true);
                 anim.SetTrigger("doDie");
             }
         }
@@ -218,6 +237,7 @@ namespace LastTruck
             if (anim != null)
             {
                 anim.Rebind();
+                if (HasIsDeadParam()) anim.SetBool(IsDeadHash, false);
                 anim.Update(0f);
             }
         }

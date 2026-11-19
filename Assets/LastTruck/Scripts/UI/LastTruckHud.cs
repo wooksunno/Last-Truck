@@ -472,14 +472,25 @@ namespace LastTruck
             if (_truck == null)
                 _truck = FindFirstObjectByType<TruckInformation>();
 
-            // 예전 체력 막대(PlayerHPUI)는 이 HUD가 대신한다
-            if (_stats != null && !_legacyHidden)
+            // 예전 uGUI 체력 막대(PlayerHPUI)와 그것을 복사해 만든 예전 스태미나 막대(PlayerStamina)는
+            // 이 HUD(머리 위 체력 + 미니맵 아래 SP 판)가 대신하므로 숨긴다.
+            // 한 번만 찾으면 나중에 생긴 복사본이나 다시 켜진 막대를 놓치므로 Resolve 때마다(0.5초) 확인한다.
+            if (_stats != null) HideLegacyBars();
+        }
+
+        private void HideLegacyBars()
+        {
+            foreach (PlayerHPUI legacy in FindObjectsByType<PlayerHPUI>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             {
-                PlayerHPUI legacy = FindFirstObjectByType<PlayerHPUI>(FindObjectsInactive.Include);
-                if (legacy != null && legacy.transform.parent != null)
-                    legacy.transform.parent.gameObject.SetActive(false);
-                _legacyHidden = true;
+                if (legacy == null) continue;
+                Transform root = legacy.transform.parent != null ? legacy.transform.parent : legacy.transform;
+                if (root.gameObject.activeSelf) root.gameObject.SetActive(false);
+
+                // 같은 부모 밑에 복사된 예전 스태미나 막대
+                Transform stamina = root.parent != null ? root.parent.Find("PlayerStamina") : null;
+                if (stamina != null && stamina.gameObject.activeSelf) stamina.gameObject.SetActive(false);
             }
+            _legacyHidden = true;
         }
 
         private static void SetFill(VisualElement fill, float ratio)

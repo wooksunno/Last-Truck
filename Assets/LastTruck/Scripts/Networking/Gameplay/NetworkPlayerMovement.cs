@@ -95,6 +95,40 @@ namespace LastTruck.Networking
         private SprintGate _sprintGate;
         private float _nextDustTime;
 
+        // 트럭 수리 중 (Working_B 애니메이션 + 주변 먼지): 내 컴퓨터가 정해서 호스트에게 알리면 모두에게 동기화된다.
+        [Networked] public NetworkBool IsRepairing { get; set; }
+        private PlayerInteract _interact;
+        private bool _sentRepairing;
+        private Animator _repairAnim;
+        private bool _repairAnimChecked;
+        private bool _repairAnimHasParam;
+        private bool _repairShown;
+        private float _nextRepairDust;
+
+        [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
+        private void RPC_SetRepairing(NetworkBool on) => IsRepairing = on;
+
+        private void UpdateRepairingVisual(bool alive)
+        {
+            bool repairing;
+            if (Object.HasInputAuthority)
+            {
+                if (_interact == null) _interact = GetComponent<PlayerInteract>();
+                repairing = alive && _interact != null && _interact.IsRepairingTruck;
+                if (repairing != _sentRepairing)
+                {
+                    _sentRepairing = repairing;
+                    RPC_SetRepairing(repairing);
+                }
+            }
+            else
+            {
+                repairing = alive && IsRepairing;
+            }
+
+            PlayerInteract.ShowRepairing(this, transform, repairing, ref _repairAnim, ref _repairAnimChecked, ref _repairAnimHasParam, ref _repairShown, ref _nextRepairDust);
+        }
+
         #endregion
 
         #region 조회
@@ -364,6 +398,7 @@ namespace LastTruck.Networking
             }
 
             bool alive = (_health == null || !_health.IsDead) && !NetworkTruck.IsSeated(Object.InputAuthority);
+            UpdateRepairingVisual(alive);
             bool moving = alive && HorizontalSpeed > runAnimationThreshold;
             _animator.SetBool(IsRunHash, moving);
             _animator.SetBool(IsWalkHash, false);   // Shift는 이제 느린 걷기가 아니라 달리기라 걷기 애니메이션은 쓰지 않는다

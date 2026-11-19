@@ -12,6 +12,7 @@ namespace LastTruck
         private ParticleSystem _ps;
 
         private static readonly Color DustColor = new Color(0.93f, 0.88f, 0.79f, 0.7f);
+        private static readonly Color RepairDustColor = new Color(0.56f, 0.54f, 0.51f, 0.85f);   // 수리 먼지: 진한 회색
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetStatics() => _instance = null;
@@ -37,6 +38,47 @@ namespace LastTruck
             Instance.Emit(footPos, -moveDir.normalized * 0.8f, 3, 0.4f, 0.7f);
         }
 
+        private static int _repairBeat;
+
+        /// <summary>
+        /// 트럭을 고치는 동안 캐릭터 주변에 이는 먼지. center = 캐릭터 발 위치. 약 0.14초마다 부른다.
+        /// - 매번: 캐릭터 둘레 넓은 고리에서 큼직한 먼지가 뭉게뭉게 피어오른다.
+        /// - 4번에 한 번(망치질 박자): 발밑에서 "쾅" 하고 크게 퍼지는 먼지 + 위로 솟는 먼지 기둥.
+        /// </summary>
+        public static void RepairPuff(Vector3 center)
+        {
+            MovementDust d = Instance;
+
+            // 뭉게뭉게: 넓은 고리 위에서 바깥/위로 천천히
+            for (int i = 0; i < 3; i++)
+            {
+                float angle = Random.Range(0f, Mathf.PI * 2f);
+                Vector3 dir = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+                Vector3 pos = center + dir * Random.Range(0.5f, 1.25f) + Vector3.up * Random.Range(0f, 0.4f);
+                d.Emit(pos, dir * Random.Range(0.5f, 1.1f) + Vector3.up * Random.Range(0.35f, 0.9f), 1, 1.0f, 0.6f, 1.5f, RepairDustColor);
+            }
+
+            _repairBeat++;
+            if (_repairBeat % 4 != 0) return;
+
+            // 쾅! 발밑에서 사방으로 크게 퍼지는 먼지 고리
+            for (int i = 0; i < 11; i++)
+            {
+                float angle = (i / 11f + Random.Range(-0.03f, 0.03f)) * Mathf.PI * 2f;
+                Vector3 dir = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+                Vector3 pos = center + dir * Random.Range(0.3f, 0.6f) + Vector3.up * 0.1f;
+                d.Emit(pos, dir * Random.Range(1.9f, 3.0f) + Vector3.up * Random.Range(0.3f, 0.8f), 1, 1.15f, 0f, 1.25f, RepairDustColor);
+            }
+
+            // 위로 솟는 먼지 기둥
+            for (int i = 0; i < 4; i++)
+            {
+                Vector2 r = Random.insideUnitCircle * 0.6f;
+                Vector3 pos = center + new Vector3(r.x, Random.Range(0.3f, 1.0f), r.y);
+                d.Emit(pos, new Vector3(r.x, 0f, r.y) * 0.8f + Vector3.up * Random.Range(1.2f, 2.1f), 1, 1.35f, 0f, 1.4f, RepairDustColor);
+            }
+        }
+
         /// <summary>착지 먼지. impactSpeed = 떨어지던 속도(m/s). 빠를수록 많이, 넓게 퍼진다.</summary>
         public static void Landing(Vector3 footPos, float impactSpeed)
         {
@@ -45,7 +87,7 @@ namespace LastTruck
             Instance.Emit(footPos, Vector3.zero, count, Mathf.Lerp(0.5f, 0.85f, k), Mathf.Lerp(1.4f, 3.2f, k));
         }
 
-        private void Emit(Vector3 pos, Vector3 drift, int count, float size, float spread)
+        private void Emit(Vector3 pos, Vector3 drift, int count, float size, float spread, float lifeScale = 1f, Color? color = null)
         {
             if (_ps == null) return;
 
@@ -57,8 +99,8 @@ namespace LastTruck
                 Vector3 outward = new Vector3(ring.x, 0f, ring.y).normalized * spread * Random.Range(0.4f, 1f);
                 p.velocity = outward + drift + Vector3.up * Random.Range(0.15f, 0.5f);
                 p.startSize = size * Random.Range(0.7f, 1.3f);
-                p.startLifetime = Random.Range(0.45f, 0.8f);
-                p.startColor = DustColor;
+                p.startLifetime = Random.Range(0.45f, 0.8f) * lifeScale;
+                p.startColor = color ?? DustColor;
                 p.rotation = Random.Range(0f, 360f);
                 _ps.Emit(p, 1);
             }
@@ -73,7 +115,7 @@ namespace LastTruck
             main.loop = false;
             main.playOnAwake = false;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
-            main.maxParticles = 300;
+            main.maxParticles = 1200;
             main.gravityModifier = -0.04f;   // 먼지는 살짝 떠오른다
             main.startLifetime = 0.6f;
             main.startSize = 0.3f;

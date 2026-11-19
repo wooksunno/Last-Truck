@@ -1078846,6 +1078846,10 @@ PrefabInstance:
       propertyPath: turnSensitivility
       value: 10
       objectReference: {fileID: 0}
+    - target: {fileID: 3421343053134575936, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 3456958735036498817, guid: f0c857577b983884caf1d066d2e36b16, type: 3}
       propertyPath: m_WheelDampingRate
       value: 0.1

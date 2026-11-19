@@ -26,6 +26,59 @@ namespace LastTruck
         public bool HasNearbyInteractable => currentInteractable != null;
         public IInteractable CurrentInteractable => currentInteractable;
 
+        /// <summary>지금 E키를 꾹 눌러 트럭을 고치고 있다 (Working_B 애니메이션 + 주변 먼지).</summary>
+        public bool IsRepairingTruck => isActiveAndEnabled && IsHolding && currentInteractable is TruckInteractable;
+
+        private static readonly int IsRepairingHash = Animator.StringToHash("isRepairing");
+        private Animator _anim;
+        private bool _animHasRepairParam;
+        private bool _animChecked;
+        private bool _shownRepairing;
+        private float _nextRepairDust;
+        private bool? _isOnline;
+
+        /// <summary>싱글플레이 전용: 수리 애니메이션과 먼지 (멀티플레이는 NetworkPlayerMovement가 모두에게 동기화해서 보여 준다).</summary>
+        private void LateUpdate()
+        {
+            if (_isOnline == null) _isOnline = GetComponent<LastTruck.Networking.NetworkPlayerMovement>() != null;
+            if (_isOnline.Value) return;
+            ShowRepairing(this, transform, IsRepairingTruck, ref _anim, ref _animChecked, ref _animHasRepairParam, ref _shownRepairing, ref _nextRepairDust);
+        }
+
+        private void OnDisable()
+        {
+            if (_isOnline == true) return;
+            if (_anim != null && _animHasRepairParam) _anim.SetBool(IsRepairingHash, false);
+            _shownRepairing = false;
+        }
+
+        /// <summary>수리 중 표시 (애니메이터 isRepairing + 주변 먼지). 싱글/멀티가 같이 쓴다.</summary>
+        public static void ShowRepairing(Component owner, Transform body, bool repairing, ref Animator anim, ref bool animChecked, ref bool hasParam, ref bool shown, ref float nextDust)
+        {
+            if (anim == null || !animChecked)
+            {
+                anim = owner.GetComponentInChildren<Animator>();
+                animChecked = true;
+                hasParam = false;
+                if (anim != null)
+                    foreach (AnimatorControllerParameter p in anim.parameters)
+                        if (p.nameHash == IsRepairingHash) { hasParam = true; break; }
+            }
+
+            if (repairing != shown)
+            {
+                shown = repairing;
+                if (anim != null && hasParam) anim.SetBool(IsRepairingHash, repairing);
+                if (repairing) nextDust = 0f;
+            }
+
+            if (repairing && Time.time >= nextDust)
+            {
+                nextDust = Time.time + 0.14f;
+                MovementDust.RepairPuff(body.position);
+            }
+        }
+
         private void Update()
         {
             Detect_Interactable();
