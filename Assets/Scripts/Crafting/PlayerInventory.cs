@@ -74,9 +74,9 @@ namespace CraftingSystem
                 }
             }
 
-            // Q: 든 아이템 1개 버리기, Shift+Q: 칸 전부 버리기
+            // Q: 든 아이템 1개 버리기, Ctrl+Q(또는 Shift+Q): 든 칸 전부 버리기
             if (!uiOpen && Input.GetKeyDown(KeyCode.Q))
-                DropSelected(Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift));
+                DropSelected(ctrl || Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift));
         }
 
         /// <summary>두 칸의 아이템을 서로 바꾼다 (빈 칸이면 이동, 같은 아이템이면 합친다).</summary>

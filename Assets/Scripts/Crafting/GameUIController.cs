@@ -1896,8 +1896,11 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
 
         private readonly TruckProcessingLocal _localProcessing = new TruckProcessingLocal();
         private int _seenLocalRevision = -1;
-        private RecipeData _selectedProcessRecipe;     // 왼쪽 목록에서 고른 가공 재료 (빈 칸을 누르면 여기에 넣는다)
+        private RecipeData _selectedProcessRecipe;     // (예전 uGUI 화면용) 왼쪽 목록에서 고른 가공 재료 (빈 칸을 누르면 여기에 넣는다)
         private FacilityType _selectedProcessFacility;
+        private ItemData _processPickItem;             // 새 가공 화면: 아이템 하나로 만들 수 있는 가공법이 여러 개일 때 고르는 중인 아이템
+        private int _procFocus = -1;   // 큰 가공 화면에 보여 주는 칸 번호
+        private readonly float[] _procPlacedAt = new float[TruckFacilities.MaxSlots];   // 칸별로 방금 넣은 시각 (재료가 톡 들어가는 연출용)
 
         private static int FacilitySlotOf(FacilityType type) => TruckFacilities.IndexOf(type);
 
@@ -1972,6 +1975,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             {
                 _selectedProcessFacility = _truckProcessingFacility;
                 _selectedProcessRecipe = null;
+                _processPickItem = null;
             }
 
             FacilityType fac = _truckProcessingFacility;
@@ -2005,6 +2009,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                     {
                         if (_truckProcessingFacility == cap) return;
                         _truckProcessingFacility = cap;
+                        _procFocus = -1;
                         _truckProcessMessage = null;
                         ShowPopup("트럭 거점", BuildTruckContent);
                     },
@@ -2040,19 +2045,103 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 });
             }
 
+            // ── 새 가공 화면: 왼쪽 = 가진 아이템 (트럭 보관함 + 내 인벤토리), 누르면 바로 가공 칸에 들어간다 ──
+            m.facility = fac;
+            var byInput = new Dictionary<ItemData, List<RecipeData>>();
+            foreach (RecipeData r in catalog.GetRecipesForFacility(fac))
+            {
+                if (r == null || r.inputs == null || r.inputs.Count == 0 || r.inputs[0] == null || r.inputs[0].item == null || r.output == null) continue;
+                ItemData key = r.inputs[0].item;
+                if (!byInput.TryGetValue(key, out List<RecipeData> list)) { list = new List<RecipeData>(); byInput[key] = list; }
+                list.Add(r);
+            }
+            var ownedCount = new Dictionary<ItemData, int>();
+            var ownedOrder = new List<ItemData>();
+            if (truckInv != null)
+            {
+                AddOwnedItems(truckInv.Slots, ownedCount, ownedOrder);
+                PlayerInventory bag = truckInv.Bag;   // 클라이언트는 호스트가 대신 처리하므로 내 인벤토리를 재료로 쓰지 않는다 (null)
+                if (bag != null) AddOwnedItems(bag.Slots, ownedCount, ownedOrder);
+            }
+            m.owned = new List<TruckProcessView.OwnedInfo>();
+            var rest = new List<TruckProcessView.OwnedInfo>();
+            foreach (ItemData it in ownedOrder)
+            {
+                if (it == null || TruckFacilities.IsFacilityItem(it)) continue;   // 설비 아이템은 재료가 아니다
+                ItemData captured = it;
+                bool can = byInput.ContainsKey(it);
+                if (!can) continue;   // 이 설비로 가공할 수 있는 아이템만 보여 준다
+                var info = new TruckProcessView.OwnedInfo
+                {
+                    item = it,
+                    count = ownedCount[it],
+                    canProcess = can,
+                    onClick = can ? (System.Action)(() => OnProcessOwnedClicked(captured)) : null,
+                };
+                (can ? m.owned : rest).Add(info);   // 가공할 수 있는 것을 먼저
+            }
+            m.owned.AddRange(rest);
+
+            // 가공법이 여러 개인 아이템(예: 고기 → 스테이크 / 든든한 스튜)은 고르는 화면
+            if (_processPickItem != null && byInput.TryGetValue(_processPickItem, out List<RecipeData> pickRecipes))
+            {
+                m.pickTitle = _processPickItem.itemName;
+                m.pickCards = new List<TruckProcessView.CardInfo>();
+                foreach (RecipeData r in pickRecipes)
+                {
+                    RecipeData cap = r;
+                    m.pickCards.Add(new TruckProcessView.CardInfo
+                    {
+                        input = r.inputs[0].item,
+                        output = r.output.item,
+                        inCount = r.inputs[0].count,
+                        outCount = r.output.count,
+                        can = truckInv != null && truckInv.HasIngredients(r, processAbility),
+                        discounted = processAbility != null && processAbility.HasCraftingDiscount(r),
+                        ingredientText = TruckFacilities.CostText(r, processAbility),
+                        onClick = () => { _processPickItem = null; PlaceAuto(cap); },
+                    });
+                }
+                m.onPickBack = () => { _processPickItem = null; ShowPopup("트럭 거점", BuildTruckContent); };
+            }
+            else _processPickItem = null;
+
             // 칸
             m.slotHeader = "가공 칸 " + slotCount + " / " + TruckFacilities.MaxSlots;
             m.slotHint = _selectedProcessRecipe != null
                 ? "선택: " + _selectedProcessRecipe.GetDisplayName() + "  →  칸을 누를 때마다 1개씩 넣습니다 (같은 재료 칸에 쌓임)"
-                : "왼쪽에서 가공할 재료를 고르세요. 완료된 칸을 누르면 결과물을 받고, 재료 선택 없이 가공 중인 칸을 누르면 재료를 돌려받습니다.";
+                : "왼쪽에서 아이템을 누르면 빈 칸에 들어가요. 아래 칸을 누르면 그 칸의 가공 모습이 크게 나오고, 거기서 받기/취소를 할 수 있어요.";
             m.slots = new List<TruckProcessView.SlotInfo>();
             for (int i = 0; i < slotCount; i++)
             {
                 int slotIndex = i;
                 ProcessSlotView sv = ProcSlot(fac, i);
-                var info = new TruckProcessView.SlotInfo { onClick = () => OnProcessSlotClicked(slotIndex) };
+                var info = new TruckProcessView.SlotInfo
+                {
+                    onClick = () => OnProcessSlotClicked(slotIndex),
+                    onFocus = () => OnProcessTileClicked(slotIndex),
+                };
                 info.queued = sv.queued;
                 info.readyCount = sv.readyCount;
+                if (!sv.IsEmpty && sv.recipe.output != null && sv.recipe.output.item != null)
+                {
+                    info.outCount = Mathf.Max(1, sv.recipe.output.count);
+                    info.outName = sv.recipe.output.item.itemName;
+                }
+                if (!sv.IsEmpty && sv.recipe.inputs != null && sv.recipe.inputs.Count > 0 && sv.recipe.inputs[0] != null && sv.recipe.inputs[0].item != null)
+                {
+                    info.inItem = sv.recipe.inputs[0].item;
+                    info.inCount = Mathf.Max(1, sv.recipe.inputs[0].count);
+                    info.inName = info.inItem.itemName;
+                }
+                if (!sv.IsEmpty)
+                {
+                    FacilityType capFac = fac;
+                    info.onCancel = sv.IsBusy ? (System.Action)(() => { _truckProcessMessage = null; CancelProcessSlot(capFac, slotIndex, ProcSlot(capFac, slotIndex)); }) : null;
+                    info.onClaim = sv.ready ? (System.Action)(() => { _truckProcessMessage = null; ClaimProcessSlot(capFac, slotIndex, ProcSlot(capFac, slotIndex)); }) : null;
+                }
+                info.fresh = Time.unscaledTime - _procPlacedAt[Mathf.Clamp(i, 0, _procPlacedAt.Length - 1)] < 0.7f;
+                if (sv.ready) m.readyTotal++;
                 info.sameSelected = !sv.IsEmpty && _selectedProcessRecipe != null && sv.recipe == _selectedProcessRecipe;
                 if (sv.IsEmpty)
                 {
@@ -2074,6 +2163,17 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 m.slots.Add(info);
             }
 
+            // 큰 화면에 보여 줄 칸: 마지막에 넣거나 고른 칸 → 없으면 가공 중/완성된 첫 칸
+            int focus = _procFocus;
+            if (focus < 0 || focus >= m.slots.Count || m.slots[focus].state == 0)
+            {
+                focus = -1;
+                for (int i = 0; i < m.slots.Count; i++)
+                    if (m.slots[i].state != 0) { focus = i; break; }
+            }
+            _procFocus = focus;
+            m.focus = focus;
+
             // 칸 늘리기
             var up = new TruckProcessView.UpgradeInfo();
             up.maxed = slotCount >= TruckFacilities.MaxSlots;
@@ -2088,10 +2188,13 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             }
             m.upgrade = up;
             m.message = _truckProcessMessage;
+            if (m.readyTotal > 0) m.onClaimAll = ClaimAllReadyProcessSlots;
 
             // 가공 탭은 UI Toolkit 창으로 그린다 (만들 수 없으면 아래 uGUI 그대로)
             if (EnsureToolkitWindow())
             {
+                m.listTitle = "인벤토리";   // 새 화면: 레시피 카드가 아니라 내가 가진 아이템 (도감에 가공법이 다 나온다)
+                m.listHint = "가공할 아이템을 누르면 바로 빈 칸에 들어가 가공이 시작돼요. 가공법이 없는 아이템은 눌러도 아무 일도 없어요.";
                 _truckRefs = null;
                 _storageView.ShowProcess(m, BuildToolkitTabs(truckInv, 2), ClosePopup);
                 _storageToolkitActive = true;
@@ -2118,7 +2221,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             {
                 if (_selectedProcessRecipe == null)
                 {
-                    _truckProcessMessage = "먼저 왼쪽에서 가공할 재료를 고르세요.";
+                    _truckProcessMessage = "왼쪽에서 가공할 아이템을 누르면 빈 칸에 들어가요.";
                     ShowPopup("트럭 거점", BuildTruckContent);
                     return;
                 }
@@ -2138,11 +2241,121 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             }
         }
 
+        /// <summary>
+        /// 큰 가공 화면 아래 칸 선택 줄에서 칸을 눌렀을 때.
+        ///  - 빈 칸 + 고른 재료 → 넣는다 / 같은 재료를 가공 중인 칸 + 고른 재료 → 1개 더 넣는다
+        ///  - 그 밖에는 그 칸을 큰 화면에 보여 준다 (취소/받기는 큰 화면의 버튼으로)
+        /// </summary>
+        private void OnProcessTileClicked(int slotIndex)
+        {
+            FacilityType fac = _truckProcessingFacility;
+            ProcessSlotView sv = ProcSlot(fac, slotIndex);
+            _truckProcessMessage = null;
+            _procFocus = slotIndex;
+            if (_selectedProcessRecipe != null && (sv.IsEmpty || (sv.IsBusy && sv.recipe == _selectedProcessRecipe)))
+            {
+                PlaceProcessing(fac, slotIndex, _selectedProcessRecipe);
+                return;
+            }
+            ShowPopup("트럭 거점", BuildTruckContent);
+        }
+
+        // ── 새 가공 화면: 가진 아이템을 눌러 바로 넣기 ──
+
+        private static void AddOwnedItems(IReadOnlyList<InventorySlot> slots, Dictionary<ItemData, int> counts, List<ItemData> order)
+        {
+            if (slots == null) return;
+            foreach (InventorySlot s in slots)
+            {
+                if (s == null || s.IsEmpty || s.item == null) continue;
+                if (!counts.ContainsKey(s.item)) { counts[s.item] = 0; order.Add(s.item); }
+                counts[s.item] += s.count;
+            }
+        }
+
+        /// <summary>
+        /// 왼쪽 "가진 아이템"을 눌렀을 때.
+        ///  - 이 설비에 가공법이 없으면 아무 일도 없다 (이 함수는 불리지도 않는다).
+        ///  - 가공법이 하나면 바로 빈 칸에 넣는다.
+        ///  - 가공법이 여럿이면(고기 → 스테이크 / 든든한 스튜) 어느 것으로 할지 고른다.
+        /// </summary>
+        private void OnProcessOwnedClicked(ItemData item)
+        {
+            if (item == null) return;
+            FacilityType fac = _truckProcessingFacility;
+            ItemCatalog catalog = ItemCatalog.GetOrCreate();
+            TruckInventory truckInv = ActiveTruckInventory;
+            CharacterAbilityController ability = LastTruck.Networking.LocalPlayerLookup.AbilityController;
+
+            var recipes = new List<RecipeData>();
+            foreach (RecipeData r in catalog.GetRecipesForFacility(fac))
+                if (r != null && r.inputs != null && r.inputs.Count > 0 && r.inputs[0] != null && r.inputs[0].item == item && r.output != null)
+                    recipes.Add(r);
+            if (recipes.Count == 0) return;   // 가공해도 아무것도 안 나오는 아이템: 아무 일도 없다 (메시지도 그대로)
+            _truckProcessMessage = null;
+
+            var affordable = new List<RecipeData>();
+            foreach (RecipeData r in recipes)
+                if (truckInv != null && truckInv.HasIngredients(r, ability)) affordable.Add(r);
+
+            if (affordable.Count == 0)
+            {
+                _truckProcessMessage = "재료가 모자라요: " + TruckFacilities.CostText(recipes[0], ability);
+                ShowPopup("트럭 거점", BuildTruckContent);
+                return;
+            }
+            if (affordable.Count == 1)
+            {
+                PlaceAuto(affordable[0]);
+                return;
+            }
+            _processPickItem = item;   // 가공법을 고른다
+            ShowPopup("트럭 거점", BuildTruckContent);
+        }
+
+        /// <summary>빈 칸이 있으면 거기에, 없으면 같은 재료를 가공 중인 자리 있는 칸에 1개 넣는다.</summary>
+        private void PlaceAuto(RecipeData recipe)
+        {
+            if (recipe == null) return;
+            FacilityType fac = _truckProcessingFacility;
+            int count = ProcSlotCount(fac);
+            int target = -1;
+            for (int i = 0; i < count; i++)
+                if (ProcSlot(fac, i).IsEmpty) { target = i; break; }   // 빈 칸 먼저 (여러 칸이 동시에 돈다)
+            if (target < 0)
+                for (int i = 0; i < count; i++)
+                {
+                    ProcessSlotView sv = ProcSlot(fac, i);
+                    if (sv.recipe == recipe && sv.queued + sv.readyCount < TruckProcessingLocal.MaxPerSlot) { target = i; break; }
+                }
+            if (target < 0)
+            {
+                _truckProcessMessage = "빈 칸이 없어요. 다 된 칸을 받거나 칸을 늘려 보세요.";
+                ShowPopup("트럭 거점", BuildTruckContent);
+                return;
+            }
+            PlaceProcessing(fac, target, recipe);
+        }
+
+        /// <summary>완성된 칸을 한꺼번에 받는다.</summary>
+        private void ClaimAllReadyProcessSlots()
+        {
+            FacilityType fac = _truckProcessingFacility;
+            int count = ProcSlotCount(fac);
+            for (int i = 0; i < count; i++)
+            {
+                ProcessSlotView sv = ProcSlot(fac, i);
+                if (sv.ready) ClaimProcessSlot(fac, i, sv);
+            }
+        }
+
         private void PlaceProcessing(FacilityType fac, int slotIndex, RecipeData recipe)
         {
             TruckStation truck = _activeTruck;
             if (recipe == null || truck == null)
                 return;
+            _procPlacedAt[Mathf.Clamp(slotIndex, 0, _procPlacedAt.Length - 1)] = Time.unscaledTime;   // 재료가 톡 들어가는 연출 기준 시각
+            _procFocus = slotIndex;   // 방금 넣은 칸을 큰 화면에 보여 준다
 
             // 멀티플레이: 호스트가 재료를 확인하고 뺀 뒤 모두에게 같은 칸 상태를 보여 준다.
             if (NetworkProcessing)

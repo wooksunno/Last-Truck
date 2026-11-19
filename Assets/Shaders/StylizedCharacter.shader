@@ -313,7 +313,8 @@ Shader "LastTruck/StylizedCharacter"
                 float3 nWS = TransformObjectToWorldNormal(input.normalOS);
                 // 카메라 거리에 비례해서 두께가 너무 얇아지거나 굵어지지 않게 보정
                 float dist = distance(_WorldSpaceCameraPos, posWS);
-                float w = _OutlineWidth * clamp(dist * 0.12, 0.5, 2.2);
+                // (멀수록 굵어지는 폭을 낮췄다: 예전엔 20m 밖에서 2.2배까지 굵어져서 몬스터가 하얀 테두리를 두른 것처럼 보였다)
+                float w = _OutlineWidth * clamp(dist * 0.07, 0.6, 1.3);
                 posWS += nWS * w;
                 o.positionCS = TransformWorldToHClip(posWS);
                 o.fogFactor = ComputeFogFactor(o.positionCS.z);

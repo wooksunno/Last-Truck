@@ -96,6 +96,7 @@ namespace LastTruck.Networking
             bool downed = IsLocalDowned(stats, networkPlayer);
             float ratio = stats != null && stats.MaxHealth > 0f ? Mathf.Clamp01(stats.currentHealth / stats.MaxHealth) : 1f;
 
+            DownedUiHider.Apply(downed, transform);   // 쓰러져 있는 동안 다른 UI는 전부 숨긴다
             UpdateVignette(downed, ratio);
             UpdateDownedPanel(downed, networkPlayer);
             UpdateRevivePanel(downed);
@@ -190,8 +191,13 @@ namespace LastTruck.Networking
                 networkPlayer = NetworkPlayer.Local;
                 return networkPlayer != null ? networkPlayer.GetComponent<PlayerStats>() : null;
             }
-            return PlayerStats.OfflineLocal;
+            if (PlayerStats.OfflineLocal != null) return PlayerStats.OfflineLocal;
+            // 시험용 씬처럼 네트워크 없이 네트워크 플레이어 프리팹을 쓰는 경우에도 내 캐릭터를 찾는다
+            if (_fallbackStats == null) _fallbackStats = Object.FindFirstObjectByType<PlayerStats>();
+            return _fallbackStats;
         }
+
+        private static PlayerStats _fallbackStats;
 
         private static bool IsLocalDowned(PlayerStats stats, NetworkPlayer networkPlayer)
         {
@@ -237,7 +243,7 @@ namespace LastTruck.Networking
             _vignette.enabled = false;
 
             // 기절 안내 (화면 가운데 아래)
-            _downedPanel = CreatePanel(canvas.transform, "DownedPanel", new Vector2(0f, -120f), new Vector2(620f, 150f),
+            _downedPanel = CreatePanel(canvas.transform, "DownedPanel", new Vector2(0f, -120f), new Vector2(620f, 210f),
                 out _downedText, out _downedBarFill, 34);
             _downedPanel.SetActive(false);
 

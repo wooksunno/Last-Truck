@@ -182,8 +182,25 @@ namespace CraftingSystem
             {
                 _storageViewTried = true;
                 _storageView = LastTruck.TruckStorageView.Create();
+                if (_storageView != null)
+                    _storageView.OnMissingItem = OpenCodexForMissingItem;
             }
             return _storageView != null;
+        }
+
+        /// <summary>모자란 재료를 눌렀을 때: 그 아이템을 만드는 방법이 나온 제작 도감으로 이동한다. (제작 화면에서 왔으면 "← 제작으로"로 돌아간다.)</summary>
+        private void OpenCodexForMissingItem(ItemData item)
+        {
+            if (item == null) return;
+            bool fromCraft = _craftingPanelOpen;
+            _craftingPanelOpen = false;
+            _truckProcessingPanelOpen = false; _truckUpgradeOpen = false; _truckAchievementsOpen = false;
+            _truckCodexOpen = true;
+            _codexFromCraft = fromCraft;
+            _codexSelectedItem = item;
+            _codexRecipeIndex = 0;
+            _codexCategory = TruckCodexView.CategoryOf(item);
+            ShowPopup("트럭 거점", BuildTruckContent);
         }
 
         /// <summary>제작 탭을 UI Toolkit으로 그렸으면 true (uGUI 내용은 그리지 않는다).</summary>

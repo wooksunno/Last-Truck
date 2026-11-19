@@ -184,10 +184,29 @@ namespace LastTruck
         private void Die()
         {
             if (anim == null) anim = GetComponentInChildren<Animator>();
-            if (anim != null)
-            {
+            if (anim == null) return;
+
+            // 걷기/달리기 상태를 풀고, 쓰러지는 모션(Dying)을 바로 재생한다.
+            // (doDie 트리거만으로는 상태가 안 바뀌어 서 있는 채로 멈추는 경우가 있어서, 상태를 직접 지정한다)
+            foreach (string flag in new[] { "isWalk", "isRun", "isSprint", "isJumping", "isFalling", "AtkShooting" })
+                if (HasAnimParam(flag)) anim.SetBool(flag, false);
+            anim.ResetTrigger("doHit");
+
+            int dying = Animator.StringToHash("Dying");
+            if (anim.HasState(0, dying))
+                anim.CrossFadeInFixedTime(dying, 0.1f, 0);
+            else
                 anim.SetTrigger("doDie");
-            }
+
+            if (anim.layerCount > 1) anim.SetLayerWeight(1, 0f);   // 상체 공격 레이어가 쓰러진 자세를 덮지 않게
+            anim.speed = 1f;
+        }
+
+        private bool HasAnimParam(string name)
+        {
+            foreach (AnimatorControllerParameter p in anim.parameters)
+                if (p.name == name) return true;
+            return false;
         }
 
         #endregion
