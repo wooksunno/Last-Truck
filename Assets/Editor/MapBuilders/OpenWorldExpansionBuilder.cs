@@ -398,6 +398,43 @@ public static partial class OpenWorldExpansionBuilder
     static float U(int col) => (col * 32 + 16) / 256f;
     static float V(int row, float shade) => 1f - (row * 32 + 2 + Mathf.Clamp01(shade) * 27f) / 256f;
 
+    /// <summary>
+    /// 팔레트 한 칸은 위(밝은 색)에서 아래(거의 검정)로 번지는 그라데이션이다. 땅 색의 명암을 노이즈로 매끈하게 바꾸면
+    /// 검은 얼룩이 번지듯 보이므로, 명암을 0.2 단위 몇 단계로 끊고 초록 줄(1번 줄)은 하한(0.6)을 둬서 새까맣게 꺼지지 않게 한다.
+    /// </summary>
+    public static float ToonShade(int row, float shade)
+    {
+        float s = Mathf.Floor(Mathf.Clamp01(shade) / 0.2f + 0.5f) * 0.2f;
+        return row == 1 ? Mathf.Min(s, 0.6f) : s;
+    }
+    static float VT(int row, float shade) => V(row, ToonShade(row, shade));
+
+    /// <summary>이미 만들어진 땅 타일 메쉬의 UV를 같은 규칙으로 고친다 (다시 빌드하지 않고 적용). 독버섯 군락(팔레트 0~3번 칸)은 건드리지 않는다.</summary>
+    public static int ReToonTileUVs()
+    {
+        int changed = 0;
+        foreach (string guid in AssetDatabase.FindAssets("ExpTile_ t:Mesh", new[] { TileDir }))
+        {
+            var mesh = AssetDatabase.LoadAssetAtPath<Mesh>(AssetDatabase.GUIDToAssetPath(guid));
+            if (mesh == null) continue;
+            var uv = mesh.uv;
+            bool dirty = false;
+            for (int k = 0; k < uv.Length; k++)
+            {
+                int col = Mathf.FloorToInt(uv[k].x * 8f);
+                if (col < 4) continue;
+                float y = (1f - uv[k].y) * 256f;
+                int row = Mathf.FloorToInt(y / 32f);
+                float shade = (y - row * 32f - 2f) / 27f;
+                float nv = V(row, ToonShade(row, shade));
+                if (Mathf.Abs(nv - uv[k].y) > 1e-5f) { uv[k].y = nv; dirty = true; }
+            }
+            if (dirty) { mesh.uv = uv; EditorUtility.SetDirty(mesh); changed++; }
+        }
+        AssetDatabase.SaveAssets();
+        return changed;
+    }
+
     /// <summary>바닥 색 (팔레트 UV). 구역마다 팔레트의 한 줄 안에서만 고른다.</summary>
     static Vector2 GroundUV(Biome biome, float x, float z, float h)
     {
@@ -409,24 +446,24 @@ public static partial class OpenWorldExpansionBuilder
         {
             case Biome.Meadow:
             {
-                if (road) return new Vector2(U(5), V(1, 0.55f));                       // 밟힌 풀길
+                if (road) return new Vector2(U(5), VT(1, 0.55f));                       // 밟힌 풀길
                 float t = n1 * 0.8f + lift * 0.5f + (n2 - 0.5f) * 0.3f;
                 int col = t > 0.66f ? 5 : t > 0.16f ? 6 : 7;                            // 언덕 위 연두 / 들판 녹색 / 움푹한 곳 짙은 녹색
-                return new Vector2(U(col), V(1, 0.12f + n2 * 0.35f));
+                return new Vector2(U(col), VT(1, 0.12f + n2 * 0.35f));
             }
             case Biome.Highland:
             {
-                if (road) return new Vector2(U(5), V(0, 0.05f));                       // 자갈길
+                if (road) return new Vector2(U(5), VT(0, 0.05f));                       // 자갈길
                 float t = n1 * 0.7f + lift * 0.6f + (n2 - 0.5f) * 0.3f;
                 int col = t > 0.62f ? 5 : 6;                                            // 짙은 회색 바위 땅 (눈밭처럼 보이지 않게)
-                return new Vector2(U(col), V(0, col == 5 ? 0.25f + n2 * 0.5f : 0.05f + n2 * 0.3f));
+                return new Vector2(U(col), VT(0, col == 5 ? 0.25f + n2 * 0.5f : 0.05f + n2 * 0.3f));
             }
             default:
             {
-                if (road) return new Vector2(U(6), V(1, 0.75f));                       // 이끼 낀 둑길
+                if (road) return new Vector2(U(6), VT(1, 0.75f));                       // 이끼 낀 둑길
                 float t = n1 * 0.9f + (n2 - 0.5f) * 0.4f;
                 int col = t > 0.72f ? 6 : 7;
-                return new Vector2(U(col), V(1, col == 6 ? 0.7f + n2 * 0.25f : 0.5f + n2 * 0.45f));   // 짙고 축축한 이끼색
+                return new Vector2(U(col), VT(1, col == 6 ? 0.7f + n2 * 0.25f : 0.5f + n2 * 0.45f));   // 짙고 축축한 이끼색
             }
         }
     }
@@ -543,10 +580,23 @@ public static partial class OpenWorldExpansionBuilder
                 inst.transform.rotation = Quaternion.Euler(0f, 90f * _rng.Next(4), 0f);
                 inst.tag = "Ground";
                 ShapeTile(inst, biome, !pond, ++count);
+                UseGroundMaterial(inst);
                 placed[i, j] = true;
             }
         sb.AppendLine($"tiles={count} skipped(cave)={skipCave} skipped(existing land)={skipLand} ponds={_ponds.Count}");
         return placed;
+    }
+
+    /// <summary>땅 타일은 땅 전용 재질(PP_Standard_Ground: 빛 계산 노멀을 위로 당겨 면마다 밝고 어두운 얼룩이 안 생기는 ToonWorld 설정)을 쓴다. 호수 같은 투명 재질은 그대로 둔다.</summary>
+    static void UseGroundMaterial(GameObject tile)
+    {
+        var ground = AssetDatabase.LoadAssetAtPath<Material>("Assets/Scenes/MiningMapAssets/Ground/PP_Standard_Ground.mat");
+        var mr = tile.GetComponent<MeshRenderer>();
+        if (ground == null || mr == null) return;
+        var mats = mr.sharedMaterials;
+        for (int k = 0; k < mats.Length; k++)
+            if (mats[k] != null && mats[k].name == "PP_Standard_Material") mats[k] = ground;
+        mr.sharedMaterials = mats;
     }
 
     /// <summary>타일 메시를 복사해서 언덕 모양으로 들어 올리고 색을 바꾼 뒤 에셋으로 저장한다.</summary>
