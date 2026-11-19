@@ -39,6 +39,9 @@ namespace LastTruck
         private StyleFontDefinition _font;
         private FontAsset _ownFont;
 
+        /// <summary>만들어 둔 칸 수 (실제로 보이는 칸은 SetSlot의 visible로 정한다).</summary>
+        public int SlotCount => _slots.Count;
+
         private Action<int> _onClick;
         private Action<int, int> _onSwap;
         private Action<int> _onDropOut;

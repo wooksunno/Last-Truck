@@ -6,7 +6,13 @@ namespace CraftingSystem
 {
     public class PlayerInventory : MonoBehaviour
     {
-        [SerializeField] private int maxSlots = 4;
+        // 가방 칸: 처음에는 BaseSlots칸만 있고, 경화 가공 가죽을 써서 한 칸씩 늘린다 (최대 BaseSlots + MaxBagUpgrades칸).
+        public const int BaseSlots = 3;
+        public const int MaxBagUpgrades = 5;
+        public const int MaxPossibleSlots = BaseSlots + MaxBagUpgrades;
+
+        private int maxSlots = BaseSlots;
+        private int _bagUpgrades;
         [Tooltip("나무/돌/광석 같은 원재료는 한 칸에 이 개수까지만 들고 다닐 수 있다 (트럭 보관함은 제한 없음).")]
         [SerializeField] private int rawStackLimit = 20;
         [SerializeField] private bool grantStarterItems = true;
@@ -15,9 +21,36 @@ namespace CraftingSystem
         private static readonly KeyCode[] SlotHotkeys =
         {
             KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3, KeyCode.Alpha4,
+            KeyCode.Alpha5, KeyCode.Alpha6, KeyCode.Alpha7, KeyCode.Alpha8,
         };
 
         public int MaxSlots => maxSlots;
+
+        /// <summary>가죽으로 늘린 횟수 (0 ~ MaxBagUpgrades).</summary>
+        public int BagUpgrades => _bagUpgrades;
+        public bool BagMaxed => _bagUpgrades >= MaxBagUpgrades;
+
+        /// <summary>다음 가방 칸을 늘리는 데 드는 재료 (더 못 늘리면 빈 목록). 늘릴수록 가죽이 더 든다.</summary>
+        public static System.Collections.Generic.List<RecipeIngredient> BagUpgradeCost(int upgradesDone)
+        {
+            var cost = new System.Collections.Generic.List<RecipeIngredient>();
+            if (upgradesDone < 0 || upgradesDone >= MaxBagUpgrades) return cost;
+            int[] leather = { 2, 3, 4, 6, 8 };
+            ItemData item = ItemCatalog.GetOrCreate().GetItem(ItemIds.TannedLeather);
+            if (item != null) cost.Add(new RecipeIngredient(item, leather[upgradesDone]));
+            return cost;
+        }
+
+        /// <summary>가방 칸을 한 칸 늘린다 (재료는 부른 쪽에서 이미 냈다). 더 못 늘리면 false.</summary>
+        public bool UpgradeBagLocal()
+        {
+            if (BagMaxed) return false;
+            _bagUpgrades++;
+            maxSlots = BaseSlots + _bagUpgrades;
+            inventory.MaxSlots = maxSlots;
+            inventory.NotifyChanged();
+            return true;
+        }
 
         public event Action Changed;
         public event Action SelectedSlotChanged;
@@ -44,6 +77,7 @@ namespace CraftingSystem
             if (GetComponent<HeldLantern>() == null) gameObject.AddComponent<HeldLantern>();   // 랜턴: 들면 주변이 환해지고 날씨 안개가 걷힌다
             if (GetComponent<HeldBinoculars>() == null) gameObject.AddComponent<HeldBinoculars>();   // 쌍안경: 들고 오른쪽 클릭으로 멀리 본다
             if (GetComponent<ActionPose>() == null) gameObject.AddComponent<ActionPose>();           // 채집/먹기/물건 들기 몸짓 + 획득·장착 반짝임
+            maxSlots = BaseSlots + _bagUpgrades;
             inventory.MaxSlots = maxSlots;
             inventory.RawStackLimit = rawStackLimit;
             inventory.KeepSlotPositions = true;   // 1~4번 칸 위치를 고정한다 (아이템을 써도 칸이 밀리지 않고, 칸끼리 교환 가능)
@@ -61,7 +95,7 @@ namespace CraftingSystem
             bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
             bool uiOpen = GameUIController.Instance != null && GameUIController.Instance.IsPopupOpen;
 
-            for (int i = 0; i < SlotHotkeys.Length; i++)
+            for (int i = 0; i < SlotHotkeys.Length && i < maxSlots; i++)
             {
                 if (Input.GetKeyDown(SlotHotkeys[i]))
                 {
@@ -254,8 +288,7 @@ namespace CraftingSystem
         {
             ItemCatalog catalog = ItemCatalog.GetOrCreate();
             AddItem(catalog.GetItem(ItemIds.Wood), 10);
-            AddItem(catalog.GetItem(ItemIds.Stone), 10);
-            AddItem(catalog.GetItem(ItemIds.IronOre), 10);
+            AddItem(catalog.GetItem(ItemIds.Stone), 10);   // (가방이 3칸뿐이라 한 칸은 비워 둔다)
             Debug.Log($"[PlayerInventory] 시작 원재료 지급\n{inventory.GetSummary("Player")}");
         }
 

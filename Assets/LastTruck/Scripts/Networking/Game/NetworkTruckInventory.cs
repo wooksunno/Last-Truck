@@ -261,6 +261,36 @@ namespace LastTruck.Networking
             RPC_ConsumeResult(source, requestId, ok);
         }
 
+        /// <summary>가방 칸 늘리기처럼 "아이템 N개"만 내는 비용을 호스트가 확인하고 뺀다 (가죽만 허용).</summary>
+        public void RequestConsumeItem(ItemData item, int count, Action<bool> onResult)
+        {
+            int index = ItemIndexLookup.IndexOf(item);
+            if (index < 0 || count <= 0)
+            {
+                onResult?.Invoke(false);
+                return;
+            }
+
+            int id = _nextConsumeId++;
+            _pendingConsumes[id] = onResult;
+            RPC_RequestConsumeItem(index, count, id);
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_RequestConsumeItem(int itemIndex, int count, int requestId, RpcInfo info = default)
+        {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestConsumeItem), 60)) return;
+            PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
+            ItemData item = ItemIndexLookup.ItemAt(itemIndex);
+            bool ok = false;
+            if (item != null && item.itemID == ItemIds.TannedLeather && count > 0 && count <= 16)
+            {
+                using (TruckInventory.SuppressBag(source != Runner.LocalPlayer))   // 남의 요청은 트럭 재료로만
+                    ok = TruckInventorySync.ConsumeItemLocal(Truck, item, count);
+            }
+            RPC_ConsumeResult(source, requestId, ok);
+        }
+
         [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
         private void RPC_ConsumeResult([RpcTarget] PlayerRef target, int requestId, NetworkBool ok)
         {
@@ -620,6 +650,31 @@ namespace LastTruck.Networking
             message = $"광물 변환: {input.itemName} x{inputCount} → {result.itemName} x{outputCount}";
             AbilityDebug.Report(ability.CharacterName, "convert", "과학자 " + message);
             return true;
+        }
+
+        /// <summary>아이템 하나를 N개 낸다 (가방 칸 늘리기). 싱글/호스트는 바로, 클라이언트는 호스트가 확인한 뒤 onResult가 불린다.</summary>
+        public static void ConsumeItem(TruckInventory truck, ItemData item, int count, Action<bool> onResult)
+        {
+            if (truck == null || item == null || count <= 0)
+            {
+                onResult?.Invoke(false);
+                return;
+            }
+
+            NetworkTruckInventory net = IsRemoteClient ? Net : null;
+            if (net == null)
+            {
+                onResult?.Invoke(ConsumeItemLocal(truck, item, count));
+                return;
+            }
+            net.RequestConsumeItem(item, count, onResult);
+        }
+
+        public static bool ConsumeItemLocal(TruckInventory truck, ItemData item, int count)
+        {
+            if (truck == null || item == null || count <= 0) return false;
+            if (truck.GetMaterialCount(item) < count) return false;
+            return truck.RemoveMaterial(item, count);
         }
 
         /// <summary>재료가 모두 있으면 빼고 true (능력 할인 없이 레시피 수량 그대로).</summary>

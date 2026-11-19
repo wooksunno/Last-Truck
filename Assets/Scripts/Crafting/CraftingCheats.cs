@@ -51,7 +51,7 @@ namespace CraftingSystem
         };
 
         /// <summary>
-        /// 설비 전부 + 트럭에 붙일 수 있는 부착물(포탑/엔진/전면/장갑) 전부 + 포탑 탄환을 트럭 보관함에 넣고,
+        /// 설비 전부 + 트럭에 붙일 수 있는 부착물(포탑/엔진/전면/장갑) 전부 + 포탑 탄환 + 그 밖의 모든 아이템을 트럭 보관함에 넣고,
         /// 자리마다 가장 좋은 부착물을 바로 장착한다. 나머지는 보관함에 남아서 "트럭 강화" 화면에서 갈아 끼울 수 있다.
         /// 결과를 한 줄 문장으로 돌려준다.
         /// </summary>
@@ -101,7 +101,21 @@ namespace CraftingSystem
                 if (round != null) truckInv.AddItem(round, 30);
             }
 
-            return $"설비 {facilities}개, 트럭 부착물 {parts}개를 받았어요 (자리마다 가장 좋은 것을 장착했고 탄환 30발씩 넣었어요)";
+            // 나머지 아이템 전부: 원재료 500개, 중간재료 50개, 소모품/완성품 20개, 도구·무기는 1개씩 (이미 그만큼 있으면 건너뜀 → 여러 번 눌러도 안전)
+            int items = 0;
+            foreach (ItemData item in catalog.Items)
+            {
+                if (item == null || TruckFacilities.IsFacilityItem(item) || TruckUpgradeRules.IsPart(item.itemID)) continue;
+                int want = item.HasDurability || item.maxStack <= 1 ? 1
+                    : item.itemType == ItemType.Raw ? 500
+                    : item.itemType == ItemType.Intermediate ? 50
+                    : 20;
+                int have = truckInv.GetItemCount(item);
+                if (have >= want) continue;
+                if (truckInv.AddItem(item, want - have)) items++;
+            }
+
+            return $"설비 {facilities}개, 부착물 {parts}개(자리마다 가장 좋은 것 장착), 그 밖의 아이템 {items}종을 트럭 보관함에 넣었어요";
         }
 
         /// <summary>패널 맨 아래에 눈에 덜 띄는 "개발용" 줄을 붙인다.</summary>

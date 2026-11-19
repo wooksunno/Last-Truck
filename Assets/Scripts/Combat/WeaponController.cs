@@ -507,6 +507,12 @@ namespace Combat
 
             bool heavy = _activeWeaponId == ItemIds.IronFieldCannon || _activeWeaponId == ItemIds.ShredderDrillLauncher
                          || _activeWeaponId == ItemIds.PlatinumRailCannon;
+            if (heavy && CombatFx.Load("FX_Explosion_01") != null)
+            {
+                CombatFx.Spawn("FX_Explosion_01", point + normal * 0.05f, Quaternion.identity, 0.9f, 5f);
+                Combat.CameraShake.Shake(0.2f);
+                return;
+            }
             GameObject prefab = heavy && explosionVfxPrefab != null ? explosionVfxPrefab : bulletHitVfxPrefab;
             if (prefab == null)
             {
@@ -1015,8 +1021,8 @@ namespace Combat
                         {
                             _isFlameActive = true;
                             SetShootingPose(true);
-                            if (selected.itemID == ItemIds.Flamethrower && flamethrowerVfxPrefab != null)
-                                StartFlameVfx(stats);
+                            if (HasConeVfx(selected.itemID))
+                                StartFlameVfx(stats, selected.itemID);
                             else
                                 _flameEffectRoutine = StartCoroutine(FlameEffectRoutine(stats));
                             if (!_remoteView) FlameChanged?.Invoke(true);
@@ -1078,7 +1084,35 @@ namespace Combat
                     break;
 
                 case WeaponBehavior.Throw:
-                    if (Input.GetMouseButtonDown(0))
+                    if (UsesGrenadeAim(selected.itemID))
+                    {
+                        // 박격포처럼: 첫 클릭 = 조준(떨어질 곳과 날아가는 길이 보인다), 한 번 더 클릭 = 던지기, Esc/우클릭 = 취소
+                        if (!_grenadeAiming)
+                        {
+                            if (Input.GetMouseButtonDown(0))
+                            {
+                                _pressVetoed = RaycastHitsWorldInteractable(stats.range);
+                                if (!_pressVetoed && Time.time >= _nextFireTime)
+                                    BeginGrenadeAim(stats);
+                            }
+                        }
+                        else
+                        {
+                            Vector3 aimTarget = UpdateGrenadeAim(stats);
+                            if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape))
+                                EndGrenadeAim();
+                            else if (Input.GetMouseButtonDown(0))
+                            {
+                                _nextFireTime = Time.time + stats.cooldown;
+                                EndGrenadeAim();
+                                FireGrenade(stats, aimTarget);
+                                PlayAttackAnim("AtkThrow");
+                                StartAttackRecovery(stats.cooldown);
+                                _inventory.RemoveItem(selected, 1);   // 1회용: 던지는 즉시 1개 소모
+                            }
+                        }
+                    }
+                    else if (Input.GetMouseButtonDown(0))
                     {
                         _pressVetoed = RaycastHitsWorldInteractable(stats.range);
                         if (!_pressVetoed && Time.time >= _nextFireTime)
@@ -1260,8 +1294,8 @@ namespace Combat
             {
                 _isFlameActive = true;
                 SetShootingPose(true);
-                if (_remoteWeaponId == ItemIds.Flamethrower && flamethrowerVfxPrefab != null)
-                    StartFlameVfx(stats);
+                if (HasConeVfx(_remoteWeaponId))
+                    StartFlameVfx(stats, _remoteWeaponId);
                 else
                     _flameEffectRoutine = StartCoroutine(FlameEffectRoutine(stats));
             }
@@ -1464,6 +1498,7 @@ namespace Combat
             SetCharging(false);
             StopFlameEffect();
             StopAttackRecovery();
+            EndGrenadeAim();
         }
 
         /// <summary>피격 등으로 공격이 끊길 때: 차징/화염을 멈추고 공격 모션(상체 레이어)도 즉시 끝낸다.</summary>
@@ -1749,10 +1784,10 @@ namespace Combat
         /// 화학 독가스 수류탄: 마우스가 가리키는 지점으로 포물선을 그리며 던진다.
         /// 맞으면 즉시 폭발 피해를 주고, 자리에 독가스 구름을 남긴다.
         /// </summary>
-        private void FireGrenade(WeaponStats stats)
+        private void FireGrenade(WeaponStats stats, Vector3? aimTarget = null)
         {
-            Vector3 spawnPos = transform.position + Vector3.up * 1.3f + transform.forward * 0.4f;
-            Vector3 target = GetMouseAimPoint(stats.range, spawnPos.y);
+            Vector3 spawnPos = GrenadeSpawnPos();
+            Vector3 target = aimTarget ?? GetMouseAimPoint(stats.range, spawnPos.y);
             Vector3 toTarget = target - spawnPos;
             if (toTarget.sqrMagnitude < 0.01f)
                 toTarget = transform.forward * (stats.range * 0.5f);
@@ -1780,6 +1815,152 @@ namespace Combat
             grenade.Launch(velocity, stats.damage, stats.blastRadius, stats.gasDuration, stats.gasTickInterval,
                 stats.gasTickDamage, hitMask, transform);
             if (!_remoteView) GrenadeThrown?.Invoke(_activeWeaponId, spawnPos, velocity);
+        }
+
+        // ───────── 수류탄 조준 (박격포식) ─────────
+
+        private const float GrenadeGravity = 9f;   // GrenadeProjectile.gravity 기본값과 같다
+        private bool _grenadeAiming;
+        private LineRenderer _aimArc, _aimRing, _aimRingInner;
+        private static bool _grenadeAimHintShown;
+
+        private static bool UsesGrenadeAim(string id) =>
+            id == ItemIds.ChemicalGasGrenade || id == ItemIds.FragGrenade || id == ItemIds.Molotov || id == ItemIds.SignalFlare;
+
+        private Vector3 GrenadeSpawnPos() => transform.position + Vector3.up * 1.3f + transform.forward * 0.4f;
+
+        private void BeginGrenadeAim(WeaponStats stats)
+        {
+            _grenadeAiming = true;
+            EnsureAimVisuals(stats.effectColor);
+            if (!_grenadeAimHintShown)
+            {
+                _grenadeAimHintShown = true;
+                HudToast.Show("한 번 더 클릭하면 던져요 (Esc / 우클릭: 취소)");
+            }
+        }
+
+        private void EndGrenadeAim()
+        {
+            if (!_grenadeAiming && _aimArc == null) return;
+            _grenadeAiming = false;
+            if (_aimArc != null) _aimArc.gameObject.SetActive(false);
+            if (_aimRing != null) _aimRing.gameObject.SetActive(false);
+            if (_aimRingInner != null) _aimRingInner.gameObject.SetActive(false);
+        }
+
+        private LineRenderer MakeAimLine(string name, Color c, float width, bool loop, int points)
+        {
+            var go = new GameObject(name);
+            var lr = go.AddComponent<LineRenderer>();
+            lr.useWorldSpace = true;
+            lr.loop = loop;
+            lr.positionCount = points;
+            lr.widthMultiplier = width;
+            lr.numCapVertices = 4;
+            lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            lr.receiveShadows = false;
+            lr.sharedMaterial = new Material(Shader.Find("Sprites/Default"));
+            lr.startColor = lr.endColor = c;
+            return lr;
+        }
+
+        private void EnsureAimVisuals(Color color)
+        {
+            Color arc = new Color(color.r, color.g, color.b, 0.9f);
+            Color ring = new Color(color.r, color.g, color.b, 0.85f);
+            Color inner = new Color(color.r, color.g, color.b, 0.45f);
+            if (_aimArc == null) _aimArc = MakeAimLine("GrenadeAimArc", arc, 0.07f, false, 2);
+            if (_aimRing == null) _aimRing = MakeAimLine("GrenadeAimRing", ring, 0.12f, true, 48);
+            if (_aimRingInner == null) _aimRingInner = MakeAimLine("GrenadeAimRingInner", inner, 0.08f, true, 48);
+            _aimArc.startColor = _aimArc.endColor = arc;
+            _aimRing.startColor = _aimRing.endColor = ring;
+            _aimRingInner.startColor = _aimRingInner.endColor = inner;
+            _aimArc.gameObject.SetActive(true);
+            _aimRing.gameObject.SetActive(true);
+            _aimRingInner.gameObject.SetActive(true);
+        }
+
+        private void OnDestroy()
+        {
+            if (_aimArc != null) Destroy(_aimArc.gameObject);
+            if (_aimRing != null) Destroy(_aimRing.gameObject);
+            if (_aimRingInner != null) Destroy(_aimRingInner.gameObject);
+        }
+
+        /// <summary>
+        /// 조준 중 매 프레임: 마우스 위치(사거리 안으로 제한)로 던졌을 때의 포물선을 그리고, 떨어질 자리에 폭발 반경 원을 보여 준다.
+        /// 던지는 쪽을 바라보고, 던질 때 쓸 조준점을 돌려준다.
+        /// </summary>
+        private Vector3 UpdateGrenadeAim(WeaponStats stats)
+        {
+            Vector3 spawnPos = GrenadeSpawnPos();
+            Vector3 mouse = GetMouseAimPoint(stats.range * 2f, spawnPos.y);
+
+            // 사거리 밖이면 사거리 끝으로 당긴다
+            Vector3 flat = mouse - transform.position; flat.y = 0f;
+            if (flat.magnitude > stats.range)
+                mouse = new Vector3(transform.position.x, mouse.y, transform.position.z) + flat.normalized * stats.range;
+
+            if (flat.sqrMagnitude > 0.01f)
+                LastTruck.PlayerMove.SetFacing(transform, Quaternion.LookRotation(flat.normalized));   // 던질 쪽을 본다
+
+            Vector3 toTarget = mouse - spawnPos;
+            if (toTarget.sqrMagnitude < 0.01f) toTarget = transform.forward * (stats.range * 0.5f);
+            float flightTime = toTarget.magnitude / stats.throwSpeed;
+            Vector3 vel = toTarget.normalized * stats.throwSpeed + Vector3.up * (0.5f * GrenadeGravity * flightTime);
+
+            // 실제 던졌을 때와 똑같이 날려 보고, 처음 부딪히는 곳에서 멈춘다
+            var pts = new List<Vector3> { spawnPos };
+            Vector3 pos = spawnPos;
+            Vector3 landing = spawnPos;
+            const float dt = 0.04f;
+            for (float t = 0f; t < 5f; t += dt)
+            {
+                vel += Vector3.down * (GrenadeGravity * dt);
+                Vector3 step = vel * dt;
+                float len = step.magnitude;
+                if (len > 0.0001f && Physics.SphereCast(pos, 0.1f, step / len, out RaycastHit hit, len, hitMask, QueryTriggerInteraction.Ignore)
+                    && !hit.collider.transform.IsChildOf(transform))
+                {
+                    landing = hit.point;
+                    pts.Add(hit.point);
+                    break;
+                }
+                pos += step;
+                pts.Add(pos);
+                landing = pos;
+            }
+
+            if (_aimArc != null)
+            {
+                _aimArc.positionCount = pts.Count;
+                _aimArc.SetPositions(pts.ToArray());
+            }
+
+            bool gas = stats.area == GrenadeProjectile.AreaKind.Gas && stats.gasDuration > 0f;
+            float radius = Mathf.Max(0.6f, gas ? stats.blastRadius * 1.4f : stats.blastRadius);
+            float pulse = 1f + 0.06f * Mathf.Sin(Time.time * 6f);
+            DrawAimCircle(_aimRing, landing, radius);
+            DrawAimCircle(_aimRingInner, landing, radius * 0.55f * pulse);
+            return mouse;
+        }
+
+        private static void DrawAimCircle(LineRenderer lr, Vector3 center, float radius)
+        {
+            if (lr == null) return;
+            int n = lr.positionCount;
+            for (int i = 0; i < n; i++)
+            {
+                float a = i / (float)n * Mathf.PI * 2f;
+                Vector3 p = center + new Vector3(Mathf.Cos(a) * radius, 0f, Mathf.Sin(a) * radius);
+                // 바닥을 따라가게 높이를 맞춘다
+                if (Physics.Raycast(p + Vector3.up * 2f, Vector3.down, out RaycastHit h, 6f, ~0, QueryTriggerInteraction.Ignore))
+                    p.y = h.point.y + 0.08f;
+                else
+                    p.y = center.y + 0.08f;
+                lr.SetPosition(i, p);
+            }
         }
 
         private Vector3 GetMouseAimPoint(float range, float fallbackHeight)
@@ -1937,7 +2118,7 @@ namespace Combat
             if (_playerMove == null)
                 return;
 
-            bool slowed = _isCharging || _isFlameActive;
+            bool slowed = _isCharging || _isFlameActive || _grenadeAiming;
             _playerMove.SetSpeedMultiplier(slowed ? chargingMoveSpeedMultiplier : 1f);
         }
 
@@ -2016,17 +2197,35 @@ namespace Combat
         }
 
         // 화염방사기: 플레이어 앞쪽에 불꽃 프리팹을 붙여 두고, 쏘는 동안 플레이어 방향을 따라간다.
-        private void StartFlameVfx(WeaponStats stats)
+        // 화염방사기(불꽃) / 화학 분무기(초록 독 안개): 같은 뿜어내는 이펙트를 색만 바꿔 쓴다
+        private bool HasConeVfx(string weaponId)
+        {
+            if (weaponId != ItemIds.Flamethrower && weaponId != ItemIds.ChemicalSprayer) return false;
+            return CombatFx.Load("FX_FlameThrower_01") != null || (weaponId == ItemIds.Flamethrower && flamethrowerVfxPrefab != null);
+        }
+
+        private const float ConeVfxLength = 6f;   // Synty 화염방사 이펙트가 닿는 거리(m, 배율 1)
+
+        private void StartFlameVfx(WeaponStats stats, string weaponId)
         {
             if (_flameVfx != null)
                 return;
 
-            _flameVfx = Instantiate(flamethrowerVfxPrefab, transform);
-            _flameVfx.name = "FlamethrowerVFX";
+            bool sprayer = weaponId == ItemIds.ChemicalSprayer;
+            GameObject synty = CombatFx.Load(sprayer ? "FX_FlameThrower_02" : "FX_FlameThrower_01");
+            GameObject prefab = synty != null ? synty : flamethrowerVfxPrefab;
+            if (prefab == null)
+                return;
+
+            _flameVfx = Instantiate(prefab, transform);
+            _flameVfx.name = sprayer ? "SprayerVFX" : "FlamethrowerVFX";
             _flameVfx.transform.localPosition = new Vector3(0f, 1.2f, 0.5f);
             _flameVfx.transform.localRotation = Quaternion.identity;
-            float scale = flamethrowerVfxLength > 0.1f ? Mathf.Max(0.3f, stats.range / flamethrowerVfxLength) : 1f;
+            float length = synty != null ? ConeVfxLength : flamethrowerVfxLength;
+            float scale = length > 0.1f ? Mathf.Max(0.3f, stats.range / length) : 1f;
             _flameVfx.transform.localScale = Vector3.one * scale;
+            if (sprayer && synty != null)
+                CombatFx.Tint(_flameVfx, new Color(0.4f, 0.9f, 0.2f, 0.85f));   // 초록 독 안개
         }
 
         private void StopFlameVfx()
