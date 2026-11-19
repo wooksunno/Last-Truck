@@ -139,6 +139,14 @@ Shader "LastTruck/ToonWorld"
     float _LT_Depth;
     float4 _LT_DepthTint;
     float4 _LT_DepthMist;
+    // 간접광 (PastelLook이 설정, x = 세기 0이면 끔 / y = 그림자 색조를 무채색 쪽으로 되돌리는 정도):
+    // 단색 앰비언트 대신 위에서는 하늘빛, 아래에서는 땅빛을 받고, 햇빛에 달궈진 땅이 옆/아랫면을 따뜻하게 되비춘다
+    float4 _LT_GI;
+    float4 _LT_GISky;
+    float4 _LT_GIGround;
+    float4 _LT_GIBounce;
+    // 그림자 경계 부드럽게 (PastelLook이 설정, 0 = 재질 값 그대로 또렷한 툰 경계 ~ 1 = 부드럽게 번지는 경계)
+    float _LT_ShadowSoft;
     ENDHLSL
 
     SubShader
@@ -274,8 +282,9 @@ Shader "LastTruck/ToonWorld"
             // 톤 단계: 0(그림자 면) ~ 1(밝은 면), 중간에 옅은 한 단계
             half Band(half halfLambert)
             {
-                half lit = smoothstep(_ShadeThreshold - _ShadeSoftness, _ShadeThreshold + _ShadeSoftness, halfLambert);
-                half mid = smoothstep(_ShadeThreshold - 0.25h - _ShadeSoftness, _ShadeThreshold - 0.25h + _ShadeSoftness, halfLambert);
+                half soft = max(_ShadeSoftness, (half)saturate(_LT_ShadowSoft) * 0.16h);
+                half lit = smoothstep(_ShadeThreshold - soft, _ShadeThreshold + soft, halfLambert);
+                half mid = smoothstep(_ShadeThreshold - 0.25h - soft, _ShadeThreshold - 0.25h + soft, halfLambert);
                 return max(lit, mid * _MidTone);
             }
 
@@ -331,7 +340,37 @@ Shader "LastTruck/ToonWorld"
                 // 메인 라이트(해/달): 그림자 경계를 또렷하게 눌러 툰 느낌을 낸다
                 Light mainLight = GetMainLight(shadowCoord, i.positionWS, shadowMask);
                 half sharpW = lerp(0.5h, 0.08h, _ShadowSharpness);
-                half shadow = smoothstep(0.5h - sharpW, 0.5h + sharpW, mainLight.shadowAttenuation);
+                sharpW = lerp(sharpW, 0.32h, (half)saturate(_LT_ShadowSoft));   // 부드럽게: 가운데는 진하게 두고 가장자리만 번지게
+                half rawShadow = mainLight.shadowAttenuation;
+                // 그림자 가장자리 번짐: 빛 방향에 수직인 원판 위 8곳에서 그림자를 더 읽어 평균 낸다 (반경 최대 ~0.3m).
+                // 픽셀마다 원판을 돌려서 단계 무늬 대신 고운 번짐이 된다. 화면 공간 그림자 모드에서는 쓸 수 없어 건너뛴다.
+                #if (defined(_MAIN_LIGHT_SHADOWS) || defined(_MAIN_LIGHT_SHADOWS_CASCADE)) && !defined(_MAIN_LIGHT_SHADOWS_SCREEN)
+                {
+                    half ss = (half)saturate(_LT_ShadowSoft);
+                    if (ss > 0.001h && mainLight.distanceAttenuation > 0.0h)
+                    {
+                        float3 Ld = mainLight.direction;
+                        float3 t1 = normalize(cross(Ld, abs(Ld.y) < 0.99 ? float3(0, 1, 0) : float3(1, 0, 0)));
+                        float3 t2 = cross(Ld, t1);
+                        float ang = frac(sin(dot(i.positionCS.xy, float2(12.9898, 78.233))) * 43758.5453) * 6.2831853;
+                        float ca = cos(ang), sa = sin(ang);
+                        float radius = 0.28 * ss;
+                        float acc = rawShadow;
+                        const float2 disk[8] = { float2(0.95, 0.10), float2(-0.62, 0.70), float2(0.20, -0.92), float2(-0.85, -0.38),
+                                                 float2(0.48, 0.52), float2(-0.25, 0.30), float2(0.30, -0.35), float2(-0.40, -0.10) };
+                        [unroll] for (int k = 0; k < 8; k++)
+                        {
+                            float2 d = float2(disk[k].x * ca - disk[k].y * sa, disk[k].x * sa + disk[k].y * ca) * radius;
+                            float3 pw = i.positionWS + t1 * d.x + t2 * d.y;
+                            acc += MainLightRealtimeShadow(TransformWorldToShadowCoord(pw));
+                        }
+                        // 거리에 따른 그림자 페이드는 원래 값에서 가져온다
+                        half fade = GetMainLightShadowFade(i.positionWS);
+                        rawShadow = lerp((half)(acc / 9.0), 1.0h, fade);
+                    }
+                }
+                #endif
+                half shadow = smoothstep(0.5h - sharpW, 0.5h + sharpW, rawShadow);
                 // 땅은 기울기만으로 새까맣게 꺼지지 않게 밑단을 올린다 (나무 그림자 같은 실제 그림자는 그대로)
                 half bandL = Band(dot(Nl, mainLight.direction) * 0.5h + 0.5h);
                 bandL = lerp(bandL, max(bandL, 0.6h), saturate(groundW * 2.0h));
@@ -344,10 +383,26 @@ Shader "LastTruck/ToonWorld"
                 lit = lerp(lit, 0.45h + 0.4h * shadow, far * 0.6h);
 
                 half3 ambient = SampleSH(Nl) * _AmbientStrength;
+                half3 shadeTint = _ShadeColor.rgb;
+                // 간접광: 하늘(위) ~ 땅(아래) 반구 빛 + 땅에서 튀어 오른 햇빛. 그림자 면이 방향에 따라 색이 달라져 입체감이 산다.
+                half gi = (half)saturate(_LT_GI.x);
+                if (gi > 0.001h)
+                {
+                    half3 giN = normalize(lerp(Nl, smoothN, 0.5h));   // 면마다 끊기지 않게 부드러운 노멀을 섞는다
+                    half upT = giN.y * 0.5h + 0.5h;
+                    half3 hemi = lerp((half3)_LT_GIGround.rgb, (half3)_LT_GISky.rgb, upT * upT * (3.0h - 2.0h * upT));
+                    // 땅 반사광: 해가 높을수록 세고, 아래/옆을 보는 면일수록 많이 받는다 (트럭 아랫면, 바위 옆면, 나무 밑동)
+                    half sunUp = saturate(mainLight.direction.y * 2.0h);
+                    half3 bounce = mainLight.color * (half3)_LT_GIBounce.rgb * saturate(0.65h - giN.y) * sunUp;
+                    ambient = lerp(ambient, (hemi + bounce) * _AmbientStrength, gi);
+                    // 재질의 라벤더 그림자 색조를 밝기는 유지한 채 무채색 쪽으로 (낮에 그림자가 보라색이 되지 않게)
+                    half shadeL = dot(shadeTint, half3(0.299h, 0.587h, 0.114h));
+                    shadeTint = lerp(shadeTint, shadeL.xxx * 1.08h, (half)saturate(_LT_GI.y) * gi);
+                }
                 // 그림자 면도 빛 색을 조금 받아 새까맣게 꺼지지 않는다 (노을엔 주황빛, 밤엔 푸른빛 그림자)
                 half night = saturate(_GameNightFactor);
                 half weather = saturate(_GameWeatherFog);
-                half3 shadeLight = (ambient + mainLight.color * _ShadowLift) * _ShadeColor.rgb;
+                half3 shadeLight = (ambient + mainLight.color * _ShadowLift) * shadeTint;
                 // 밤: 달빛이 안 닿는 곳은 더 어둡게, 달빛을 받는 면은 조금 더 밝게 (대비를 키워 달빛이 형태를 잡아 준다)
                 // 안개가 끼면 달빛이 퍼져서 대비가 다시 줄어든다
                 half moonContrast = night * (1.0h - weather);
@@ -370,7 +425,8 @@ Shader "LastTruck/ToonWorld"
                     // 땅: 언덕 위에 번지는 부드러운 명암(얼룩) 대신 3단 툰 톤으로 끊는다. 경계가 또렷한 등고선 같은 면이 된다.
                     half gq = saturate(groundW * 2.0h);
                     half q3 = softLit * 3.0h;
-                    half stepped = (floor(q3) + smoothstep(0.44h, 0.56h, frac(q3))) / 3.0h;
+                    half stepW = 0.06h + 0.30h * (half)saturate(_LT_ShadowSoft);
+                    half stepped = (floor(q3) + smoothstep(0.5h - stepW, 0.5h + stepW, frac(q3))) / 3.0h;
                     softLit = lerp(softLit, min(stepped, 1.0h), gq);
                     half3 pastelShade = lerp(shadeLight, litLight * (half3)_LT_PastelShade.rgb, 0.3h);
                     light = lerp(light, lerp(pastelShade, litLight, softLit), pastel);

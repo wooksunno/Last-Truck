@@ -44,17 +44,37 @@ namespace LastTruck
         [Tooltip("햇빛을 받는 면에 곱하는 따뜻한 꿀빛 (밤엔 달빛 색 그대로).")]
         public Color litWarm = new Color(1.05f, 1.02f, 0.92f);
         [Tooltip("그림자 면에 곱하는 짙은 남보라. 그림자가 까맣게 꺼지지 않고 색을 갖는다.")]
-        public Color shadeCool = new Color(0.80f, 0.79f, 1.24f);
+        public Color shadeCool = new Color(0.97f, 0.98f, 1.05f);
+        [Tooltip("밤의 그림자 색조: 짙은 남색/청록 (신비로운 밤).")]
+        public Color shadeCoolNight = new Color(0.90f, 0.94f, 1.10f);
         [Tooltip("가장자리 빛 (HDR 배율 포함): 낮 = 호박색.")]
         public Color rimDay = new Color(0.62f, 0.34f, 0.10f);
         [Tooltip("가장자리 빛: 밤 = 청록색 (좀비/나무 윤곽이 색으로 읽힌다).")]
         public Color rimNight = new Color(0.06f, 0.30f, 0.36f);
         [Tooltip("그림자 면에 더하는 빛 (재질 색과 무관): 낮 = 남보라.")]
-        public Color shadeFillDay = new Color(0.080f, 0.065f, 0.215f);
+        public Color shadeFillDay = new Color(0.040f, 0.038f, 0.048f);
         [Tooltip("그림자 면에 더하는 빛: 밤 = 청록 남색.")]
-        public Color shadeFillNight = new Color(0.012f, 0.026f, 0.075f);
+        public Color shadeFillNight = new Color(0.010f, 0.022f, 0.040f);
         [Tooltip("재질 색 채도를 얼마나 더 올릴지 (밝기는 유지).")]
         [Range(0f, 0.6f)] public float saturationBoost = 0.10f;
+
+        [Tooltip("그림자/명암 경계를 얼마나 부드럽게 (0 = 또렷한 툰 경계, 1 = 부드럽게 번짐).")]
+        [Range(0f, 1f)] public float shadowSoftness = 0.75f;
+
+        [Header("간접광: 하늘빛(위) + 땅빛(아래) + 땅 반사 햇빛 (ToonWorld 셰이더가 읽는다)")]
+        public Color giSkyDay = new Color(0.54f, 0.58f, 0.62f);
+        public Color giGroundDay = new Color(0.40f, 0.37f, 0.30f);
+        [Tooltip("햇빛에 달궈진 땅이 옆/아랫면에 되비추는 빛 (해 색에 곱해진다).")]
+        public Color giBounceDay = new Color(0.26f, 0.21f, 0.14f);
+        public Color giSkyDusk = new Color(0.50f, 0.42f, 0.48f);
+        public Color giGroundDusk = new Color(0.32f, 0.24f, 0.20f);
+        public Color giBounceDusk = new Color(0.34f, 0.20f, 0.12f);
+        [Tooltip("밤 하늘빛: 위를 보는 면에 남색·청록 달빛이 내려앉는다.")]
+        public Color giSkyNight = new Color(0.10f, 0.13f, 0.20f);
+        public Color giGroundNight = new Color(0.03f, 0.035f, 0.045f);
+        public Color giBounceNight = new Color(0.04f, 0.05f, 0.08f);
+        [Tooltip("낮에 재질의 라벤더 그림자 색조를 무채색으로 되돌리는 정도 (밤엔 0 = 남보라 그대로).")]
+        [Range(0f, 1f)] public float dayShadeNeutralize = 0.85f;
 
         [Header("깊이 팔레트: 멀수록 색조가 바뀐다 (ToonWorld 셰이더가 읽는다)")]
         [Tooltip("거리에 따라 곱해지는 색조. 낮 = 청보라 (먼 산이 푸르스름한 층으로 읽힌다).")]
@@ -90,9 +110,15 @@ namespace LastTruck
         private static readonly int DepthId = Shader.PropertyToID("_LT_Depth");
         private static readonly int DepthTintId = Shader.PropertyToID("_LT_DepthTint");
         private static readonly int DepthMistId = Shader.PropertyToID("_LT_DepthMist");
+        private static readonly int GIId = Shader.PropertyToID("_LT_GI");
+        private static readonly int ShadowSoftId = Shader.PropertyToID("_LT_ShadowSoft");
+        private static readonly int GISkyId = Shader.PropertyToID("_LT_GISky");
+        private static readonly int GIGroundId = Shader.PropertyToID("_LT_GIGround");
+        private static readonly int GIBounceId = Shader.PropertyToID("_LT_GIBounce");
         private float _depth = 1f;
 
         private Volume _volume;
+        private Volume _nightVolume;   // 밤 전용 톤 (어둡고 신비롭게): 밤 정도만큼 낮 톤 위에 덮인다
         private float _blend;   // 0 끔 ~ 1 켬 (부드럽게)
         private float _sig = 1f;   // 시그니처 색 켜짐 정도 (부드럽게)
         private AtmosphereController _atmosphere;
@@ -138,6 +164,8 @@ namespace LastTruck
             Shader.SetGlobalFloat(PastelId, 0f);
             Shader.SetGlobalFloat(SigId, 0f);
             Shader.SetGlobalFloat(DepthId, 0f);
+            Shader.SetGlobalVector(GIId, Vector4.zero);
+            Shader.SetGlobalFloat(ShadowSoftId, 0f);
         }
 
         /// <summary>켜기/끄기 (비포/애프터).</summary>
@@ -181,8 +209,16 @@ namespace LastTruck
                 bool on = strength > 0.001f;
                 if (_volume.enabled != on) _volume.enabled = on;
             }
+            if (_nightVolume != null)
+            {
+                float nw = _blend * Smooth01(night);
+                _nightVolume.weight = nw;
+                bool on = nw > 0.001f;
+                if (_nightVolume.enabled != on) _nightVolume.enabled = on;
+            }
             Shader.SetGlobalFloat(PastelId, strength);
-            Shader.SetGlobalVector(PastelShadeId, new Vector4(0.80f, 0.76f, 0.97f, 1f));
+            // 그림자 면 색조: 낮엔 거의 무채색(밝은 그림자), 밤엔 남보라
+            Shader.SetGlobalVector(PastelShadeId, Color.Lerp(new Color(0.96f, 0.95f, 0.98f), new Color(0.78f, 0.80f, 1.0f), night));
 
             // 시그니처 색은 밤에도 줄이지 않는다 (밤엔 달빛이 색을 이미 정하므로 따뜻한 꿀빛만 빠지고 남보라 그림자 + 청록 윤곽이 남는다)
             // 노을엔 햇빛이 이미 주황이라 꿀빛/채도를 더하면 온통 빨개지므로 노을 세기만큼 뺀다
@@ -192,7 +228,17 @@ namespace LastTruck
             float glow = s <= 0.42f ? Smooth01((s - 0.05f) / 0.37f) : 1f - Smooth01((s - 0.42f) / 0.48f);
             Shader.SetGlobalFloat(SigId, _blend * _sig);
             Shader.SetGlobalColor(SigWarmId, Color.Lerp(litWarm, Color.white, glow * 0.9f));
-            Shader.SetGlobalColor(SigCoolId, shadeCool);
+            Shader.SetGlobalColor(SigCoolId, Color.Lerp(shadeCool, shadeCoolNight, night));
+
+            // 간접광: 낮 → 노을 → 밤
+            Color giSky = Color.Lerp(Color.Lerp(giSkyDay, giSkyDusk, glow), giSkyNight, night);
+            Color giGround = Color.Lerp(Color.Lerp(giGroundDay, giGroundDusk, glow), giGroundNight, night);
+            Color giBounce = Color.Lerp(Color.Lerp(giBounceDay, giBounceDusk, glow), giBounceNight, night);
+            Shader.SetGlobalVector(GIId, new Vector4(_blend, dayShadeNeutralize * (1f - night) * (1f - glow * 0.4f), 0f, 0f));
+            Shader.SetGlobalFloat(ShadowSoftId, _blend * shadowSoftness);
+            Shader.SetGlobalColor(GISkyId, giSky);
+            Shader.SetGlobalColor(GIGroundId, giGround);
+            Shader.SetGlobalColor(GIBounceId, giBounce);
             Shader.SetGlobalColor(SigRimId, Color.Lerp(rimDay, rimNight, night));
             Shader.SetGlobalFloat(SigSatId, saturationBoost * (1f - glow * 0.85f));
             Shader.SetGlobalColor(SigFillId, Color.Lerp(shadeFillDay, shadeFillNight, night) * (1f - glow * 0.55f));   // 노을엔 그림자가 온통 보라색이 되지 않게 줄인다
@@ -224,8 +270,8 @@ namespace LastTruck
 
             var ca = profile.Add<ColorAdjustments>(true);
             // 뿌옇지 않게: 노출은 거의 그대로, 대비는 오히려 조금 올리고 채도로 맑은 파스텔 색을 낸다
-            ca.postExposure.Override(-0.30f);   // 낮 햇빛이 센 곳(연두 땅)이 형광색으로 날아가지 않게 살짝 눌러서 색이 깊게 남게 한다
-            ca.contrast.Override(14f);
+            ca.postExposure.Override(0.08f);   // 낮은 전체적으로 밝고 산뜻하게 (간접광이 그림자를 받쳐 주므로 대비는 유지)
+            ca.contrast.Override(10f);
             ca.saturation.Override(12f);
             ca.colorFilter.Override(new Color(1f, 0.985f, 0.95f));
 
@@ -236,7 +282,7 @@ namespace LastTruck
             lgg.gain.Override(new Vector4(1.0f, 1.0f, 1.0f, 0f));
 
             var st = profile.Add<SplitToning>(true);
-            st.shadows.Override(new Color(0.46f, 0.46f, 0.70f));       // 남보라 그림자
+            st.shadows.Override(new Color(0.54f, 0.56f, 0.62f));       // 그림자는 살짝 서늘한 정도만 (보라색 X)
             st.highlights.Override(new Color(0.86f, 0.74f, 0.58f));    // 꿀빛 하이라이트
             st.balance.Override(10f);   // 그림자 색조는 어두운 곳 위주 (갈색 땅이 붉은 보라로 변하지 않게)
 
@@ -247,11 +293,57 @@ namespace LastTruck
             bloom.tint.Override(new Color(1f, 0.92f, 0.94f));
 
             var vg = profile.Add<Vignette>(true);
-            vg.intensity.Override(0.14f);
+            vg.intensity.Override(0.10f);
             vg.smoothness.Override(0.6f);
             vg.color.Override(new Color(0.45f, 0.38f, 0.52f));
 
             _volume.profile = profile;
+
+            BuildNightVolume();
+        }
+
+        // 밤: 낮 톤 위에 밤 정도만큼 덮는다. 어둡고 대비가 크며, 그림자는 짙은 남색·청록, 밝은 곳은 은은한 보랏빛 달빛.
+        // 불빛(횃불·헤드라이트·좀비 눈)은 블룸으로 번져서 어둠 속에서 빛나 보인다.
+        private void BuildNightVolume()
+        {
+            var go = new GameObject("PastelNightVolume");
+            go.transform.SetParent(transform, false);
+            _nightVolume = go.AddComponent<Volume>();
+            _nightVolume.isGlobal = true;
+            _nightVolume.priority = 51f;
+            _nightVolume.weight = 0f;
+
+            VolumeProfile profile = ScriptableObject.CreateInstance<VolumeProfile>();
+            profile.name = "PastelNight";
+
+            var ca = profile.Add<ColorAdjustments>(true);
+            ca.postExposure.Override(-0.12f);
+            ca.contrast.Override(18f);
+            ca.saturation.Override(-18f);   // 밤엔 색을 빼서 차분하게 (불빛만 색을 가진다)
+            ca.colorFilter.Override(new Color(0.94f, 0.97f, 1.02f));
+
+            var lgg = profile.Add<LiftGammaGain>(true);
+            lgg.lift.Override(new Vector4(0.99f, 1.0f, 1.02f, -0.015f));   // 가장 어두운 곳은 검은 남색으로 가라앉힌다
+            lgg.gamma.Override(new Vector4(1.0f, 1.0f, 1.0f, 0f));
+            lgg.gain.Override(new Vector4(1.0f, 1.0f, 1.02f, 0f));
+
+            var st = profile.Add<SplitToning>(true);
+            st.shadows.Override(new Color(0.42f, 0.50f, 0.56f));       // 짙은 청록 그림자
+            st.highlights.Override(new Color(0.82f, 0.78f, 0.94f));    // 달빛 받는 곳은 은은한 보랏빛
+            st.balance.Override(0f);
+
+            var bloom = profile.Add<Bloom>(true);
+            bloom.threshold.Override(0.8f);
+            bloom.intensity.Override(0.45f);
+            bloom.scatter.Override(0.7f);
+            bloom.tint.Override(new Color(0.78f, 0.92f, 1.0f));
+
+            var vg = profile.Add<Vignette>(true);
+            vg.intensity.Override(0.32f);
+            vg.smoothness.Override(0.55f);
+            vg.color.Override(new Color(0.02f, 0.03f, 0.09f));
+
+            _nightVolume.profile = profile;
         }
 
         // ───── 구름 ─────
