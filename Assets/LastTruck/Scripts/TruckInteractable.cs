@@ -88,11 +88,11 @@ namespace LastTruck
                     return;
                 }
 
-                if (Input.GetKeyDown(KeyCode.E))
+                if (KeyBindings.Down(GameAction.Interact))
                 {
                     GetOut_Truck();
                 }
-                else if (Input.GetKeyDown(KeyCode.T) && HasTurret)
+                else if (KeyBindings.Down(GameAction.Turret) && HasTurret)
                 {
                     if (isGunning && GameManager.IsNight) HudToast.Show("밤에는 운전할 수 없습니다.");
                     else SetGunning(!isGunning);
@@ -144,7 +144,7 @@ public void Interact(GameObject player)
             if (truckController != null) truckController.isDriving = !on;
             var turret = GetComponent<CraftingSystem.TruckTurret>();
             if (turret != null && !on) turret.StopLocalGunner();
-            if (on) HudToast.Show("포탑에 올랐습니다 (1인칭)   마우스: 조준   좌클릭: 레이저   R: 탄환 만들기   T: 운전석으로");
+            if (on) HudToast.Show($"포탑에 올랐습니다 (1인칭)   마우스: 조준   좌클릭: 레이저   {KeyBindings.DisplayName(KeyBindings.Get(GameAction.Reload))}: 탄환 만들기   {KeyBindings.DisplayName(KeyBindings.Get(GameAction.Turret))}: 운전석으로");
         }
 
         private void GetIn_Truck(GameObject player)

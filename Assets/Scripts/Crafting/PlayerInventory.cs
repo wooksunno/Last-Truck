@@ -12,10 +12,7 @@ namespace CraftingSystem
         [SerializeField] private bool grantStarterItems = true;
         [SerializeField] private ItemStackInventory inventory = new ItemStackInventory();
 
-        private static readonly KeyCode[] SlotHotkeys =
-        {
-            KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3, KeyCode.Alpha4,
-        };
+        private const int HotkeySlotCount = 4;   // 퀵슬롯 1~4 (키는 설정 창 [조작키])
 
         public int MaxSlots => maxSlots;
 
@@ -60,9 +57,9 @@ namespace CraftingSystem
             bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
             bool uiOpen = GameUIController.Instance != null && GameUIController.Instance.IsPopupOpen;
 
-            for (int i = 0; i < SlotHotkeys.Length; i++)
+            for (int i = 0; i < HotkeySlotCount; i++)
             {
-                if (Input.GetKeyDown(SlotHotkeys[i]))
+                if (KeyBindings.Down(KeyBindings.QuickSlot(i)))
                 {
                     // Ctrl + 숫자: 지금 든 칸과 그 칸의 아이템을 서로 바꾼다
                     if (ctrl && !uiOpen)

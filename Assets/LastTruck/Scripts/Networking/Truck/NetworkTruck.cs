@@ -859,19 +859,19 @@ namespace LastTruck.Networking
             if (SystemUI.Instance != null && SystemUI.Instance.IsPopupVisible) return;
             if (ChatHud.IsTyping) return; // 채팅 입력 중
 
-            if (Input.GetKeyDown(KeyCode.E))
+            if (KeyBindings.Down(GameAction.Interact))
             {
                 RPC_RequestExit();
             }
-            else if (seat == DriverSeat && Input.GetKeyDown(KeyCode.L))
+            else if (seat == DriverSeat && KeyBindings.Down(GameAction.TruckLight))
             {
                 RPC_ToggleLights();
             }
-            else if (seat > DriverSeat && seat != TurretSeat && Input.GetKeyDown(KeyCode.F) && Seats[DriverSeat] == PlayerRef.None)
+            else if (seat > DriverSeat && seat != TurretSeat && KeyBindings.Down(GameAction.DriverSeat) && Seats[DriverSeat] == PlayerRef.None)
             {
                 RPC_RequestDriverSeat();
             }
-            else if (Input.GetKeyDown(KeyCode.T) && (seat == TurretSeat || HasTurret))
+            else if (KeyBindings.Down(GameAction.Turret) && (seat == TurretSeat || HasTurret))
             {
                 RPC_ToggleTurret();
             }
@@ -916,10 +916,13 @@ namespace LastTruck.Networking
             if (_localSeat < 0 || !IsReady) return;
             if (_localSeat == TurretSeat && HasTurret) return;   // 포탑 사수 안내는 TruckTurret이 그린다
 
-            string turretHint = HasTurret && Seats[TurretSeat] == PlayerRef.None ? "   T: 포탑에 오르기" : "";
+            string K(GameAction a) => KeyBindings.DisplayName(KeyBindings.Get(a));   // 설정 창에서 바꾼 키 이름
+            string exitHint = $"   {K(GameAction.Interact)}: 내리기";
+            string turretHint = HasTurret && Seats[TurretSeat] == PlayerRef.None ? $"   {K(GameAction.Turret)}: 포탑에 오르기" : "";
             string text = _localSeat == DriverSeat
-                ? (GameManager.IsNight ? "밤에는 운전할 수 없습니다" + turretHint + "   E: 내리기" : "운전 중   W/S: 전진·후진   A/D: 핸들   Space: 브레이크   L: 라이트" + turretHint + "   E: 내리기")
-                : (Seats[DriverSeat] == PlayerRef.None ? "동승 중   F: 운전석으로 이동" + turretHint + "   E: 내리기" : "동승 중" + turretHint + "   E: 내리기");
+                ? (GameManager.IsNight ? "밤에는 운전할 수 없습니다" + turretHint + exitHint
+                    : $"운전 중   {K(GameAction.MoveForward)}/{K(GameAction.MoveBack)}: 전진·후진   {K(GameAction.MoveLeft)}/{K(GameAction.MoveRight)}: 핸들   {K(GameAction.Jump)}: 브레이크   {K(GameAction.TruckLight)}: 라이트" + turretHint + exitHint)
+                : (Seats[DriverSeat] == PlayerRef.None ? $"동승 중   {K(GameAction.DriverSeat)}: 운전석으로 이동" + turretHint + exitHint : "동승 중" + turretHint + exitHint);
 
             var style = new GUIStyle(GUI.skin.box) { fontSize = Mathf.Max(14, Screen.height / 45), alignment = TextAnchor.MiddleCenter };
             style.normal.textColor = Color.white;

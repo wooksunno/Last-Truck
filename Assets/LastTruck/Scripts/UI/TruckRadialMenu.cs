@@ -316,13 +316,13 @@ namespace LastTruck
 
             bool heldLong = Time.unscaledTime - _openedAt >= HoldSeconds;
 
-            if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1) || (_sticky && Input.GetKeyDown(KeyCode.Tab)))
+            if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1) || (_sticky && KeyBindings.Down(GameAction.Inventory)))
             {
                 Close(true);
                 return;
             }
 
-            if (Input.GetKeyUp(KeyCode.Tab))
+            if (KeyBindings.Up(GameAction.Inventory))
             {
                 if (heldLong)
                 {

@@ -101,13 +101,13 @@ private void Update()
             // 얻을 게 없으면(체력도 스태미나도 가득, 고칠 도구도 없음) 먹어도 아무 효과가 없다(시작도, 소모도 되지 않는다).
             bool canEat = hasEdible && HasUseFor(edible);
 
-            if (Input.GetMouseButtonDown(0))
+            if (KeyBindings.Down(GameAction.Attack))
                 _pressVetoed = !canEat || IsPressBlocked();
-            if (Input.GetMouseButtonUp(0))
+            if (KeyBindings.Up(GameAction.Attack))
                 _pressVetoed = false;
 
             bool popupOpen = GameUIController.Instance != null && GameUIController.Instance.IsPopupOpen;
-            bool holding = canEat && !_pressVetoed && !popupOpen && Input.GetMouseButton(0);
+            bool holding = canEat && !_pressVetoed && !popupOpen && KeyBindings.Held(GameAction.Attack);
 
             if (!holding || hand.item.itemID != _activeItemId)
             {

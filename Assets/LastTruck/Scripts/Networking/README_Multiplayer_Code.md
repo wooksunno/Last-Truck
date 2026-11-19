@@ -529,3 +529,32 @@ InRoom/InGame ─(RequestLeaveSession 또는 연결 끊김)─> Leaving ─> (Me
 
 ### 14-4. 배너 (`UI/WaveBanner.cs`)
 - 화면 가운데 위쪽(+230), 제목 60 / 설명 28, 0.35초 나타남 → 4초 → 0.6초 사라짐 (실제 시간).
+
+## 15. 메뉴 화면 새 디자인 / 설정 / 키 설정 (`NDH/feat(v5)`)
+
+CSJ/feat(v5)의 UI Toolkit 로비(Kenney 스킨)를 새 디자인(녹슨 금속 + 해저드 테이프 + 스텐실)으로 교체했다. 캐릭터 선택 기능은 그대로.
+
+### 15-1. 파일
+- `UI/LobbyToolkitView.cs` (공통 + 배경 5겹/먼지/로고 빛) + `.Title` / `.Sessions` / `.Room` / `.Settings` / `.Character` (partial).
+  `LobbyUIController.Awake → LobbyToolkitView.TryCreate()` 그대로. PanelSettings는 `LastTruckHudPanelSettings` 복사본(1920x1080, Expand).
+- `Resources/UI/LastTruckMenu.uss` (예전 `LastTruckLobby.uss`는 더 안 씀), `Resources/UI/Menu/*` (배경 5겹, 판/버튼/테이프/볼트, 아이콘), `Resources/UI/Fonts/*` (Pretendard Bold/ExtraBold, Black Ops One, OFL 라이선스 파일 포함).
+- `GameLauncher.Menu.cs`: 방 코드(`code` 프로퍼티, 6자리, 0/O/1/I 없음, `FindSessionByCode`), 방 이름 바꾸기(`RenameRoom` → `title` 프로퍼티 갱신, 참가자는 `RoomTitle`이 프로퍼티를 따라감), `RoomPassword`(방장=정한 값, 참가자=입력한 값), 재접속 `HasReconnect`/`ReconnectSecondsLeft`/`AbandonReconnect`, 타이틀에서 조용히 로비 접속(`EnterLobbyQuietly`, `MenuControlsLobbyConnect`).
+- `Scripts/Settings/KeyBindings.cs` (전역): `GameAction` 18개, `Held/Down/Up`, `Horizontal/Vertical(+Smooth)`, `Assign`(겹치면 맞바꿈), PlayerPrefs `LastTruck.Key.*`.
+- `Scripts/Settings/GameSettings.cs` + `AudioChannel.cs`: 전체/효과음/배경음, 해상도/화면 모드/품질/FPS/VSync. `GameLauncher.Start`의 `Screen.SetResolution(800,800)` 대신 `GameSettings.ApplyAll()` (저장값 없으면 800x800 창 모드 그대로).
+
+### 15-2. 키 설정으로 바꾼 곳 (기본값 = 예전 키)
+- 이동 축: `GameLauncher.OnInput`, `PlayerMove`, `PlayerStamina`, `TruckMove` (방향키는 다른 행동에 안 쓰이면 계속 동작).
+- 달리기 `PlayerStamina` / 점프·브레이크 `PlayerMove`, `TruckMove`, `GameLauncher` / 상호작용 `PlayerInteract`, `PlayerReviver`, `PouchController`, `TrapController`, `NetworkTruck`, `TruckInteractable`, `GameLauncher`
+- 인벤토리(Tab) `WorldClickInteractor`, `TruckRadialMenu` / 채팅 `ChatHud` / 라이트 `NetworkTruck`, `TruckLight` / 운전석 F, 포탑 T `NetworkTruck`, `TruckInteractable` / 재장전 `TruckTurret` / 퀵슬롯 `PlayerInventory`
+- 공격(마우스 왼쪽, 고정): `WeaponController`, `PlayerAttack`, `EatController`, `FishingController`, `TruckTurret`, `GameLauncher`
+- 안내 글자도 바뀐 키 이름으로: `NetworkTruck` 좌석 안내, `TruckTurret`, `TruckInteractable`, `PlayerStatusHud` 부활, `LastTruckHud` 키 안내(메뉴에서는 숨김), 트럭 거점 안내.
+- 그대로인 키: ESC, F3, Q(버리기)/Shift, Left Alt(커서), J/K(임무), F4~F11·Ctrl+A(디버그), 마우스 오른쪽(조준/취소).
+
+### 15-3. 새 키 추가하는 법
+1. `GameAction`에 항목 + `Infos`에 (이름, 기본 키) 추가 (설정 창 순서 = 배열 순서, 9개째부터 오른쪽 열).
+2. 쓰는 곳에서 `KeyBindings.Down(GameAction.X)`.
+
+### 15-4. 화면 메모
+- 처음 실행(저장된 닉네임 없음)이면 타이틀에서 닉네임 창. 닉네임 2~12자(`LobbyRules.NicknameMaxLength` 16 → 12).
+- 게임 후 메뉴로 돌아오면 타이틀을 건너뛰고 방 목록. 재접속 가능하면 그 방이 맨 위(초록) + 남은 시간 띠, 다른 방/방 만들기/코드 참가는 막히고 [다시 들어가기] / [재접속 포기].
+- 새로고침 = 로비 다시 접속(목록을 새로 받음).

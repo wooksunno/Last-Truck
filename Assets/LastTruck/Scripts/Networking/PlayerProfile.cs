@@ -30,6 +30,9 @@ namespace LastTruck.Networking
             }
         }
 
+        /// <summary>사용자가 직접 정한 닉네임이 저장되어 있는가 (없으면 메뉴가 처음 실행 때 닉네임 창을 띄운다).</summary>
+        public static bool HasSavedNickname => Validate(PlayerPrefs.GetString(PrefKey, string.Empty), out _);
+
         /// <summary>마지막으로 고른 캐릭터 번호 (CharacterCatalog 순서). 목록 범위를 벗어나면 0번으로 본다.</summary>
         public static int CharacterIndex
         {

@@ -23,7 +23,7 @@ namespace LastTruck
         private void Update()
         {
             // 운전 중일 때만 L 키로 전조등 토글
-            if (isDriving && Input.GetKeyDown(KeyCode.L))
+            if (isDriving && KeyBindings.Down(GameAction.TruckLight))
             {
                 ToggleLights();
             }

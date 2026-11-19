@@ -44,7 +44,7 @@ namespace LastTruck
         {
             if (_handledByWeapons) return; // 다른 스크립트가 다시 켜도 동작하지 않게
             if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) { return; }
-            if (Input.GetMouseButtonDown(0) && Time.time >= lastAttackTime + attackCooldown)
+            if (KeyBindings.Down(GameAction.Attack) && Time.time >= lastAttackTime + attackCooldown)
             {
                 PerformAttack();
                 lastAttackTime = Time.time;

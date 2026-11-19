@@ -160,7 +160,7 @@ namespace CraftingSystem
             switch (_state)
             {
                 case State.Idle:
-                    if (!popup && Input.GetMouseButtonDown(0) && !PointerOverUi()) TryCast();
+                    if (!popup && KeyBindings.Down(GameAction.Attack) && !PointerOverUi()) TryCast();
                     break;
 
                 case State.Waiting:
@@ -177,7 +177,7 @@ namespace CraftingSystem
                     // 찌가 쑥쑥 잠긴다
                     if (_bobber != null)
                         _bobber.position = _bobberRest + Vector3.down * (0.12f + 0.08f * Mathf.Abs(Mathf.Sin(Time.time * 18f)));
-                    if (Input.GetMouseButtonDown(0) && !PointerOverUi())
+                    if (KeyBindings.Down(GameAction.Attack) && !PointerOverUi())
                     {
                         StartMinigame();
                         break;
@@ -196,7 +196,7 @@ namespace CraftingSystem
                     if (Input.GetMouseButtonDown(1)) { StopFishing(false); break; }
                     if (_minigame != null)
                     {
-                        _minigame.Tick(Time.deltaTime, Input.GetMouseButton(0));
+                        _minigame.Tick(Time.deltaTime, KeyBindings.Held(GameAction.Attack));
                         if (_minigame.Result != 0) FinishMinigame(_minigame.Result > 0);
                     }
                     break;
