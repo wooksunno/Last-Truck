@@ -16,8 +16,9 @@ namespace CraftingSystem
     public class GatherOutlineHighlighter : MonoBehaviour
     {
         private const int MaxMeshes = 24;
-        private static readonly Color OutlineColor = new Color(1f, 0.92f, 0.35f, 1f);
-        private const float OutlinePixels = 15f;
+        // 게임 UI의 크림색 글자와 같은 따뜻한 크림색 (예전 레몬색은 자연 배경/갈색 UI와 따로 놀았다)
+        private static readonly Color OutlineColor = new Color(1f, 0.93f, 0.76f, 1f);
+        private const float OutlinePixels = 10f;
 
         private LastTruck.PlayerInteract _interact;
         private float _nextFindPlayer;
@@ -60,7 +61,7 @@ namespace CraftingSystem
             }
 
             // 숨 쉬듯 살짝 밝아졌다 어두워진다
-            float pulse = 0.82f + 0.18f * Mathf.Sin(Time.unscaledTime * 5f);
+            float pulse = 0.9f + 0.1f * Mathf.Sin(Time.unscaledTime * 3.5f);
             var block = new MaterialPropertyBlock();
             foreach (Renderer r in _hullRenderers)
             {

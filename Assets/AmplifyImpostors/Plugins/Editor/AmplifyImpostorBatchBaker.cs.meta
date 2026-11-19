@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 99d8f658abd25ee4090382b441104cb3
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 119877
+  packageName: Amplify Impostors
+  packageVersion: 1.1.0
+  assetPath: Assets/AmplifyImpostors/Plugins/Editor/AmplifyImpostorBatchBaker.cs
+  uploadId: 1034374

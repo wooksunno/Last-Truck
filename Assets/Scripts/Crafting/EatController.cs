@@ -53,6 +53,7 @@ namespace CraftingSystem
         private float _holdTimer;
         private bool _pressVetoed;
         private string _activeItemId;
+        private ActionPose _pose;
 
         public bool IsHolding { get; private set; }
         public float HoldProgress01 { get; private set; }
@@ -108,6 +109,10 @@ private void Update()
 
             bool popupOpen = GameUIController.Instance != null && GameUIController.Instance.IsPopupOpen;
             bool holding = canEat && !_pressVetoed && !popupOpen && Input.GetMouseButton(0);
+
+            // 먹는 동안 팔을 입으로 올리고 고개를 까딱이는 몸짓
+            if (_pose == null) _pose = ActionPose.For(gameObject);
+            _pose.SetEating(holding);
 
             if (!holding || hand.item.itemID != _activeItemId)
             {
@@ -188,6 +193,10 @@ private bool IsHealthFull()
 
             if (!_inventory.RemoveItem(item, 1))
                 return;
+
+            // 효과 빛: 체력(초록) / 스태미나(노랑) / 수리·강화(주황)
+            ActionFx.Consume(transform.position + Vector3.up * 1.1f, edible.healAmount > 0f, edible.staminaAmount > 0f,
+                             edible.repairFraction > 0f || edible.weaponUpgrade);
 
             if (edible.weaponUpgrade && PlayerGear.UpgradeWeapon())
                 LastTruck.HudToast.Show("무기를 강화했어요! " + PlayerGear.WeaponSummary);

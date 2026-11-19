@@ -60,7 +60,7 @@ namespace LastTruck.Networking
                 }
                 else
                 {
-                    int count = amount > 0 ? amount : truck.Inventory.StackLimitFor(item);
+                    int count = amount > 0 ? amount : Mathf.Max(1, item.maxStack);   // 트럭은 칸당 무제한이라 기본은 아이템 한 묶음(99)
                     added = TruckInventorySync.AddAndCount(truck.Inventory, item, Mathf.Max(1, count));
                 }
                 if (added > 0)

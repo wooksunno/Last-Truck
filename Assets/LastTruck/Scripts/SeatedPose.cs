@@ -113,6 +113,60 @@ namespace LastTruck
             _driver = driver;
         }
 
+        // ---------------------------------------------------------------- 포탑 사수
+
+        [Header("포탑 사수 자세 (도)")]
+        [SerializeField] private float gunnerArmRaise = 62f;      // 윗팔을 앞으로 (손잡이를 잡은 모습)
+        [SerializeField] private float gunnerForearmRaise = 28f;
+        [SerializeField] private float gunnerLean = 10f;          // 상체를 포신 쪽으로 살짝 숙인다
+        [SerializeField] private float gunnerKnee = 14f;          // 무릎을 살짝 굽혀 버틴다
+
+        private bool _gunner;
+        private float _gunnerBlend;
+
+        /// <summary>
+        /// 멀티플레이: 포탑 위에 서 있는가 (매 프레임 불러도 된다).
+        /// 켜져 있으면 매 프레임 포탑 받침 위 자리로 몸을 붙이고(호스트 틱마다 순간이동하던 떨림/미끄러짐 제거),
+        /// 차렷 자세 대신 손잡이를 잡고 포신 쪽으로 몸을 숙인 자세를 덧씌운다.
+        /// </summary>
+        public void ApplyGunner(bool gunner)
+        {
+            if (gunner && !_gunner) ResetLocomotion();
+            _gunner = gunner;
+        }
+
+        private void SnapToTurret()
+        {
+            CraftingSystem.TruckTurret turret = CraftingSystem.TruckTurret.Instance;
+            if (turret == null) return;
+            Vector3 pos; Quaternion rot;
+            if (turret.TryGetStandPose(out pos, out rot)) transform.SetPositionAndRotation(pos, rot);
+        }
+
+        private void ApplyGunnerBones(float w)
+        {
+            Vector3 right = transform.right;
+            Transform spine = Bone(HumanBodyBones.Spine);
+            if (spine != null) spine.rotation = Quaternion.AngleAxis(gunnerLean * w, right) * spine.rotation;
+
+            Raise(Bone(HumanBodyBones.LeftUpperArm), Bone(HumanBodyBones.LeftLowerArm), right, gunnerArmRaise * w, gunnerForearmRaise * w);
+            Raise(Bone(HumanBodyBones.RightUpperArm), Bone(HumanBodyBones.RightLowerArm), right, gunnerArmRaise * w, gunnerForearmRaise * w);
+
+            // 무릎: 허벅지는 앞으로, 종아리는 뒤로 같은 만큼 → 발은 그대로 두고 살짝 굽힌다
+            float k = gunnerKnee * w;
+            Bend(Bone(HumanBodyBones.LeftUpperLeg), Bone(HumanBodyBones.LeftLowerLeg), Bone(HumanBodyBones.LeftFoot), right, k);
+            Bend(Bone(HumanBodyBones.RightUpperLeg), Bone(HumanBodyBones.RightLowerLeg), Bone(HumanBodyBones.RightFoot), right, k);
+        }
+
+        private static void Bend(Transform upper, Transform lower, Transform foot, Vector3 right, float degrees)
+        {
+            if (upper == null || lower == null) return;
+            Quaternion footWorld = foot != null ? foot.rotation : Quaternion.identity;
+            upper.rotation = Quaternion.AngleAxis(-degrees, right) * upper.rotation;
+            lower.rotation = Quaternion.AngleAxis(degrees * 2f, right) * lower.rotation;
+            if (foot != null) foot.rotation = footWorld;
+        }
+
         /// <summary>1인칭 포탑 등에서 몸을 잠깐 숨긴다 / 다시 보인다.</summary>
         public void SetBodyVisible(bool visible)
         {
@@ -162,6 +216,17 @@ namespace LastTruck
 
         private void LateUpdate()
         {
+            if (_gunner) SnapToTurret();
+            _gunnerBlend = blendSeconds > 0f ? Mathf.MoveTowards(_gunnerBlend, _gunner ? 1f : 0f, Time.deltaTime / blendSeconds) : (_gunner ? 1f : 0f);
+            if (_gunnerBlend > 0f)
+            {
+                if (_anim == null) _anim = GetComponentInChildren<Animator>();
+                if (_anim != null && _anim.isHuman)
+                {
+                    ApplyGunnerBones(_gunnerBlend);
+                }
+            }
+
             float target = _seated ? 1f : 0f;
             _blend = blendSeconds > 0f ? Mathf.MoveTowards(_blend, target, Time.deltaTime / blendSeconds) : target;
             if (_blend <= 0f)

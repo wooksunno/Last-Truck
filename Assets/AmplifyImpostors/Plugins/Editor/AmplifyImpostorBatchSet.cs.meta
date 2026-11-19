@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 2a1ff5d8ad998d343b48ac8d66872d5f
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {fileID: 2800000, guid: 81b4fa5d9d809ac45823c6b8ff2fd807, type: 3}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 119877
+  packageName: Amplify Impostors
+  packageVersion: 1.1.0
+  assetPath: Assets/AmplifyImpostors/Plugins/Editor/AmplifyImpostorBatchSet.cs
+  uploadId: 1034374

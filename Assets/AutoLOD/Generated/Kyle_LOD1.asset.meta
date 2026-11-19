@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 0046c5b619226ce4aa0ef5ac4d5084ae
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 4300000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 185662
+  packageName: AutoLOD - Mesh Decimator
+  packageVersion: 5.6.1
+  assetPath: Assets/AutoLOD/Generated/Kyle_LOD1.asset
+  uploadId: 965176

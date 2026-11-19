@@ -1,0 +1,18 @@
+{
+    "Version": 1,
+    "AutoSRP": true,
+    "DefineSymbol": true,
+    "TexImport": 0,
+    "CreateLodGroup": false,
+    "LodTransition": 0.10000000149011612,
+    "GlobalDefaultMode": false,
+    "GlobalFolder": "",
+    "RelativeFolder": "",
+    "BakePresetGUID": "e4786beb7716da54dbb02a632681cc37",
+    "AlbedoName": "_AlbedoAlpha",
+    "NormalsName": "_NormalDepth",
+    "SpecularName": "_SpecularSmoothness",
+    "OcclusionName": "_Occlusion",
+    "EmissionName": "_EmissionOcclusion",
+    "PositionName": "_Position"
+}

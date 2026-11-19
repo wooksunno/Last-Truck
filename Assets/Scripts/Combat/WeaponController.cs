@@ -228,6 +228,43 @@ namespace Combat
         /// <summary>나무/돌처럼 때려서 캐는 대상인가 (풀/약초는 제외).</summary>
         public static bool IsPunchGatherItem(string itemId) => itemId == ItemIds.Wood || itemId == ItemIds.Stone;
 
+        /// <summary>풀/약초/선인장처럼 땅에서 뽑는 식물인가 (때리지 않고 숙여서 뽑는 모션).</summary>
+        public static bool IsPluckItem(string itemId) => !string.IsNullOrEmpty(itemId) && !IsPunchGatherItem(itemId);
+
+        private const float PluckImpactDelay = 0.3f;
+
+        /// <summary>풀/약초/선인장을 캘 때: 대상 쪽으로 돌아 몸을 숙여 뽑는 동작 + 식물이 흔들리고 잎조각이 튄다 (네트워크로 다른 사람에게도 보인다).</summary>
+        public void PlayGatherPluck(Transform target)
+        {
+            if (target == null)
+                return;
+            FaceDirection(target.position - transform.position);
+            Vector3 p = target.position;
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            PlayAttackAnim(GatherTriggerPrefix + "H|" +
+                           p.x.ToString("F2", inv) + "|" + p.y.ToString("F2", inv) + "|" + p.z.ToString("F2", inv));
+        }
+
+        private IEnumerator PluckImpactRoutine(Vector3 targetPosition)
+        {
+            yield return new WaitForSeconds(PluckImpactDelay);
+
+            GatherableProp best = null;
+            float bestDist = 0.5f * 0.5f;
+            foreach (GatherableProp prop in GatherableProp.AllProps)
+            {
+                if (prop == null || prop.IsDone || !IsPluckItem(prop.ItemId))
+                    continue;
+                float d = (prop.transform.position - targetPosition).sqrMagnitude;
+                if (d < bestDist) { bestDist = d; best = prop; }
+            }
+            if (best == null)
+                yield break;
+
+            PlantWobble.Wobble(best.Root, transform.position);
+            ActionFx.Leaves(best.Root.transform.position + Vector3.up * 0.3f, best.ItemId, 4);
+        }
+
         public static bool IsPickaxe(string itemId) =>
             itemId == ItemIds.WoodPickaxe || itemId == ItemIds.StonePickaxe ||
             itemId == ItemIds.CopperPickaxe || itemId == ItemIds.IronPickaxe;
@@ -267,6 +304,14 @@ namespace Combat
                 return false;
 
             if (!_remoteView) AttackAnimPlayed?.Invoke(signal);
+
+            // 식물 뽑기("H"): 애니메이터 트리거 없이 몸짓 연출(ActionPose)로 처리한다
+            if (parts[1] == "H")
+            {
+                ActionPose.For(gameObject).Pluck();
+                StartCoroutine(PluckImpactRoutine(new Vector3(x, y, z)));
+                return true;
+            }
             StartCoroutine(GatherImpactRoutine(new Vector3(x, y, z), withPickaxe ? pickaxeImpactDelay : gatherImpactDelay));
 
             string trigger = withPickaxe && HasAnimParam(PickaxeChopTrigger) ? PickaxeChopTrigger : "AtkPunch";

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 55e2e2246fc14bbd80d12c83348cf8a2
+ShaderIncludeImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 119877
+  packageName: Amplify Impostors
+  packageVersion: 1.1.0
+  assetPath: Assets/AmplifyImpostors/Plugins/ShaderGraph/URP/ShaderLibrary/Passes/URP16/AI_MotionVectorPass.hlsl
+  uploadId: 1034374

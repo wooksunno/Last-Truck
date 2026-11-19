@@ -16,6 +16,9 @@ Shader "LastTruck/StylizedCharacter"
         _ShadeSoftness ("Shade Softness", Range(0.001,0.5)) = 0.07
         _MidTone ("Mid Tone Strength", Range(0,1)) = 0.35
         _AmbientStrength ("Ambient Strength", Range(0,2)) = 0.9
+        // 얼굴이 어둡게 안 보이도록: 해 방향 대신 카메라 쪽에서 비추는 빛(앞빛)을 섞고, 몸에 떨어지는 그림자(모자/머리카락이 얼굴에 드리우는 것 포함)는 약하게
+        _FrontLight ("Front Light (camera-facing fill)", Range(0,1)) = 0.55
+        _SelfShadow ("Cast Shadow Strength On Body", Range(0,1)) = 0.4
 
         [Header(Specular)]
         _SpecColor ("Specular Color", Color) = (1,0.97,0.9,1)
@@ -46,6 +49,8 @@ Shader "LastTruck/StylizedCharacter"
         // 밤에 몸 전체를 이 색으로 살짝 띄운다 (몬스터가 어두운 바닥에 묻히지 않게). 0이면 끔
         _NightTint ("Night Body Tint", Color) = (0.6, 1, 0.55, 1)
         _NightTintStrength ("Night Body Tint Strength", Range(0,1)) = 0
+        // 밤 안개 저항: 밤 안개(어두운 색)에 몸이 묻혀 사라지지 않게 안개를 덜 섞는다 (0 = 보통, 1 = 안개 무시)
+        _NightFogResist ("Night Fog Resist", Range(0,1)) = 0
         [HDR] _FlashColor ("Hit Flash Color", Color) = (1,1,1,1)
         _HitFlash ("Hit Flash", Range(0,1)) = 0
 
@@ -70,6 +75,8 @@ Shader "LastTruck/StylizedCharacter"
         half _ShadeSoftness;
         half _MidTone;
         half _AmbientStrength;
+        half _FrontLight;
+        half _SelfShadow;
         half4 _SpecColor;
         half _SpecSize;
         half _SpecSoftness;
@@ -95,11 +102,13 @@ Shader "LastTruck/StylizedCharacter"
         half _EmissionNightBoost;
         half4 _NightTint;
         half _NightTintStrength;
+        half _NightFogResist;
     CBUFFER_END
 
     // AtmosphereController가 매 프레임 설정하는 전역값(낮 0 ~ 밤 1)
     float _GameNightFactor;
     float _GameWeatherFog;   // 날씨 안개 (0 맑음 ~ 1 짙은 안개)
+    float4 _LT_GI;           // PastelLook: x = 간접광 세기 / y = 낮에 그림자 색조를 무채색으로 되돌리는 정도 (맵 셰이더와 같은 값)
     ENDHLSL
 
     SubShader
@@ -168,7 +177,10 @@ Shader "LastTruck/StylizedCharacter"
             {
                 half lit = smoothstep(_ShadeThreshold - _ShadeSoftness, _ShadeThreshold + _ShadeSoftness, ndl);
                 half mid = smoothstep(_ShadeThreshold - 0.32 - _ShadeSoftness, _ShadeThreshold - 0.32 + _ShadeSoftness, ndl);
-                half3 shade = albedo * _ShadeColor.rgb;
+                // 낮에는 재질의 보라색 그림자 색조를 무채색 쪽으로 (맵과 같은 규칙: 그림자가 보라색으로 튀지 않게)
+                half shL = dot(_ShadeColor.rgb, half3(0.299h, 0.587h, 0.114h));
+                half3 shadeTint = lerp(_ShadeColor.rgb, shL.xxx * 1.08h, (half)saturate(_LT_GI.y) * (half)saturate(_LT_GI.x));
+                half3 shade = albedo * shadeTint;
                 half3 midc = lerp(shade, albedo, 0.5h);
                 half3 c = lerp(shade, midc, mid * _MidTone);
                 return lerp(c, albedo, lit);
@@ -187,8 +199,10 @@ Shader "LastTruck/StylizedCharacter"
 
                 // 메인 라이트
                 Light mainLight = GetMainLight(shadowCoord, i.positionWS, shadowMask);
-                half ndl = dot(N, mainLight.direction) * 0.5h + 0.5h;
-                half mainAtten = mainLight.distanceAttenuation * mainLight.shadowAttenuation;
+                // 앞빛: 해 방향과 카메라 쪽 방향을 섞어서 카메라를 보는 면(얼굴)이 늘 밝게 읽힌다. 몸에 떨어지는 그림자는 _SelfShadow만큼만 반영.
+                half3 frontDir = normalize(lerp(mainLight.direction, V, _FrontLight));
+                half ndl = dot(N, frontDir) * 0.5h + 0.5h;
+                half mainAtten = mainLight.distanceAttenuation * lerp(1.0h, mainLight.shadowAttenuation, _SelfShadow);
                 half3 mainLit = mainLight.color * mainAtten;
                 half toonT = ndl * lerp(1.0h, mainAtten, 0.85h);
 
@@ -270,7 +284,7 @@ Shader "LastTruck/StylizedCharacter"
                 color += emisTex * _EmissionMapColor.rgb * lerp(1.0h, _EmissionNightBoost, night);
                 color = lerp(color, _FlashColor.rgb, _HitFlash);
 
-                color = MixFog(color, i.fogFactor);
+                color = lerp(MixFog(color, i.fogFactor), color, _NightFogResist * night);
                 return half4(color, 1);
             }
             ENDHLSL
@@ -311,7 +325,7 @@ Shader "LastTruck/StylizedCharacter"
                 // 밤에는 아웃라인이 은은한 달빛 테두리로 빛나서 어두운 바닥에서도 캐릭터 윤곽이 보인다
                 half3 c = lerp(_OutlineColor.rgb, _OutlineNightColor.rgb, saturate(_GameNightFactor) * _OutlineNightGlow);
                 // 밤 안개에 테두리가 완전히 묻히지 않게 일부만 안개를 섞는다
-                c = lerp(MixFog(c, i.fogFactor), c, 0.5h * saturate(_GameNightFactor) * _OutlineNightGlow);
+                c = lerp(MixFog(c, i.fogFactor), c, max(0.5h * _OutlineNightGlow, _NightFogResist) * saturate(_GameNightFactor));
                 return half4(c, 1);
             }
             ENDHLSL

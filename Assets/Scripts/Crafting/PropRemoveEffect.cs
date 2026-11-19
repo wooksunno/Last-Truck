@@ -35,6 +35,9 @@ namespace CraftingSystem
             TreeShake shake = root.GetComponent<TreeShake>();
             if (shake != null)
                 shake.enabled = false;
+            PlantWobble wobble = root.GetComponent<PlantWobble>();
+            if (wobble != null)
+                wobble.Cancel();
 
             Renderer[] renderers = root.GetComponentsInChildren<Renderer>();
             if (renderers.Length == 0)
@@ -52,6 +55,10 @@ namespace CraftingSystem
             fx._pivot = new Vector3(b.center.x, b.min.y, b.center.z);
             // 나무(Wood)이면서 옆으로 넓기보다 키가 큰 것만 쓰러뜨린다 (통나무는 누워 있으므로 제외)
             fx._fall = itemId == ItemIds.Wood && b.size.y > Mathf.Max(b.size.x, b.size.z) * 1.3f && b.size.y > 2f;
+
+            // 풀/선인장은 잎조각, 돌은 파편이 튄다 (쓰러지는 나무는 제외)
+            if (!fx._fall)
+                ActionFx.PropPuff(b.center, itemId);
 
             if (fx._fall)
             {
