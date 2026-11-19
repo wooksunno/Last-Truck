@@ -43,6 +43,7 @@ namespace CraftingSystem
             if (GetComponent<HeldTorch>() == null) gameObject.AddComponent<HeldTorch>();
             if (GetComponent<HeldLantern>() == null) gameObject.AddComponent<HeldLantern>();   // 랜턴: 들면 주변이 환해지고 날씨 안개가 걷힌다
             if (GetComponent<HeldBinoculars>() == null) gameObject.AddComponent<HeldBinoculars>();   // 쌍안경: 들고 오른쪽 클릭으로 멀리 본다
+            if (GetComponent<ActionPose>() == null) gameObject.AddComponent<ActionPose>();           // 채집/먹기/물건 들기 몸짓 + 획득·장착 반짝임
             inventory.MaxSlots = maxSlots;
             inventory.RawStackLimit = rawStackLimit;
             inventory.KeepSlotPositions = true;   // 1~4번 칸 위치를 고정한다 (아이템을 써도 칸이 밀리지 않고, 칸끼리 교환 가능)

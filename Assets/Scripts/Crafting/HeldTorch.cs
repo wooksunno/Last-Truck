@@ -6,6 +6,7 @@ namespace CraftingSystem
     /// 횃불을 1/2/3 키로 손에 들면 주변을 밝힌다 (어두운 동굴용). 들고 있는 동안만 타고, 다 타면(3분) 1개가 사라진다.
     /// PlayerInventory가 자동으로 붙인다. 빛은 내 화면에서만 보인다(멀티플레이에서 다른 사람에게 복제되지 않음).
     /// </summary>
+    [DefaultExecutionOrder(300)]   // ActionPose(200)가 팔을 쳐든 뒤에 손 위치를 읽는다
     [RequireComponent(typeof(PlayerInventory))]
     public class HeldTorch : MonoBehaviour
     {
@@ -25,6 +26,7 @@ namespace CraftingSystem
         private GameObject _flame;
         private float _burned;          // 지금 들고 있는 횃불이 탄 시간
         private float _flickerSeed;
+        private ActionPose _pose;
 
         private void Awake()
         {
@@ -62,6 +64,24 @@ namespace CraftingSystem
             if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", new Color(1f, 0.7f, 0.25f)); else mat.color = new Color(1f, 0.7f, 0.25f);
             _flame.GetComponent<Renderer>().sharedMaterial = mat;
             _flame.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+            // 손잡이 나무 막대 (불꽃 아래로 손까지)
+            GameObject stick = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            Destroy(stick.GetComponent<Collider>());
+            stick.transform.SetParent(holder.transform, false);
+            stick.transform.localPosition = new Vector3(0f, -0.22f, 0f);
+            stick.transform.localScale = new Vector3(0.05f, 0.24f, 0.05f);
+            var stickMat = new Material(shader != null ? shader : Shader.Find("Unlit/Color"));
+            if (stickMat.HasProperty("_BaseColor")) stickMat.SetColor("_BaseColor", new Color(0.36f, 0.22f, 0.12f)); else stickMat.color = new Color(0.36f, 0.22f, 0.12f);
+            stick.GetComponent<Renderer>().sharedMaterial = stickMat;
+            stick.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+
+        // 팔을 쳐든 손 위로 불꽃이 따라온다 (손 뼈는 애니메이션이 끝난 뒤에 정해지므로 LateUpdate)
+        private void LateUpdate()
+        {
+            if (_light == null || !_light.gameObject.activeSelf || _pose == null || _pose.RightHand == null) return;
+            _light.transform.position = _pose.RightHand.position + Vector3.up * 0.44f;
         }
 
         private void Update()
@@ -76,9 +96,12 @@ namespace CraftingSystem
             }
             else if (!LastTruck.WeatherDirector.TorchDoused) _doused = false;
             Held = holding;
+            if (_pose == null) _pose = ActionPose.For(gameObject);
+            _pose.SetHold(holding ? ActionPose.HoldKind.Torch : ActionPose.HoldKind.None);
             if (holding) EnsureVisual();
             if (_light != null)
             {
+                _light.gameObject.SetActive(holding);   // 불꽃/막대/빛이 함께 켜지고 꺼진다
                 _light.enabled = holding;
                 _flame.SetActive(holding);
             }

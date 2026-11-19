@@ -7,6 +7,7 @@ namespace CraftingSystem
     /// 횃불(HeldTorch)보다 넓고 안정적인 흰빛이고 다 타지 않는다. 대신 손을 쓰므로 무기를 같이 들 수 없다.
     /// PlayerInventory가 자동으로 붙인다. 빛은 내 화면에서만 보인다(멀티플레이에서 다른 사람에게 복제되지 않음).
     /// </summary>
+    [DefaultExecutionOrder(300)]   // ActionPose(200)가 팔을 구부린 뒤에 손 위치를 읽는다
     [RequireComponent(typeof(PlayerInventory))]
     public class HeldLantern : MonoBehaviour
     {
@@ -24,6 +25,9 @@ namespace CraftingSystem
         private Renderer _glow;
         private float _glowAmount;
         private float _seed;
+        private ActionPose _pose;
+        private Vector3 _lastHand;
+        private Vector3 _swing;
 
         private void Awake()
         {
@@ -98,6 +102,9 @@ namespace CraftingSystem
             bool holding = Holding();
             if (holding) EnsureVisual();
 
+            if (_pose == null) _pose = ActionPose.For(gameObject);
+            _pose.SetHold(holding ? ActionPose.HoldKind.Lantern : ActionPose.HoldKind.None);
+
             _glowAmount = Mathf.MoveTowards(_glowAmount, holding ? 1f : 0f, Time.deltaTime * 2.5f);   // 켜고 끌 때 부드럽게
             _lit = _glowAmount;   // 내 캐릭터(입력을 받는 쪽)만 이 컴포넌트가 켜져 있다
 
@@ -108,7 +115,31 @@ namespace CraftingSystem
             // 걸을 때 살짝 흔들리고, 불빛이 은은하게 일렁인다
             float f = Mathf.PerlinNoise(Time.time * 3f, _seed);
             _light.intensity = (3.0f + f * 0.7f) * _glowAmount;
-            _model.transform.localRotation = Quaternion.Euler(Mathf.Sin(Time.time * 2.2f) * 3f, 0f, Mathf.Cos(Time.time * 1.7f) * 3f);
+        }
+
+        // 손 뼈는 애니메이션이 끝난 뒤(LateUpdate)에 정해지므로, 랜턴이 손을 따라가는 것도 여기서 한다 (Update에서 하면 한 프레임 늦는다)
+        private void LateUpdate()
+        {
+            if (_model == null || _glowAmount <= 0.01f) return;
+
+            // 팔을 늘어뜨려 손에 들고(ActionPose), 손이 움직이면 랜턴이 시계추처럼 뒤늦게 따라 흔들린다
+            Transform hand = _pose != null ? _pose.RightHand : null;
+            if (hand != null)
+            {
+                float dt = Mathf.Max(Time.deltaTime, 0.0001f);
+                Vector3 handPos = hand.position;
+                Vector3 vel = (handPos - _lastHand) / dt;
+                _lastHand = handPos;
+                if (vel.sqrMagnitude > 400f) vel = Vector3.zero;   // 순간이동/첫 프레임 값은 무시
+                _swing = Vector3.Lerp(_swing, -vel * 0.07f, 1f - Mathf.Exp(-9f * dt));
+                Vector3 dir = (Vector3.down + new Vector3(_swing.x, 0f, _swing.z)).normalized;
+                _model.transform.position = handPos + dir * 0.26f;
+                _model.transform.rotation = Quaternion.FromToRotation(Vector3.down, dir);
+            }
+            else
+            {
+                _model.transform.localRotation = Quaternion.Euler(Mathf.Sin(Time.time * 2.2f) * 3f, 0f, Mathf.Cos(Time.time * 1.7f) * 3f);
+            }
         }
     }
 }

@@ -147,6 +147,10 @@ Shader "LastTruck/ToonWorld"
     float4 _LT_GIBounce;
     // 그림자 경계 부드럽게 (PastelLook이 설정, 0 = 재질 값 그대로 또렷한 툰 경계 ~ 1 = 부드럽게 번지는 경계)
     float _LT_ShadowSoft;
+    // 그림자 면을 밝은 면 쪽으로 끌어올리는 정도 (PastelLook이 설정, 0 = 그대로): 그림자가 덜 진하게 연하게 깔린다
+    float _LT_ShadeLift;
+    // 깔끔한 툰 그림자 (PastelLook이 설정): rgb = 그림자 면이 밝은 면의 몇 배 밝기인지(색조별), a = 적용 세기 (0이면 끔)
+    float4 _LT_CleanShade;
     ENDHLSL
 
     SubShader
@@ -411,6 +415,11 @@ Shader "LastTruck/ToonWorld"
                 // 시그니처 색: 해가 비치는 곳은 꿀빛(밤엔 달빛 색을 그대로), 그림자는 남보라로 깊게 (색이 있는 그림자)
                 litLight *= lerp((half3)1.0h, lerp((half3)_LT_SigWarm.rgb, (half3)1.0h, night), sig);
                 shadeLight *= lerp((half3)1.0h, (half3)_LT_SigCool.rgb, sig);
+                // 깔끔한 툰 그림자: 그림자 면 = 밝은 면과 같은 색조를 비율만큼 어둡게 (rgb = 비율, a = 적용 세기).
+                // 하늘빛 간접광을 섞으면 갈색 땅의 그림자가 푸르죽죽한 회보라가 되므로, 낮에는 "같은 색을 한 단계 어둡게"로 정한다 (밤은 a = 0 → 기존 분위기).
+                half cleanW = (half)saturate(_LT_CleanShade.a);
+                shadeLight = lerp(shadeLight, litLight * (half3)_LT_CleanShade.rgb, cleanW);
+                shadeLight = lerp(shadeLight, litLight, (half)saturate(_LT_ShadeLift));   // 낮에는 그림자를 연하게 (밤엔 0)
                 half3 light = lerp(shadeLight, litLight, lit);
 
                 // 파스텔 룩: 명암 경계를 부드러운 그라데이션으로 (면 노멀과 부드러운 노멀을 섞음),

@@ -193,6 +193,9 @@ public static partial class OpenWorldExpansionBuilder
         if (_mineEntrance2 != null) sb.AppendLine(ExpansionMineCave.Build(_root, _mineEntrance2, seed + 8, 2, _mine2Side));
         else sb.AppendLine("두 번째 광산 입구를 놓을 자리를 못 찾았어요");
 
+        // 8) 땅 사이의 진짜 빈틈(시작 지역 산과 타일 사이 등)을 메우고 협곡 바닥을 깐다 (OpenWorldExpansionStitch.cs)
+        sb.AppendLine(FillGaps());
+
         AssetDatabase.SaveAssets();
         UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
         LastResult = sb.ToString();
@@ -624,6 +627,12 @@ public static partial class OpenWorldExpansionBuilder
         }
         m.vertices = v; m.normals = nr; m.uv = uv; m.RecalculateBounds();
         m.name = "ExpTile_" + index.ToString("D4");
+        {
+            // 이웃 타일과 경계 높이를 맞추고 틈은 치마로 가린다 (OpenWorldExpansionStitch.cs). 칸 모서리 높이는 지형 함수에서 바로 얻는다.
+            Vector3 tp = inst.transform.position;
+            float x0 = tp.x - 11.5f, z0 = tp.z - 11.5f;
+            StitchMesh(m, mf.sharedMesh, inst.transform.localToWorldMatrix, new Vector2(x0, z0), (a, b) => Height(x0 + a * Step, z0 + b * Step));
+        }
         AssetDatabase.CreateAsset(m, TileDir + "/" + m.name + ".asset");
         mf.sharedMesh = m;
         var mc = inst.GetComponent<MeshCollider>();

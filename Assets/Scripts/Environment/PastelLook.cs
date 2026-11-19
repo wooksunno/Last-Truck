@@ -44,7 +44,7 @@ namespace LastTruck
         [Tooltip("햇빛을 받는 면에 곱하는 따뜻한 꿀빛 (밤엔 달빛 색 그대로).")]
         public Color litWarm = new Color(1.05f, 1.02f, 0.92f);
         [Tooltip("그림자 면에 곱하는 짙은 남보라. 그림자가 까맣게 꺼지지 않고 색을 갖는다.")]
-        public Color shadeCool = new Color(0.97f, 0.98f, 1.05f);
+        public Color shadeCool = new Color(0.99f, 0.99f, 1.01f);
         [Tooltip("밤의 그림자 색조: 짙은 남색/청록 (신비로운 밤).")]
         public Color shadeCoolNight = new Color(0.90f, 0.94f, 1.10f);
         [Tooltip("가장자리 빛 (HDR 배율 포함): 낮 = 호박색.")]
@@ -52,14 +52,25 @@ namespace LastTruck
         [Tooltip("가장자리 빛: 밤 = 청록색 (좀비/나무 윤곽이 색으로 읽힌다).")]
         public Color rimNight = new Color(0.06f, 0.30f, 0.36f);
         [Tooltip("그림자 면에 더하는 빛 (재질 색과 무관): 낮 = 남보라.")]
-        public Color shadeFillDay = new Color(0.040f, 0.038f, 0.048f);
+        public Color shadeFillDay = new Color(0.008f, 0.009f, 0.012f);
         [Tooltip("그림자 면에 더하는 빛: 밤 = 청록 남색.")]
         public Color shadeFillNight = new Color(0.010f, 0.022f, 0.040f);
         [Tooltip("재질 색 채도를 얼마나 더 올릴지 (밝기는 유지).")]
         [Range(0f, 0.6f)] public float saturationBoost = 0.10f;
 
         [Tooltip("그림자/명암 경계를 얼마나 부드럽게 (0 = 또렷한 툰 경계, 1 = 부드럽게 번짐).")]
-        [Range(0f, 1f)] public float shadowSoftness = 0.75f;
+        [Range(0f, 1f)] public float shadowSoftness = 0.15f;
+
+        [Tooltip("낮에 그림자 면을 밝은 면 쪽으로 얼마나 끌어올릴지 (0 = 그대로, 1 = 그림자 없음). 그림자가 진하게 뚝 떨어지지 않고 연하게 깔린다. 밤에는 0 (밤 분위기 유지).")]
+        [Range(0f, 1f)] public float shadeLift = 0.0f;
+
+        [Header("깔끔한 툰 그림자: 그림자 = 밝은 면과 같은 색을 한 단계 어둡게 (ToonWorld 셰이더가 읽는다)")]
+        [Tooltip("낮: 그림자 면의 밝기 비율 (색조별). 약간 서늘하게 (R,G 낮고 B 높게) 하면 갈색/초록이 칙칙한 보라가 아니라 맑게 어두워진다.")]
+        public Color cleanShadeDay = new Color(0.64f, 0.65f, 0.71f);
+        [Tooltip("노을: 주황빛 그림자가 탁해지지 않게 조금 붉은 보랏빛 쪽으로.")]
+        public Color cleanShadeDusk = new Color(0.58f, 0.52f, 0.64f);
+        [Tooltip("이 효과를 얼마나 쓸지 (낮 기준. 밤에는 자동으로 0 → 기존 밤 분위기).")]
+        [Range(0f, 1f)] public float cleanShadeStrength = 0.9f;
 
         [Header("간접광: 하늘빛(위) + 땅빛(아래) + 땅 반사 햇빛 (ToonWorld 셰이더가 읽는다)")]
         public Color giSkyDay = new Color(0.54f, 0.58f, 0.62f);
@@ -112,6 +123,8 @@ namespace LastTruck
         private static readonly int DepthMistId = Shader.PropertyToID("_LT_DepthMist");
         private static readonly int GIId = Shader.PropertyToID("_LT_GI");
         private static readonly int ShadowSoftId = Shader.PropertyToID("_LT_ShadowSoft");
+        private static readonly int ShadeLiftId = Shader.PropertyToID("_LT_ShadeLift");
+        private static readonly int CleanShadeId = Shader.PropertyToID("_LT_CleanShade");
         private static readonly int GISkyId = Shader.PropertyToID("_LT_GISky");
         private static readonly int GIGroundId = Shader.PropertyToID("_LT_GIGround");
         private static readonly int GIBounceId = Shader.PropertyToID("_LT_GIBounce");
@@ -165,6 +178,8 @@ namespace LastTruck
             Shader.SetGlobalFloat(SigId, 0f);
             Shader.SetGlobalFloat(DepthId, 0f);
             Shader.SetGlobalVector(GIId, Vector4.zero);
+            Shader.SetGlobalFloat(ShadeLiftId, 0f);
+            Shader.SetGlobalVector(CleanShadeId, Vector4.zero);
             Shader.SetGlobalFloat(ShadowSoftId, 0f);
         }
 
@@ -236,6 +251,9 @@ namespace LastTruck
             Color giBounce = Color.Lerp(Color.Lerp(giBounceDay, giBounceDusk, glow), giBounceNight, night);
             Shader.SetGlobalVector(GIId, new Vector4(_blend, dayShadeNeutralize * (1f - night) * (1f - glow * 0.4f), 0f, 0f));
             Shader.SetGlobalFloat(ShadowSoftId, _blend * shadowSoftness);
+            Shader.SetGlobalFloat(ShadeLiftId, _blend * _sig * shadeLift * (1f - night) * (1f - glow * 0.3f));
+            Color clean = Color.Lerp(cleanShadeDay, cleanShadeDusk, glow);
+            Shader.SetGlobalVector(CleanShadeId, new Vector4(clean.r, clean.g, clean.b, _blend * _sig * cleanShadeStrength * (1f - night)));
             Shader.SetGlobalColor(GISkyId, giSky);
             Shader.SetGlobalColor(GIGroundId, giGround);
             Shader.SetGlobalColor(GIBounceId, giBounce);
