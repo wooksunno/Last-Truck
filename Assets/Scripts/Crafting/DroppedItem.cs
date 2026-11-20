@@ -180,7 +180,7 @@ namespace CraftingSystem
         /// 아이콘에 깔린 반투명 사각 배경(슬롯 칸용)을 걷어 낸 스프라이트. 이게 없으면 월드에서 겹쳐 쌓일수록 유리판처럼 보인다.
         /// 아이템마다 한 번만 만들어 둔다.
         /// </summary>
-        private static Sprite CleanIcon(Sprite src)
+        public static Sprite CleanIcon(Sprite src)
         {
             if (src == null) return null;
             if (s_cleanIcons.TryGetValue(src, out Sprite cached) && cached != null) return cached;

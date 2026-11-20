@@ -127,7 +127,19 @@ namespace LastTruck
         {
             var scene = new VisualElement();
             scene.AddToClassList("tw-scene");
-            BuildSceneBackdrop(scene, m.facility);
+
+            bool idle0 = sl == null || sl.state == 0;
+            // 움직이는 3D 미니 장면(진짜 모델 + 파티클)이 있으면 그 화면을 배경으로 깐다. 없으면 예전처럼 코드로 그린 장면
+            RenderTexture diorama = ProcessDiorama.Show(m.facility,
+                idle0 ? null : (sl.input ?? sl.inItem), idle0 ? null : sl.output,
+                idle0 ? 0 : sl.state, idle0 ? 0f : sl.progress, !idle0 && sl.fresh);
+            if (diorama != null)
+            {
+                scene.style.backgroundImage = new StyleBackground(Background.FromRenderTexture(diorama));
+                scene.style.unityBackgroundScaleMode = ScaleMode.ScaleAndCrop;
+                if (!idle0 && sl.state == 1 && el != null) el.onProgress = ProcessDiorama.SetProgress;
+            }
+            else BuildSceneBackdrop(scene, m.facility);
 
             var ui = new VisualElement();
             ui.AddToClassList("tw-scene-ui");
@@ -179,6 +191,17 @@ namespace LastTruck
             area.Add(stageBox);
 
             ItemData input = idle ? null : (sl.input ?? sl.inItem);
+
+            if (diorama != null)
+            {
+                // 3D 장면이 배경이라 가운데는 비워 두고 글자/버튼만 얹는다
+                area.Remove(stageBox);
+                if (idle) area.Add(MakeLabel("왼쪽 인벤토리에서 아이템을 누르면 여기서 가공해요", "tw-scene-idle"));
+                ui.Add(area);
+                AddSceneButtons(ui, sl, idle);
+                ui.Add(tiles);
+                return scene;
+            }
 
             // 설비 일러스트가 있으면 그 그림 위에 재료/불똥/빛만 움직인다 (완성 연출은 기존 것)
             Sprite art = Resources.Load<Sprite>("UI/ProcessScenes/" + m.facility);

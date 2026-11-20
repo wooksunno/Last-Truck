@@ -240,6 +240,7 @@ namespace LastTruck
 
         public void Hide()
         {
+            ProcessDiorama.Hide();
             if (_window != null) _window.style.display = DisplayStyle.None;
         }
 
@@ -289,6 +290,7 @@ namespace LastTruck
         /// <summary>창 틀(제목 + 닫기)을 새로 만든다. 같은 화면(mode)을 다시 그리면 스크롤 위치를 이어 간다.</summary>
         private VisualElement BeginWindow(string mode, string title, Action onClose)
         {
+            ProcessDiorama.Hide();   // 가공 화면이 아니면 3D 미니 장면 카메라를 끈다 (가공 화면이면 바로 다시 켠다)
             if (_root == null) return null;
             if (_gridScroll != null && _gridScroll.panel != null) _scrollY = _gridScroll.scrollOffset.y;
             if (mode != _mode) _scrollY = 0f;
