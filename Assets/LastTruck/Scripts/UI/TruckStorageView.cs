@@ -71,6 +71,16 @@ namespace LastTruck
             public Action onConvert;
             public bool convertEnabled = true;      // false면 회색(재료 부족/밤). 눌러도 이유만 알려준다
             public string convertDisabledReason;    // 비활성일 때 아래 안내 줄에 보여줄 이유
+
+            // 칸 위 동작 줄 (예: 보관함 "재료 모두 넣기", 배낭 "가죽 덧대기"). onAction이 null이면 줄을 그리지 않는다
+            public string actionInfo;               // 왼쪽 설명 (예: "배낭 4/6칸")
+            public string actionLabel;
+            public Action onAction;
+            public bool actionEnabled = true;
+            public string actionHint;               // 버튼에 마우스를 올리면 아래 안내 줄에
+            public string action2Label;             // 두 번째 버튼 (없으면 null)
+            public Action onAction2;
+            public string action2Hint;
         }
 
         // ---- 제작 탭 ----
@@ -259,6 +269,37 @@ namespace LastTruck
             toolbar.Add(spacer);
             foreach (Chip c in m.sorts) toolbar.Add(MakeChip(c, "tw-chip tw-chip--sort"));
             if (m.categories.Count > 0 || m.sorts.Count > 0) frame.Add(toolbar);   // 가죽 파우치처럼 분류가 없으면 빈 줄을 두지 않는다
+
+            // 동작 줄
+            if (m.onAction != null || m.onAction2 != null)
+            {
+                var act = Row("tw-toolbar");
+                if (!string.IsNullOrEmpty(m.actionInfo))
+                {
+                    Label info = MakeLabel(m.actionInfo, "tw-hint");
+                    info.style.marginTop = 0; info.style.marginBottom = 0;
+                    info.style.unityTextAlign = TextAnchor.MiddleLeft;
+                    act.Add(info);
+                }
+                var actSpacer = new VisualElement { pickingMode = PickingMode.Ignore };
+                actSpacer.style.flexGrow = 1;
+                act.Add(actSpacer);
+                if (m.onAction2 != null)
+                {
+                    Button b2 = SmallButton(m.action2Label ?? "", () => m.onAction2?.Invoke());
+                    if (!string.IsNullOrEmpty(m.action2Hint)) b2.RegisterCallback<PointerEnterEvent>(_ => SetHint(m.action2Hint));
+                    act.Add(b2);
+                }
+                if (m.onAction != null)
+                {
+                    Button b = SmallButton(m.actionLabel ?? "", () => m.onAction?.Invoke());
+                    if (m.actionEnabled) b.AddToClassList("tw-btn--ok");
+                    else b.style.opacity = 0.55f;
+                    if (!string.IsNullOrEmpty(m.actionHint)) b.RegisterCallback<PointerEnterEvent>(_ => SetHint(m.actionHint));
+                    act.Add(b);
+                }
+                frame.Add(act);
+            }
 
             // 꺼내기
             if (m.withdrawItem != null)
@@ -747,8 +788,9 @@ namespace LastTruck
                     b.Add(bar);
                 }
                 else b.Add(MakeLabel("✔", "tw-ptile-check"));
-                if (sl.queued > 1) b.Add(MakeLabel("×" + sl.queued, "tw-ptile-queue"));
-                else if (sl.readyCount > 1) b.Add(MakeLabel("×" + sl.readyCount, "tw-ptile-queue"));
+                // 칸에 든 개수 / 칸당 최대 (가공 대기 + 완성품)
+                int inSlot = sl.queued + sl.readyCount;
+                if (inSlot > 1 || sl.queued > 0) b.Add(MakeLabel(inSlot + "/" + CraftingSystem.TruckProcessingLocal.MaxPerSlot, "tw-ptile-queue"));
             }
 
             string hint = sl.state == 0 ? "빈 칸: 왼쪽에서 아이템을 누르면 여기에 들어가요"
@@ -878,12 +920,26 @@ namespace LastTruck
             b.AddToClassList("tw-tab");
             if (t.selected) b.AddToClassList("tw-tab--on");
             if (t.locked) b.AddToClassList("tw-tab--locked");
-            b.style.backgroundColor = t.selected ? t.color : new Color(t.color.r * 0.55f, t.color.g * 0.55f, t.color.b * 0.55f, 0.95f);
+            bool poly = _skin != null && _skin.polyTheme;
+            if (poly)
+            {
+                // 원신풍: 고른 탭 = 크림색 판 + 짙은 아이콘, 나머지 = 남색 판 + 금빛 아이콘. 탭마다의 색은 왼쪽 가는 띠로만 남긴다.
+                b.style.backgroundColor = Color.clear;
+                UiToolkitSkin.Slice(b, t.selected ? _skin.buttonBrown : _skin.panelBrownDark, 0.45f, Color.white);
+                var stripe = new VisualElement { pickingMode = PickingMode.Ignore };
+                stripe.style.position = Position.Absolute;
+                stripe.style.left = 7; stripe.style.top = 12; stripe.style.bottom = 12; stripe.style.width = 4;
+                stripe.style.borderTopLeftRadius = stripe.style.borderBottomLeftRadius = stripe.style.borderTopRightRadius = stripe.style.borderBottomRightRadius = 2;
+                stripe.style.backgroundColor = new Color(t.color.r, t.color.g, t.color.b, t.selected ? 1f : 0.7f);
+                b.Add(stripe);
+            }
+            else b.style.backgroundColor = t.selected ? t.color : new Color(t.color.r * 0.55f, t.color.g * 0.55f, t.color.b * 0.55f, 0.95f);
             if (t.icon != null)
             {
                 var icon = new VisualElement { pickingMode = PickingMode.Ignore };
                 icon.AddToClassList("tw-tab-icon");
                 icon.style.backgroundImage = new StyleBackground(t.icon);
+                if (poly) icon.style.unityBackgroundImageTintColor = t.selected ? new Color(0.23f, 0.26f, 0.33f, 1f) : new Color(0.88f, 0.79f, 0.6f, 1f);
                 b.Add(icon);
             }
             else b.Add(MakeLabel(t.label, "tw-tab-text"));

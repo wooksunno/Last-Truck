@@ -128,7 +128,7 @@ namespace LastTruck
             set => weatherFog = Mathf.Clamp01(value);
         }
 
-        /// <summary>랜턴/횃불을 들고 있는 정도 (0 = 안 듦 ~ 1 = 랜턴). 들고 있으면 날씨 안개가 걷혀 주변이 잘 보인다 (WeatherDirector가 채운다).</summary>
+        /// <summary>랜턴이 켜진 정도 (0 ~ 1, 가방에 랜턴이 있으면 1). 켜져 있으면 날씨 안개가 걷혀 주변이 잘 보인다 (WeatherDirector가 채운다).</summary>
         public float LanternClear { get; set; }
 
         private void Awake()
@@ -247,7 +247,7 @@ namespace LastTruck
             float glow = SunsetGlow(s);             // 노을
             float sunLeft = 1f - Step(SunGoneStart, SunGoneEnd, s);
             Shader.SetGlobalFloat(NightFactorId, t);
-            float w = Mathf.Clamp01(weatherFog) * (1f - 0.62f * Mathf.Clamp01(LanternClear));   // 랜턴을 들면 안개가 걷힌다
+            float w = Mathf.Clamp01(weatherFog) * (1f - 0.62f * Mathf.Clamp01(LanternClear));   // 랜턴이 있으면 안개가 걷힌다
             Shader.SetGlobalFloat(WeatherFogId, w);
             float weatherLight = Mathf.Lerp(1f, weatherLightScale, w);
 

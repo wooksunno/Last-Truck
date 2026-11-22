@@ -229,6 +229,7 @@ namespace Combat
                 PoliceMarkVisual.Hide(this);
                 StunRimVisual.Hide(this);
                 CraftingSystem.MonsterLoot.Drop(gameObject, maxHealth);
+                PlayKillFeel();
                 // 사망 연출을 맡은 스크립트(MonsterAI 등)가 있으면 그쪽이 애니메이션 후 없앤다.
                 if (Died != null)
                 {
@@ -249,17 +250,32 @@ namespace Combat
         private void PlayHitEffect(Vector3 hitPoint, int amount)
         {
             SpawnDamagePopup(hitPoint, amount);
+            HitFeel.Punch(gameObject, Mathf.Clamp01(amount / 40f));   // 몸이 순간 납작해졌다 튕겨 돌아온다
 
             if (_flashRoutine != null)
+            {
                 StopCoroutine(_flashRoutine);
+                RestoreColors();   // 이전 깜빡임이 빨간 채로 남지 않게
+            }
             if (isActiveAndEnabled)
                 _flashRoutine = StartCoroutine(FlashRed());
         }
 
-        private IEnumerator FlashRed()
+        private void RestoreColors()
         {
             for (int i = 0; i < _renderers.Length; i++)
-                SetColor(_renderers[i], Color.red);
+                if (_renderers[i] != null) SetColor(_renderers[i], _originalColors[i]);
+        }
+
+        private IEnumerator FlashRed()
+        {
+            // 맞는 순간 하얗게 번쩍 → 빨갛게 → 원래 색 (흰 섬광이 있어야 "맞았다"가 확실히 읽힌다)
+            for (int i = 0; i < _renderers.Length; i++)
+                SetColor(_renderers[i], new Color(1f, 0.95f, 0.9f));
+            yield return new WaitForSeconds(0.05f);
+
+            for (int i = 0; i < _renderers.Length; i++)
+                if (_renderers[i] != null) SetColor(_renderers[i], Color.red);
 
             yield return new WaitForSeconds(hitFlashDuration);
 
@@ -320,6 +336,18 @@ namespace Combat
             PoliceMarkVisual.Hide(this);
             StunRimVisual.Hide(this);
             CraftingSystem.MonsterLoot.Drop(gameObject, maxHealth);
+            PlayKillFeel();
+        }
+
+        /// <summary>쓰러질 때: 덩어리가 터지고, 내 캐릭터가 가까우면 화면이 한 번 크게 흔들린다.</summary>
+        private void PlayKillFeel()
+        {
+            if (GetComponent<LastTruck.Networking.NetworkPlayer>() != null) return;   // 플레이어 기절에는 쓰지 않는다
+            float size = Mathf.Max(transform.lossyScale.x, transform.lossyScale.y);
+            HitFeel.KillBurst(transform.position, size);
+            Camera cam = Camera.main;
+            if (cam != null && (cam.transform.position - transform.position).sqrMagnitude < 30f * 30f)
+                CameraShake.Shake(size > 1.5f ? 0.45f : 0.18f);
         }
 
         #endregion

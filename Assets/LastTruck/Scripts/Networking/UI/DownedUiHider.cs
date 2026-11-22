@@ -5,7 +5,8 @@ using UnityEngine.UIElements;
 namespace LastTruck.Networking
 {
     /// <summary>
-    /// 내 캐릭터가 쓰러져 있는 동안 화면의 모든 UI(HUD, 창, 알림)를 숨긴다. 살아나면 원래대로 돌려 놓는다.
+    /// 내 캐릭터가 쓰러져 있는 동안 화면의 모든 UI(HUD, 창, 알림)를 숨긴다. 살아나면(또는 게임이 끝나면) 원래대로 돌려 놓는다.
+    /// 시스템 창(SystemUI: 게임 오버, 나가기 확인, 로딩)은 숨기지 않는다.
     /// PlayerStatusHud가 매 프레임 Apply를 불러 준다. "기절했습니다" 안내(PlayerStatusHud 자신의 캔버스)만 남긴다.
     /// 월드 공간 UI(머리 위 숫자, 이름표)는 건드리지 않는다.
     /// </summary>
@@ -17,6 +18,9 @@ namespace LastTruck.Networking
 
         public static void Apply(bool downed, Transform keepRoot)
         {
+            // 게임이 끝났으면(모두 기절/트럭 파괴/탈출) 숨긴 UI를 다 되돌린다: "게임 오버 → 방 목록으로" 창이 보여야 나갈 수 있다
+            if (NetworkGameState.IsGameOver) downed = false;
+
             if (!downed)
             {
                 if (HiddenCanvases.Count > 0 || HiddenDocuments.Count > 0) Restore();
@@ -34,6 +38,8 @@ namespace LastTruck.Networking
             {
                 if (c == null || !c.isRootCanvas || !c.enabled || c.renderMode == RenderMode.WorldSpace) continue;
                 if (keepRoot != null && c.transform.IsChildOf(keepRoot)) continue;
+                // 시스템 창(게임 오버, ESC 나가기 확인, 로딩)은 쓰러져 있어도 보여야 한다
+                if (SystemUI.Instance != null && c.transform.IsChildOf(SystemUI.Instance.transform)) continue;
                 c.enabled = false;
                 HiddenCanvases.Add(c);
             }

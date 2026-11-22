@@ -96,6 +96,25 @@ namespace CraftingSystem
             }
             m.emptyText = _storageCategory >= 0 ? "이 분류의 아이템이 없어요" : "보관함이 비어 있어요. 인벤토리 칸을 누르면 여기에 넣어요";
 
+            // 재료 모두 넣기: 내 가방 + 배낭의 원재료/가공 재료를 한 번에 트럭으로 (도구/무기/음식은 그대로)
+            PlayerInventory me = _activePlayer != null ? _activePlayer : playerInventory;
+            if (me != null)
+            {
+                int materials = CountMaterials(me.Inventory) + (me.HasBackpack && me.Pouch != null ? CountMaterials(me.Pouch.Inventory) : 0);
+                m.actionInfo = me.HasBackpack && me.Pouch != null
+                    ? "배낭 " + me.Pouch.UsedSlots + "/" + me.Pouch.MaxSlots + "칸  ·  B로 배낭 열기"
+                    : "제작/가공은 트럭 보관함 + 내 가방의 재료를 같이 써요";
+                m.actionLabel = materials > 0 ? "재료 모두 넣기 (" + materials + ")" : "넣을 재료 없음";
+                m.actionEnabled = materials > 0;
+                m.actionHint = "가방" + (me.HasBackpack ? "과 배낭" : "") + "에 든 원재료/가공 재료를 전부 트럭 보관함에 넣어요 (도구·무기·음식은 그대로)";
+                m.onAction = () =>
+                {
+                    int moved = DepositAllMaterials(truckInv, me);
+                    LastTruck.HudToast.Show(moved > 0 ? "재료 " + moved + "개를 트럭에 넣었어요" : "넣을 재료가 없어요");
+                    ShowPopup("트럭 거점", BuildTruckContent);
+                };
+            }
+
             // 꺼낼 개수 고르기
             if (_withdrawItem != null)
             {
@@ -305,10 +324,28 @@ namespace CraftingSystem
 
             var m = new LastTruck.TruckStorageView.Model
             {
-                title = "가죽 파우치", onClose = ClosePopup, mode = "pouch", compact = true,
-                hint = "칸을 누르면 인벤토리로 꺼내요. 인벤토리 칸을 누르면 파우치에 넣어요.",
-                emptyText = "파우치가 비어 있어요. 인벤토리 칸을 누르면 여기에 넣어요",
+                title = "가죽 파우치 배낭", onClose = ClosePopup, mode = "pouch", compact = true,
+                hint = "칸을 누르면 인벤토리로 꺼내요. 인벤토리 칸을 누르면 배낭에 넣어요. 채집한 재료는 배낭에 먼저 들어가요.",
+                emptyText = "배낭이 비어 있어요. 채집하거나 인벤토리 칸을 누르면 여기에 들어와요",
             };
+
+            // 가죽 덧대기: 경화 가공 가죽으로 배낭을 2칸씩 늘린다
+            m.actionInfo = "배낭 " + pouch.UsedSlots + "/" + pouch.MaxSlots + "칸" + (pouch.Maxed ? "  (최대)" : "");
+            if (!pouch.Maxed)
+            {
+                ItemData leather = ItemCatalog.GetOrCreate().GetItem(ItemIds.TannedLeather);
+                int haveLeather = leather != null ? player.GetItemCount(leather) + pouch.GetItemCount(leather) : 0;
+                int need = pouch.NextLeatherCost;
+                m.actionLabel = "가죽 덧대기 (" + pouch.MaxSlots + "→" + (pouch.MaxSlots + PouchInventory.SlotsPerUpgrade) + "칸, 가죽 " + haveLeather + "/" + need + ")";
+                m.actionEnabled = haveLeather >= need;
+                m.actionHint = "경화 가공 가죽 " + need + "개로 배낭을 " + PouchInventory.SlotsPerUpgrade + "칸 늘려요 (최대 " + PouchInventory.MaxSlotsLimit + "칸). 가죽은 무두질 건조대에서 만들어요.";
+                m.onAction = () =>
+                {
+                    pouch.TryUpgrade(player, out string msg);
+                    LastTruck.HudToast.Show(msg);
+                    ShowPopup("가죽 파우치", BuildPouchContent);
+                };
+            }
             foreach (InventorySlot slot in pouch.Slots)
             {
                 if (slot == null || slot.IsEmpty || slot.item == null) continue;
@@ -356,6 +393,39 @@ namespace CraftingSystem
             _storageView.Show(m);
             _storageToolkitActive = true;
             return true;
+        }
+
+        private static bool IsMaterial(ItemData item)
+        {
+            return item != null && !item.HasDurability && (item.itemType == ItemType.Raw || item.itemType == ItemType.Intermediate)
+                   && !TruckFacilities.IsFacilityItem(item) && item.itemID != ItemIds.LeatherPouchBackpack;
+        }
+
+        private static int CountMaterials(ItemStackInventory inv)
+        {
+            int n = 0;
+            if (inv == null) return 0;
+            foreach (InventorySlot s in inv.Slots)
+                if (s != null && !s.IsEmpty && IsMaterial(s.item)) n += s.count;
+            return n;
+        }
+
+        /// <summary>내 가방 + 배낭의 재료를 전부 트럭에 넣는다. 넣은 개수.</summary>
+        private static int DepositAllMaterials(TruckInventory truck, PlayerInventory player)
+        {
+            if (truck == null || player == null) return 0;
+            int moved = 0;
+            var sources = new List<ItemStackInventory> { player.Inventory };
+            if (player.HasBackpack && player.Pouch != null) sources.Add(player.Pouch.Inventory);
+            foreach (ItemStackInventory src in sources)
+            {
+                var items = new List<ItemData>();
+                foreach (InventorySlot s in src.Slots)
+                    if (s != null && !s.IsEmpty && IsMaterial(s.item) && !items.Contains(s.item)) items.Add(s.item);
+                foreach (ItemData it in items)
+                    moved += LastTruck.Networking.TruckInventorySync.DepositFrom(truck, src, it, src.GetItemCount(it));
+            }
+            return moved;
         }
 
         private void OnStorageSlotClicked(TruckInventory truckInv, InventorySlot slot)

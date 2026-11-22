@@ -73,6 +73,30 @@ namespace LastTruck
             return _inst.ShowInternal(facility, input, output, state, progress, fresh);
         }
 
+        /// <summary>
+        /// 설비가 아닌 장면(예: 석유 펌프 단면)을 켠다. 처음 한 번 build가 장면을 코드로 만들어 돌려준다 (Root 아래에 붙일 부모를 받는다).
+        /// state/progress는 장면의 Animate에 그대로 넘어간다.
+        /// </summary>
+        public static RenderTexture ShowCustom(string key, System.Func<Transform, ProcessDioramaStage> build, int state, float progress)
+        {
+            if (_inst == null)
+            {
+                var go = new GameObject("ProcessDiorama");
+                DontDestroyOnLoad(go);
+                _inst = go.AddComponent<ProcessDiorama>();
+                _inst.Build();
+            }
+            return _inst.ShowCustomInternal(key, build, state, progress);
+        }
+
+        /// <summary>켜져 있는 장면의 상태/진행도를 바꾼다 (창을 다시 그리지 않고).</summary>
+        public static void SetState(int state, float progress)
+        {
+            if (_inst == null) return;
+            _inst._state = state;
+            _inst._progress = progress;
+        }
+
         public static void SetProgress(float progress)
         {
             if (_inst != null) _inst._progress = progress;
@@ -154,6 +178,41 @@ namespace LastTruck
             _item.sprite = input != null ? DroppedItem.CleanIcon(input.icon) : null;
             _output.sprite = output != null ? DroppedItem.CleanIcon(output.icon) : null;
 
+            _cam.transform.position = stage.transform.TransformPoint(stage.camPosition);
+            _cam.transform.LookAt(stage.transform.TransformPoint(stage.camTarget));
+            _cam.fieldOfView = stage.camFov;
+            _cam.backgroundColor = stage.clearColor;
+            _cam.enabled = true;
+            return _rt;
+        }
+
+        private readonly Dictionary<string, ProcessDioramaStage> _custom = new Dictionary<string, ProcessDioramaStage>();
+
+        private RenderTexture ShowCustomInternal(string key, System.Func<Transform, ProcessDioramaStage> build, int state, float progress)
+        {
+            _root.gameObject.SetActive(true);
+            if (!_custom.TryGetValue(key, out var stage) || stage == null)
+            {
+                stage = build != null ? build(_root) : null;
+                if (stage == null) return null;
+                stage.transform.SetParent(_root, false);
+                stage.transform.localPosition = new Vector3(-(_custom.Count + 2) * 80f, 0f, 0f);   // 설비 장면들과 멀리 떨어뜨린다
+                if (stage.keyLight != null) stage.keyLight.enabled = false;
+                stage.gameObject.SetActive(false);
+                _custom[key] = stage;
+            }
+            if (_current != stage)
+            {
+                if (_current != null) _current.gameObject.SetActive(false);
+                _current = stage;
+                _current.gameObject.SetActive(true);
+                _stateSince = Time.time;
+            }
+            _state = state;
+            _progress = progress;
+            _shownItem = null;
+            _item.sprite = null;
+            _output.sprite = null;
             _cam.transform.position = stage.transform.TransformPoint(stage.camPosition);
             _cam.transform.LookAt(stage.transform.TransformPoint(stage.camTarget));
             _cam.fieldOfView = stage.camFov;

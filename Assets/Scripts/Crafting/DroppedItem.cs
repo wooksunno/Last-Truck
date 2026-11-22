@@ -18,7 +18,7 @@ namespace CraftingSystem
         private const float MergeRadius = 1.2f;    // 이 안에 같은 아이템이 있으면 합친다
         private const float SpreadRadius = 0.55f;  // 다른 아이템과 이만큼 가까우면 밀어낸다
         private const float Gravity = 22f;
-        private const float ItemScale = 0.55f;
+        private const float ItemScale = 0.78f;     // 바닥에서 잘 보이도록 (예전 0.55는 풀숲에 묻혀 잘 안 보였다)
         private const float SpinSpeed = 70f;       // 초당 회전 각도
 
         private ItemData _item;
@@ -81,7 +81,9 @@ namespace CraftingSystem
             Vector3 side = Vector3.Cross(Vector3.up, fwd);
             Vector3 origin = player.position + Vector3.up * 1.15f + fwd * 0.45f;
             Vector3 vel = fwd * Random.Range(2.6f, 3.4f) + side * Random.Range(-0.5f, 0.5f) + Vector3.up * Random.Range(2.2f, 2.9f);
-            return Create(origin, vel, item, count, durability);
+            DroppedItem di = Create(origin, vel, item, count, durability);
+            if (di != null) di._thrownByPlayer = true;
+            return di;
         }
 
         /// <summary>월드 위치에서 사방으로 튀어 나오게 아이템을 떨어뜨린다 (몬스터 전리품 등).</summary>
@@ -241,6 +243,8 @@ namespace CraftingSystem
                 ssr.sprite = ShadowSprite();
                 ssr.color = new Color(0f, 0f, 0f, 0.42f);
                 ssr.sortingOrder = 0;
+
+                BuildHighlight();
             }
 
             int copies = CopiesFor(_count);
@@ -323,6 +327,8 @@ namespace CraftingSystem
         {
             if (_flying)
                 StepFlight(Time.deltaTime);
+            else
+                UpdateMagnet();
         }
 
         private void StepFlight(float dt)
@@ -469,6 +475,7 @@ namespace CraftingSystem
                 _shadow.position = new Vector3(transform.position.x, _groundY + 0.025f, transform.position.z);
                 _shadow.localScale = Vector3.one * (0.62f * (0.6f + 0.4f * k)) * (1f + (_copies - 1) * 0.12f);
             }
+            UpdateHighlight();
         }
 
         // ───────────────────────── 줍기 ─────────────────────────
@@ -480,18 +487,20 @@ namespace CraftingSystem
 
             PlayerInventory inv = player != null ? player.GetComponent<PlayerInventory>() : null;
             if (inv == null) return;
+            GiveTo(inv, true);
+        }
 
-            // 들어가는 만큼만 줍고 나머지는 남겨 둔다
-            int take = Mathf.Min(inv.SpaceFor(_item), _count);
+        /// <summary>들어가는 만큼 가방(배낭 포함)에 넣고 나머지는 남겨 둔다. 하나라도 넣었으면 true.</summary>
+        private bool GiveTo(PlayerInventory inv, bool toastIfFull)
+        {
+            int take = inv.Take(_item, _count, _durability);
             if (take <= 0)
             {
-                HudToast.Show("인벤토리가 가득 찼습니다.");
-                return;
+                if (toastIfFull) HudToast.Show(inv.HasBackpack ? "가방과 배낭이 가득 찼어요." : "인벤토리가 가득 찼어요.");
+                return false;
             }
 
-            if (!inv.Inventory.AddItem(_item, take, _durability))
-                return;
-
+            HudToast.Show("+" + take + " " + _item.itemName);
             _count -= take;
             if (_count <= 0)
             {
@@ -502,6 +511,171 @@ namespace CraftingSystem
             {
                 Build();   // 남은 개수에 맞춰 겹쳐진 모양을 줄인다
             }
+            return true;
+        }
+
+        // ───────────────────────── 가까이 가면 저절로 줍기 ─────────────────────────
+
+        private const float MagnetRadius = 2.4f;
+        private const float MagnetDelayThrown = 1.6f;   // 내가 버린 아이템은 잠깐 기다렸다가 (버리자마자 다시 빨려오지 않게)
+        private float _nextMagnetCheck;
+        private Transform _magnetTarget;
+        private float _magnetSpeed;
+        private bool _thrownByPlayer;
+
+        private static PlayerInventory s_localInventory;
+
+        private static PlayerInventory LocalInventory
+        {
+            get
+            {
+                if (s_localInventory != null && s_localInventory.isActiveAndEnabled) return s_localInventory;
+                s_localInventory = LastTruck.Networking.TruckInventorySync.LocalPlayerInventory;
+                if (s_localInventory == null && !LastTruck.Networking.GameLauncher.IsOnlineSession)
+                    s_localInventory = FindFirstObjectByType<PlayerInventory>();
+                return s_localInventory;
+            }
+        }
+
+        private void UpdateMagnet()
+        {
+            if (_picked || _flying || _item == null) return;
+
+            if (_magnetTarget == null)
+            {
+                if (Time.time < _nextMagnetCheck) return;
+                _nextMagnetCheck = Time.time + 0.15f;
+                if (Time.time - _spawnTime < (_thrownByPlayer ? MagnetDelayThrown : 0.5f)) return;
+
+                PlayerInventory inv = LocalInventory;
+                if (inv == null) return;
+                Vector3 d = inv.transform.position - transform.position;
+                if (d.sqrMagnitude > MagnetRadius * MagnetRadius || Mathf.Abs(d.y) > 2.5f) return;
+                if (inv.SpaceForWithPouch(_item) <= 0) return;   // 들어갈 자리가 없으면 그대로 둔다 (E로 확인하면 안내가 나온다)
+                _magnetTarget = inv.transform;
+                _magnetSpeed = 3f;
+                return;
+            }
+
+            // 플레이어 가슴 쪽으로 점점 빨라지며 날아간다
+            Vector3 goal = _magnetTarget.position + Vector3.up * 0.9f;
+            _magnetSpeed += 26f * Time.deltaTime;
+            transform.position = Vector3.MoveTowards(transform.position, goal, _magnetSpeed * Time.deltaTime);
+            _groundY = transform.position.y - RestHeight;
+            if ((transform.position - goal).sqrMagnitude < 0.5f * 0.5f)
+            {
+                PlayerInventory inv = _magnetTarget.GetComponent<PlayerInventory>();
+                _magnetTarget = null;
+                if (inv == null || !GiveTo(inv, false))
+                    _nextMagnetCheck = Time.time + 3f;   // 못 넣었다 (그새 가방이 찼다) → 잠깐 쉬었다가 다시
+            }
+        }
+
+        // ───────────────────────── 멀리서도 보이게: 빛기둥 + 바닥 고리 ─────────────────────────
+
+        private Transform _beam;
+        private Transform _ring;
+        private SpriteRenderer _beamSr, _ringSr;
+        private Color _accent = new Color(1f, 0.85f, 0.4f);
+        private static Sprite s_beamSprite, s_ringSprite;
+
+        private static Sprite BeamSprite()
+        {
+            if (s_beamSprite != null) return s_beamSprite;
+            const int W = 16, H = 64;
+            var tex = new Texture2D(W, H, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var px = new Color32[W * H];
+            for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                {
+                    float u = Mathf.Abs((x + 0.5f) / W * 2f - 1f);
+                    float v = (y + 0.5f) / H;
+                    float a = (1f - u * u) * Mathf.Pow(1f - v, 1.6f) * Mathf.Clamp01(v * 12f);
+                    px[y * W + x] = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(a) * 255f));
+                }
+            tex.SetPixels32(px);
+            tex.Apply(false, true);
+            s_beamSprite = Sprite.Create(tex, new Rect(0, 0, W, H), new Vector2(0.5f, 0f), H);
+            s_beamSprite.name = "DroppedItemBeam";
+            return s_beamSprite;
+        }
+
+        private static Sprite RingSprite()
+        {
+            if (s_ringSprite != null) return s_ringSprite;
+            const int N = 64;
+            var tex = new Texture2D(N, N, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var px = new Color32[N * N];
+            for (int y = 0; y < N; y++)
+                for (int x = 0; x < N; x++)
+                {
+                    float dx = (x + 0.5f) / N * 2f - 1f, dy = (y + 0.5f) / N * 2f - 1f;
+                    float r = Mathf.Sqrt(dx * dx + dy * dy);
+                    float a = Mathf.Clamp01(1f - Mathf.Abs(r - 0.82f) / 0.12f);
+                    a += Mathf.Clamp01(0.82f - r) * 0.25f;   // 안쪽은 옅게 채운다
+                    px[y * N + x] = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(a) * 255f));
+                }
+            tex.SetPixels32(px);
+            tex.Apply(false, true);
+            s_ringSprite = Sprite.Create(tex, new Rect(0, 0, N, N), new Vector2(0.5f, 0.5f), N);
+            s_ringSprite.name = "DroppedItemRing";
+            return s_ringSprite;
+        }
+
+        private void BuildHighlight()
+        {
+            if (_beam != null || _item == null) return;
+            int cat = Mathf.Clamp(TruckCodexView.CategoryOf(_item), 0, TruckCodexView.CategoryColors.Length - 1);
+            Color c = TruckCodexView.CategoryColors[cat];
+            _accent = Color.Lerp(c, Color.white, 0.35f);   // 갈색 땅/풀 위에서도 튀게 밝게
+
+            var beam = new GameObject("Beam");
+            beam.layer = InteractLayer;
+            beam.transform.SetParent(transform, false);
+            _beam = beam.transform;
+            _beamSr = beam.AddComponent<SpriteRenderer>();
+            _beamSr.sprite = BeamSprite();
+            _beamSr.sortingOrder = 1;
+
+            var ring = new GameObject("Ring");
+            ring.layer = InteractLayer;
+            ring.transform.SetParent(transform, false);
+            _ring = ring.transform;
+            _ring.rotation = Quaternion.Euler(90f, 0f, 0f);
+            _ringSr = ring.AddComponent<SpriteRenderer>();
+            _ringSr.sprite = RingSprite();
+            _ringSr.sortingOrder = 1;
+        }
+
+        private void UpdateHighlight()
+        {
+            if (_beam == null) return;
+            bool show = !_flying && _magnetTarget == null;
+            _beam.gameObject.SetActive(show);
+            _ring.gameObject.SetActive(show);
+            if (!show) return;
+
+            float t = Time.time + _seed;
+            float pulse = 0.5f + 0.5f * Mathf.Sin(t * 3f);
+
+            // 가까이 가면 빛기둥이 옅어진다 (바로 앞에서는 아이템 자체가 잘 보이므로)
+            float fade = 1f;
+            Camera cam = Camera.main;
+            if (cam != null)
+            {
+                Vector3 d = transform.position - cam.transform.position;
+                fade = Mathf.Lerp(0.35f, 1f, Mathf.InverseLerp(4f, 14f, d.magnitude));
+                d.y = 0f;
+                if (d.sqrMagnitude > 1e-4f) _beam.rotation = Quaternion.LookRotation(d.normalized, Vector3.up);
+            }
+            _beam.position = new Vector3(transform.position.x, _groundY + 0.02f, transform.position.z);
+            // 스프라이트 원본은 폭 0.25m × 높이 1m → 폭 약 0.6m, 높이 3m 남짓
+            _beam.localScale = new Vector3(2.4f, 3.0f + _copies * 0.3f, 1f);
+            _beamSr.color = new Color(_accent.r, _accent.g, _accent.b, (0.6f + 0.25f * pulse) * fade);
+
+            _ring.position = new Vector3(transform.position.x, _groundY + 0.035f, transform.position.z);
+            _ring.localScale = Vector3.one * (1.35f + 0.15f * pulse);
+            _ringSr.color = new Color(_accent.r, _accent.g, _accent.b, 0.7f + 0.3f * pulse);
         }
     }
 }

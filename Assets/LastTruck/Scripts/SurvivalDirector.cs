@@ -71,21 +71,21 @@ namespace LastTruck
 
         private static SurvivalKind[] _order;
 
-        /// <summary>회차(밤)별 생존 조건. 1일차는 고정, 이후는 2~8번이 한 번씩 겹치지 않게 섞여 나온다.</summary>
+        /// <summary>
+        /// 회차(밤)별 생존 조건. 쉬운 조건부터 어려운 조건 순서로 나온다 (모든 화면/매 판 같은 순서).
+        /// (예전에는 고정 씨앗으로 섞은 순서라 2일차 밤이 늘 "중간보스 3마리"였다 - 구리 무기로 혼자 깨기에는 너무 가혹했다.)
+        ///   1 좀비 처치 → 2 90초 생존 → 3 웨이브 3번 → 4 트럭 지키기 → 5 포탑 없이 → 6 중간보스 → 7 트럭 없이 → 8 좀비 60마리, 이후 2~8 반복
+        /// </summary>
         public static SurvivalKind KindFor(int cycle)
         {
             if (cycle <= 1) return SurvivalKind.Kill30;
             if (_order == null)
             {
-                var bag = new List<SurvivalKind>();
-                for (int i = 2; i <= 8; i++) bag.Add((SurvivalKind)i);
-                var rng = new System.Random(7351);   // 고정 씨앗: 모든 화면/매 판 같은 순서 (호스트와 클라이언트가 일치)
-                for (int i = bag.Count - 1; i > 0; i--)
+                _order = new[]
                 {
-                    int j = rng.Next(i + 1);
-                    SurvivalKind tmp = bag[i]; bag[i] = bag[j]; bag[j] = tmp;
-                }
-                _order = bag.ToArray();
+                    SurvivalKind.Survive90, SurvivalKind.Waves, SurvivalKind.TruckGuard, SurvivalKind.NoTurret,
+                    SurvivalKind.MidBosses, SurvivalKind.NoTruck, SurvivalKind.Kill60,
+                };
             }
             return _order[(cycle - 2) % _order.Length];
         }
@@ -93,19 +93,24 @@ namespace LastTruck
         /// <summary>4일차마다 일반 조건에 중간보스가 섞여 나온다 (중간보스 조건 자체인 밤은 제외).</summary>
         public static bool HasBossWave(int cycle) { return cycle >= 4 && cycle % 4 == 0 && KindFor(cycle) != SurvivalKind.MidBosses; }
 
-        public static float HpScale(int cycle) { return 1f + 0.30f * Mathf.Max(0, cycle - 1); }
         /// <summary>
-        /// 혼자 플레이할 때의 초반 완화: 1일차 밤 좀비 체력 50%, 2일차 65%, 3일차 80%, 4일차부터 100%.
-        /// (혼자서 30마리를 잡아야 하는 첫 밤이 너무 버거워서. 여럿이 하면 그대로다.)
+        /// 밤 회차별 체력 배율. 몬스터 도감(MonsterCatalog.HealthScale)도 밤마다 +12%씩 따로 올리므로 여기서는 +15%만 더한다.
+        /// (예전 +30%와 겹쳐서 3일차 탱크 317, 7일차에는 기본의 약 4.8배가 되어 혼자서는 거의 못 잡았다)
+        /// </summary>
+        public static float HpScale(int cycle) { return 1f + 0.15f * Mathf.Max(0, cycle - 1); }
+        /// <summary>
+        /// 혼자 플레이할 때의 완화: 1일차 50%, 2일차 60%, 3일차 70%, 4일차 80%, 그 뒤 85%.
+        /// (때려 줄 동료가 없어서 후반에도 조금 남겨 둔다. 여럿이 하면 그대로다.)
         /// </summary>
         public static float SoloHpEase(int cycle)
         {
             GameManager gm = GameManager.Instance;
             if (gm == null || gm.PlayerCount > 1) return 1f;
             if (cycle <= 1) return 0.5f;
-            if (cycle == 2) return 0.65f;
-            if (cycle == 3) return 0.8f;
-            return 1f;
+            if (cycle == 2) return 0.6f;
+            if (cycle == 3) return 0.7f;
+            if (cycle == 4) return 0.8f;
+            return 0.85f;
         }
 
         /// <summary>
@@ -113,10 +118,17 @@ namespace LastTruck
         /// </summary>
         public static int KillGoal(SurvivalKind k)
         {
-            if (k == SurvivalKind.Kill60) return 60;
             GameManager gm = GameManager.Instance;
             bool solo = gm == null || gm.PlayerCount <= 1;
+            if (k == SurvivalKind.Kill60) return solo ? 30 : 60;   // 혼자면 절반
             return solo ? 5 : 30;
+        }
+
+        /// <summary>중간보스 밤의 보스 수 (혼자면 2마리).</summary>
+        public static int BossGoal()
+        {
+            GameManager gm = GameManager.Instance;
+            return gm == null || gm.PlayerCount <= 1 ? 2 : BossCount;
         }
 
         public static float DamageScale(int cycle) { return 1f + 0.12f * Mathf.Max(0, cycle - 1); }
@@ -128,9 +140,9 @@ namespace LastTruck
             {
                 case SurvivalKind.Kill30: return "좀비 " + KillGoal(k) + "마리 처치";
                 case SurvivalKind.Survive90: return "1분 30초 동안 생존";
-                case SurvivalKind.Kill60: return "좀비 60마리 처치";
+                case SurvivalKind.Kill60: return "좀비 " + KillGoal(k) + "마리 처치";
                 case SurvivalKind.TruckGuard: return "트럭 피해 20% 이하로 2분 생존";
-                case SurvivalKind.MidBosses: return "중간보스 3마리 처치";
+                case SurvivalKind.MidBosses: return "중간보스 " + BossGoal() + "마리 처치";
                 case SurvivalKind.Waves: return "좀비 웨이브 3번 방어";
                 case SurvivalKind.NoTurret: return "포탑 없이 2분 생존";
                 default: return "트럭 없이 2분 생존";
@@ -143,7 +155,7 @@ namespace LastTruck
             {
                 case SurvivalKind.Kill30: return "밤이 되면 몰려오는 좀비를 " + KillGoal(k) + "마리 처치하세요.";
                 case SurvivalKind.Survive90: return "해가 뜰 때까지 90초만 버티세요.";
-                case SurvivalKind.Kill60: return "쏟아지는 좀비를 60마리 처치하세요.";
+                case SurvivalKind.Kill60: return "쏟아지는 좀비를 " + KillGoal(k) + "마리 처치하세요.";
                 case SurvivalKind.TruckGuard: return "트럭 누적 피해가 20%를 넘기면 실패! 실패하면 트럭 내구도가 30%로 떨어져요.";
                 case SurvivalKind.MidBosses: return "보스를 쓰러뜨리거나 30~40초가 지나면 다음 보스가 나타나요.";
                 case SurvivalKind.Waves: return "웨이브를 전멸시키거나 40초가 지나면 다음 웨이브가 시작돼요.";
@@ -286,7 +298,7 @@ namespace LastTruck
             switch (_kind)
             {
                 case SurvivalKind.Kill30: gm.OverrideNightQuota(KillGoal(_kind)); break;
-                case SurvivalKind.Kill60: gm.OverrideNightQuota(60); break;
+                case SurvivalKind.Kill60: gm.OverrideNightQuota(KillGoal(_kind)); break;
                 case SurvivalKind.Waves: gm.OverrideNightQuota(Mathf.RoundToInt(WaveCount) * WaveSize(gm)); break;
                 default: gm.OverrideNightQuota(99999); break;
             }
@@ -294,7 +306,8 @@ namespace LastTruck
 
         private int WaveSize(GameManager gm)
         {
-            return Mathf.Max(4, Mathf.RoundToInt(6f * CountScale(_cycle) * gm.PlayerCountMultiplier));
+            float baseSize = gm.PlayerCount <= 1 ? 4.5f : 6f;   // 혼자면 웨이브를 조금 작게
+            return Mathf.Max(4, Mathf.RoundToInt(baseSize * CountScale(_cycle) * gm.PlayerCountMultiplier));
         }
 
         // ================================================================ 진행 (호스트)
@@ -403,7 +416,7 @@ namespace LastTruck
                 }
             }
 
-            if (!_bossSpawning && _bossRequested < BossCount && _elapsed >= _nextBossAt)
+            if (!_bossSpawning && _bossRequested < BossGoal() && _elapsed >= _nextBossAt)
             {
                 _bossRequested++;
                 _bossSpawning = true;   // 스폰이 끝날 때까지 다음 보스를 또 부르지 않는다
@@ -416,12 +429,12 @@ namespace LastTruck
                     _bosses.Add(go);
                     _bossCounted.Add(false);
                     _nextBossAt = _elapsed + Random.Range(30f, 40f);
-                    HudToast.Show("중간보스가 나타났다! (" + _bosses.Count + "/" + BossCount + ")");
+                    HudToast.Show("중간보스가 나타났다! (" + _bosses.Count + "/" + BossGoal() + ")");
                 });
             }
 
-            _next = _bossRequested < BossCount ? Mathf.Max(0f, _nextBossAt - _elapsed) : -1f;
-            return _count >= BossCount;
+            _next = _bossRequested < BossGoal() ? Mathf.Max(0f, _nextBossAt - _elapsed) : -1f;
+            return _count >= BossGoal();
         }
 
         // ---- 좀비 웨이브 3번 (전멸하거나 40초가 지나면 다음 웨이브)
@@ -618,9 +631,9 @@ namespace LastTruck
                     v.shortText = Clock(120f - d.Elapsed);
                     break;
                 case SurvivalKind.MidBosses:
-                    v.progress = Mathf.Clamp01(d.Count / (float)BossCount);
-                    v.progressText = "중간보스 " + d.Count + " / " + BossCount;
-                    v.shortText = d.Count + "/" + BossCount;
+                    v.progress = Mathf.Clamp01(d.Count / (float)BossGoal());
+                    v.progressText = "중간보스 " + d.Count + " / " + BossGoal();
+                    v.shortText = d.Count + "/" + BossGoal();
                     if (d.NextIn >= 0f) { v.showNext = true; v.next01 = 1f - Mathf.Clamp01(d.NextIn / 40f); v.nextText = "다음 중간보스까지 " + Mathf.CeilToInt(d.NextIn) + "초"; }
                     break;
                 case SurvivalKind.Waves:

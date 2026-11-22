@@ -5,7 +5,7 @@
     -unity-font-style: bold;
     font-size: 20px;
     -unity-text-outline-width: 1.2px;
-    -unity-text-outline-color: rgba(38, 22, 8, 0.95);
+    -unity-text-outline-color: rgba(8, 12, 24, 0.95);
 }
 
 .gh-plate { position: absolute; min-width: 110px; padding: 8px 20px 9px 20px; align-items: center; }

@@ -108,10 +108,20 @@ namespace CraftingSystem
             AllNodes.Add(this);
         }
 
+        private void Start()
+        {
+            // 기름 웅덩이: 유정 머리 + 시추 삼각대를 세우고, 손 펌프로 퍼는 동안 기름이 솟는 연출을 붙인다 (모양만, 코드로 만든다)
+            if (item != null && item.itemID == ItemIds.Oil && GetComponent<OilWellRig>() == null)
+                gameObject.AddComponent<OilWellRig>();
+        }
+
         private void OnDestroy()
         {
             AllNodes.Remove(this);
         }
+
+        /// <summary>이 노드에서 채집에 성공했을 때 (내 화면에서만, 조건을 맞춘 경우). 연출용.</summary>
+        public event System.Action Harvested;
 
         #region 멀티플레이 연동 (LastTruck.Networking.NetworkGathering)
 
@@ -302,6 +312,8 @@ namespace CraftingSystem
                 // 요구한 도구가 한 번 닳는다 (내구도가 없는 장비, 예: 가죽 장갑은 그대로)
                 inventory.WearSelectedTool();
             }
+
+            Harvested?.Invoke();
 
             // 멀티플레이: 호스트가 채집 결과(보너스/고갈)를 정한다.
             if (LastTruck.Networking.NetworkGathering.TryHandleGather(this, inventory))

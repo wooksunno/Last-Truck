@@ -114,6 +114,8 @@ private int _withdrawMax;
         }
 
         public bool IsPopupOpen => _popupRoot != null && _popupRoot.activeSelf;
+        /// <summary>가죽 파우치 배낭 창이 열려 있는가.</summary>
+        public bool IsPouchOpen => IsPopupOpen && _activePouch != null;
 
         private GameObject _truckHint;
 
@@ -769,7 +771,10 @@ private void ShowPopup(string title, System.Action builder)
             }
             else if (_activePouch != null && !empty)
             {
-                TransferItem(playerInventory.Inventory, _activePouch.Inventory, slot.item, slot.count, slot.CurrentDurability);
+                if (slot.item.itemID == ItemIds.LeatherPouchBackpack)
+                    LastTruck.HudToast.Show("배낭을 배낭 안에 넣을 수는 없어요");
+                else
+                    TransferItem(playerInventory.Inventory, _activePouch.Inventory, slot.item, slot.count, slot.CurrentDurability);
                 ShowPopup("가죽 파우치", BuildPouchContent);
             }
             else
@@ -2107,7 +2112,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             else _processPickItem = null;
 
             // 칸
-            m.slotHeader = "가공 칸 " + slotCount + " / " + TruckFacilities.MaxSlots;
+            m.slotHeader = "가공 칸 " + slotCount + "개 (최대 " + TruckFacilities.MaxSlots + "칸) · 칸당 " + TruckProcessingLocal.MaxPerSlot + "개";
             m.slotHint = _selectedProcessRecipe != null
                 ? "선택: " + _selectedProcessRecipe.GetDisplayName() + "  →  칸을 누를 때마다 1개씩 넣습니다 (같은 재료 칸에 쌓임)"
                 : "왼쪽에서 아이템을 누르면 빈 칸에 들어가요. 아래 칸을 누르면 그 칸의 가공 모습이 크게 나오고, 거기서 받기/취소를 할 수 있어요.";
@@ -2330,7 +2335,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 }
             if (target < 0)
             {
-                _truckProcessMessage = "빈 칸이 없어요. 다 된 칸을 받거나 칸을 늘려 보세요.";
+                _truckProcessMessage = "칸이 가득 찼어요 (칸당 " + TruckProcessingLocal.MaxPerSlot + "개). 다 된 칸을 받거나 칸을 늘려 보세요.";
                 ShowPopup("트럭 거점", BuildTruckContent);
                 return;
             }
@@ -2381,7 +2386,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             ProcessSlotView current = _localProcessing.Slot(FacilitySlotOf(fac), slotIndex);
             if (!current.IsEmpty && (current.recipe != recipe || current.queued + current.readyCount >= TruckProcessingLocal.MaxPerSlot))
             {
-                _truckProcessMessage = current.recipe != recipe ? "다른 재료를 가공 중인 칸입니다." : "이 칸은 가득 찼습니다.";
+                _truckProcessMessage = current.recipe != recipe ? "다른 재료를 가공 중인 칸입니다." : "이 칸은 가득 찼어요 (칸당 " + TruckProcessingLocal.MaxPerSlot + "개).";
                 ShowPopup("트럭 거점", BuildTruckContent);
                 return;
             }
@@ -2426,10 +2431,11 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             if (player == null || output == null || output.item == null)
                 return;
 
+            bool toTruck = !LastTruck.Networking.TruckInventorySync.GoesToCrafterBag(output.item);   // 재료는 트럭 보관함으로 바로 (가방 자리 필요 없음)
             if (NetworkProcessing)
             {
                 // 하나라도 들어갈 자리가 있으면 받는다 (못 들어간 나머지는 호스트가 칸으로 돌려놓는다)
-                if (!LastTruck.Networking.NetworkGathering.HasRoomFor(player.Inventory, output.item, output.count))
+                if (!toTruck && !LastTruck.Networking.NetworkGathering.HasRoomFor(player.Inventory, output.item, output.count))
                 {
                     _truckProcessMessage = "인벤토리가 가득 찼습니다. 아래 내 인벤토리 칸을 눌러 트럭에 넣어 자리를 만드세요.";
                     ShowPopup("트럭 거점", BuildTruckContent);
@@ -2441,6 +2447,14 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
 
             if (!_localProcessing.Claim(FacilitySlotOf(fac), slotIndex, out RecipeData _, out int count))
                 return;
+
+            if (toTruck && ActiveTruckInventory != null)
+            {
+                ActiveTruckInventory.AddItem(output.item, count * Mathf.Max(1, output.count));
+                LastTruck.HudToast.Show(output.item.itemName + " ×" + count * Mathf.Max(1, output.count) + "  → 트럭 보관함");
+                ShowPopup("트럭 거점", BuildTruckContent);
+                return;
+            }
 
             // 들어가는 만큼만 받고, 남은 완성품은 칸에 되돌려 둔다
             int given = 0;

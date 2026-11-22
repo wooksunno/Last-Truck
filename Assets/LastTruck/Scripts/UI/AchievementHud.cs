@@ -17,7 +17,7 @@ namespace LastTruck
         private static readonly Color Gold = new Color(1f, 0.8f, 0.34f, 1f);
         private static readonly Color Green = new Color(0.45f, 1f, 0.62f, 1f);
         private static readonly Color Cream = new Color(0.97f, 0.93f, 0.82f, 1f);
-        private static readonly Color Outline = new Color(0.15f, 0.09f, 0.03f, 0.95f);
+        private static readonly Color Outline = new Color(0.04f, 0.06f, 0.11f, 0.95f);   // 남색 테마 글자 외곽선
 
         private readonly StyleFontDefinition _font;
         private readonly Sprite _panelSprite;
@@ -59,9 +59,33 @@ namespace LastTruck
             _popup.style.alignItems = Align.Center;
             _popup.style.paddingLeft = 22; _popup.style.paddingRight = 26;
             _popup.style.paddingTop = 16; _popup.style.paddingBottom = 16;
-            _popup.style.backgroundColor = new Color(0.1f, 0.075f, 0.05f, 0.96f);
-            Radius(_popup, 18);
-            Border(_popup, 4, Gold);
+            LastTruckUiSkin skin = LastTruckUiSkin.Get();
+            bool poly = skin != null && skin.polyTheme && skin.hudBand != null;
+            if (poly)
+            {
+                // 원신풍 "임무 완료": 판/테두리 없이 그늘 띠 위에 글자만. 위아래 가는 금선이 양쪽으로 사라진다.
+                _popup.style.width = 820;
+                _popup.style.paddingLeft = 150; _popup.style.paddingRight = 150;
+                _popup.style.paddingTop = 20; _popup.style.paddingBottom = 20;
+                _popup.style.backgroundImage = new StyleBackground(skin.hudBand);
+                for (int i = 0; i < 2; i++)
+                {
+                    var line = new VisualElement { pickingMode = PickingMode.Ignore };
+                    line.style.position = Position.Absolute;
+                    line.style.left = 0; line.style.right = 0; line.style.height = 2;
+                    if (i == 0) line.style.top = 4; else line.style.bottom = 4;
+                    line.style.backgroundImage = new StyleBackground(skin.hudBand);
+                    line.style.unityBackgroundImageTintColor = new Color(1f, 0.85f, 0.5f, 1f);
+                    line.style.opacity = 0.9f;
+                    _popup.Add(line);
+                }
+            }
+            else
+            {
+                _popup.style.backgroundColor = new Color(0.07f, 0.09f, 0.15f, 0.96f);
+                Radius(_popup, 18);
+                Border(_popup, 4, Gold);
+            }
             _popup.style.overflow = Overflow.Hidden;
 
             // 배너 위를 가로지르는 빛줄기
@@ -69,7 +93,7 @@ namespace LastTruck
             _popupShine.style.position = Position.Absolute;
             _popupShine.style.top = -20; _popupShine.style.bottom = -20;
             _popupShine.style.width = 90;
-            _popupShine.style.backgroundColor = new Color(1f, 0.95f, 0.75f, 0.22f);
+            _popupShine.style.backgroundColor = new Color(1f, 0.95f, 0.75f, poly ? 0.10f : 0.22f);
             _popupShine.style.rotate = new Rotate(18f);
             _popup.Add(_popupShine);
 

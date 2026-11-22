@@ -5,8 +5,8 @@
 .mm-shadow { position: absolute; left: 4px; top: 8px; right: -4px; bottom: -4px; border-radius: 50%; background-color: rgba(0, 0, 0, 0.35); }
 .mm-map {
     overflow: hidden;
-    background-color: rgb(40, 38, 33);
-    border-width: 3px; border-color: rgb(30, 20, 10);
+    background-color: rgb(28, 34, 48);
+    border-width: 3px; border-color: rgb(12, 16, 28);
 }
 .mm-range  { position: absolute; border-width: 1px; border-color: rgba(255, 236, 200, 0.12); }
 .mm-layer  { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
@@ -21,9 +21,9 @@
     position: absolute; left: 0; top: 0; right: 0; bottom: 0;
     -unity-background-scale-mode: stretch-to-fill;
 }
-.mm-ring--plain { left: 8px; top: 8px; right: 8px; bottom: 8px; border-radius: 50%; border-width: 7px; border-color: rgb(226, 178, 84); }
+.mm-ring--plain { left: 8px; top: 8px; right: 8px; bottom: 8px; border-radius: 50%; border-width: 5px; border-color: rgb(214, 190, 140); }
 .mm-north {
     position: absolute; top: -6px; left: 50%; translate: -50% 0;
     font-size: 20px; -unity-font-style: bold; color: rgb(255, 244, 220);
-    -unity-text-outline-width: 1.4px; -unity-text-outline-color: rgba(38, 22, 8, 0.95);
+    -unity-text-outline-width: 1.4px; -unity-text-outline-color: rgba(8, 12, 24, 0.95);
 }

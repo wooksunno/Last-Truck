@@ -102,8 +102,18 @@ private void Update()
             // 얻을 게 없으면(체력도 스태미나도 가득, 고칠 도구도 없음) 먹어도 아무 효과가 없다(시작도, 소모도 되지 않는다).
             bool canEat = hasEdible && HasUseFor(edible);
 
+            // 수리/강화 키트는 트럭 옆에서 쓰는 일이 많다: 화면 가운데에 트럭이 있어도 클릭을 막지 않는다 (UI 위만 막는다)
+            bool kit = hasEdible && (edible.repairFraction > 0f || edible.weaponUpgrade);
             if (Input.GetMouseButtonDown(0))
-                _pressVetoed = !canEat || IsPressBlocked();
+            {
+                bool blocked = kit ? IsPointerOverUi() : IsPressBlocked();
+                _pressVetoed = !canEat || blocked;
+                if (hasEdible && !canEat && !blocked && Time.unscaledTime >= _nextNoUseToast)
+                {
+                    _nextNoUseToast = Time.unscaledTime + 1.5f;
+                    LastTruck.HudToast.Show(NoUseReason(hand.item, edible));
+                }
+            }
             if (Input.GetMouseButtonUp(0))
                 _pressVetoed = false;
 
@@ -156,6 +166,38 @@ private bool IsHealthFull()
             return false;
         }
 
+
+        private float _nextNoUseToast;
+
+        private string NoUseReason(ItemData item, Edible e)
+        {
+            if (e.repairFraction > 0f) return "고칠 도구가 없어요 (가방에 닳은 도구/무기가 있어야 해요)";
+            if (e.weaponUpgrade) return "무기 강화가 이미 최대예요 (" + PlayerGear.WeaponSummary + ")";
+            return item.itemName + ": 지금은 먹어도 효과가 없어요 (체력/기력이 가득해요)";
+        }
+
+        private bool IsPointerOverUi()
+        {
+            if (GameUIController.Instance != null && GameUIController.Instance.IsPopupOpen) return true;
+            return UnityEngine.EventSystems.EventSystem.current != null &&
+                   UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
+        }
+
+        /// <summary>손에 든 아이템이 먹거나 쓸 수 있는 것이면 화면 안내 문구 (아니면 null). 핫바 위 사용법 줄에 쓴다.</summary>
+        public static string UseHint(ItemData item)
+        {
+            if (item == null || !Edibles.TryGetValue(item.itemID, out Edible e)) return null;
+            if (e.repairFraction > 0f)
+                return "왼쪽 클릭 꾹 · 가방에서 가장 닳은 도구를 " + Mathf.RoundToInt(e.repairFraction * 100f) + "% 수리";
+            if (e.weaponUpgrade)
+                return PlayerGear.CanUpgradeWeapon
+                    ? "왼쪽 클릭 꾹 · 무기 강화 Lv." + PlayerGear.WeaponLevel + " → " + (PlayerGear.WeaponLevel + 1) + " (모든 공격 피해 +" + Mathf.RoundToInt(PlayerGear.DamagePerLevel * 100f) + "%)"
+                    : "무기 강화 최대 (" + PlayerGear.WeaponSummary + ")";
+            string fx = "";
+            if (e.healAmount > 0f) fx += "체력 +" + Mathf.RoundToInt(e.healAmount);
+            if (e.staminaAmount > 0f) fx += (fx.Length > 0 ? ", " : "") + "기력 +" + Mathf.RoundToInt(e.staminaAmount);
+            return "왼쪽 클릭 꾹 · 먹기 (" + fx + ")";
+        }
 
         private bool IsPressBlocked()
         {

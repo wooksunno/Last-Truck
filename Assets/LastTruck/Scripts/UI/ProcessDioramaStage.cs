@@ -57,7 +57,7 @@ namespace LastTruck
         }
 
         /// <summary>state: 0 빈 칸, 1 가공 중, 2 완성. item = 지금 보여 줄 재료(가공 중) 또는 결과물(완성).</summary>
-        public void Animate(int state, float progress, float age, SpriteRenderer item, SpriteRenderer output, float dt)
+        public virtual void Animate(int state, float progress, float age, SpriteRenderer item, SpriteRenderer output, float dt)
         {
             Init();
             float t = Time.time;

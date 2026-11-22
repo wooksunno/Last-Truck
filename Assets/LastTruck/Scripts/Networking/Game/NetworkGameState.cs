@@ -249,14 +249,57 @@ namespace LastTruck.Networking
 
             // 모든 플레이어 기절 (나간 사람은 제외)
             int activePlayers = 0;
+            NetworkPlayer last = null;
             foreach (PlayerRef player in Runner.ActivePlayers)
             {
                 activePlayers++;
                 NetworkPlayer character = NetworkPlayer.Find(player);
                 // 캐릭터가 아직 없으면(로딩/방장 변경 후 되찾는 중) 판정을 미룬다.
-                if (character == null || character.IsAlive) return GameOverReason.None;
+                if (character == null || character.IsAlive) { _soloDownAt = -1f; return GameOverReason.None; }
+                last = character;
             }
+
+            // 혼자 플레이: 살려 줄 동료가 없으니 쓰러져도 바로 끝내지 않는다.
+            // 잠시 뒤 트럭 옆에서 다시 일어나고, 대가로 트럭 내구도가 깎인다 (트럭이 부서지면 그때 게임 오버).
+            if (activePlayers == 1 && last != null && HostSoloRecover(last)) return GameOverReason.None;
+
             return activePlayers > 0 ? GameOverReason.AllPlayersDead : GameOverReason.None;
+        }
+
+        private const float SoloRecoverSeconds = 8f;
+        private const float SoloRecoverTruckCost = 0.15f;   // 다시 일어날 때마다 트럭 최대 내구도의 15%
+        private float _soloDownAt = -1f;
+
+        /// <summary>혼자 플레이 중 쓰러진 캐릭터를 잠시 뒤 트럭 옆에서 일으킨다. 아직 기다리는 중이거나 일으켰으면 true (게임 오버 아님).</summary>
+        private bool HostSoloRecover(NetworkPlayer character)
+        {
+            LastTruck.TruckInformation truck = Truck;
+            if (truck == null || truck.IsBroken) return false;
+
+            if (_soloDownAt < 0f)
+            {
+                _soloDownAt = Time.time;
+                HostAnnounce("쓰러졌다!", Mathf.RoundToInt(SoloRecoverSeconds) + "초 뒤 트럭에서 다시 일어납니다 (트럭 내구도 -" + Mathf.RoundToInt(SoloRecoverTruckCost * 100f) + "%)");
+                return true;
+            }
+            if (Time.time - _soloDownAt < SoloRecoverSeconds) return true;
+
+            _soloDownAt = -1f;
+            NetworkHealth health = character.GetComponent<NetworkHealth>();
+            if (health == null) return false;
+            health.Revive(0.5f);
+            health.GrantInvincibility(3f);
+
+            // 트럭 옆(트럭 뒤쪽 3m)으로 옮긴다
+            Vector3 spot = truck.transform.position - truck.transform.forward * 5f + Vector3.up * 1f;
+            if (Physics.Raycast(spot + Vector3.up * 20f, Vector3.down, out RaycastHit hit, 60f, ~0, QueryTriggerInteraction.Ignore))
+                spot = hit.point + Vector3.up * 0.3f;
+            var controller = character.GetComponent<NetworkCharacterController>();
+            if (controller != null) controller.Teleport(spot, character.transform.rotation);
+
+            truck.SetDurability(Mathf.Max(1f, truck.CurrentDurability - truck.MaxDurability * SoloRecoverTruckCost));
+            HostSystemMessage("트럭 곁에서 겨우 정신을 차렸다. (트럭 내구도 -" + Mathf.RoundToInt(SoloRecoverTruckCost * 100f) + "%)");
+            return true;
         }
 
         /// <summary>
@@ -284,6 +327,10 @@ namespace LastTruck.Networking
         public override void Render()
         {
             if (!HasStateAuthority && GameLauncher.Instance != null) GameLauncher.Instance.SetCachedHostNickname(HostName.ToString());
+
+            // 클라이언트도 인원 수를 알아야 생존 조건 목표(혼자면 줄어드는 처치 수/보스 수)를 호스트와 같게 보여 준다
+            if (!HasStateAuthority && GameManager.Instance != null)
+                GameManager.Instance.PlayerCount = Mathf.Max(1, NetworkPlayer.All.Count);
 
             // 게임 전체 멈춤 (모든 컴퓨터 같은 화면)
             if (Held && !_holdShown)

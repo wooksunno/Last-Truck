@@ -326,7 +326,28 @@ namespace LastTruck.Networking
             Slots.Set(Index(facility, slot), s.Queued > 0 ? s : default);
             Revision++;
 
+            // 가공으로 나온 재료(구리/철/숯/절삭날 등)는 어차피 트럭 제작에 쓰이므로 트럭 보관함으로 바로 넣는다.
+            // (예전에는 가방이 차 있으면 받지 못하고 칸에 남아서 진행이 막힌 것처럼 보였다). 음식/소모품은 가방으로.
+            RecipeData recipe = ItemIndexLookup.RecipeAt(recipeIndex);
+            ItemData output = recipe != null && recipe.output != null ? recipe.output.item : null;
+            TruckInventory truck = FindFirstObjectByType<TruckInventory>();
+            if (output != null && truck != null && !TruckInventorySync.GoesToCrafterBag(output))
+            {
+                int amount = count * Mathf.Max(1, recipe.output.count);
+                TruckInventorySync.AddAndCount(truck.Inventory, output, amount);
+                RPC_StoredToTruck(source, recipeIndex, amount);
+                return;
+            }
+
             RPC_GiveOutput(source, facility, slot, recipeIndex, count);
+        }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_StoredToTruck([RpcTarget] PlayerRef target, int recipeIndex, int count)
+        {
+            RecipeData recipe = ItemIndexLookup.RecipeAt(recipeIndex);
+            if (recipe != null && recipe.output != null && recipe.output.item != null)
+                HudToast.Show(recipe.output.item.itemName + " ×" + count + "  → 트럭 보관함");
         }
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.All)]

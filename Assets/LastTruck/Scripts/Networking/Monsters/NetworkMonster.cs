@@ -103,6 +103,7 @@ namespace LastTruck.Networking
         private float _stunImmunity = 1f;
         private float _stunUntil;
         private float _stunImmuneUntil;
+        private Vector3 _knock;   // 넉백 속도 (호스트, 맞으면 때린 쪽 반대로 잠깐 밀린다)
         private float _hitDelay;
         private float _attackDuration;
         private float _shownSpeed;
@@ -344,6 +345,7 @@ namespace LastTruck.Networking
         private void OnDamagedOnHost(float amount)
         {
             if (_health == null || _health.IsDead || _health.Current <= 0f) return;
+            AddKnockback(amount);   // 경직 면역 중이어도 맞으면 조금은 밀린다
             if (Time.time < _stunImmuneUntil) return;
 
             if (_pendingTarget != AttackTarget.None)
@@ -356,6 +358,41 @@ namespace LastTruck.Networking
             _stunImmuneUntil = _stunUntil + _stunImmunity;
             _nextAttackTime = Mathf.Max(_nextAttackTime, _stunUntil);
             RPC_PlayHit();
+        }
+
+        /// <summary>
+        /// 호스트: 가장 가까운 플레이어(= 때렸을 가능성이 가장 큰 사람) 반대쪽으로 밀어낸다.
+        /// 피해가 클수록 세게, 중간보스(몸집이 큰 몬스터)는 덜 밀린다. 실제 이동은 FixedUpdateNetwork에서 내비메시 위로만.
+        /// </summary>
+        private void AddKnockback(float amount)
+        {
+            Vector3 pos = transform.position;
+            NetworkPlayer nearest = null;
+            float best = 8f * 8f;
+            foreach (NetworkPlayer p in NetworkPlayer.All)
+            {
+                if (p == null || !p.IsAlive) continue;
+                float d = (p.transform.position - pos).sqrMagnitude;
+                if (d < best) { best = d; nearest = p; }
+            }
+            if (nearest == null) return;
+
+            Vector3 dir = pos - nearest.transform.position;
+            dir.y = 0f;
+            if (dir.sqrMagnitude < 0.0001f) dir = -transform.forward;
+            // 약한 연사(총)는 살짝, 묵직한 한 방(도끼/전투 도끼)은 크게: 10피해 ≈ 0.1m, 25 ≈ 0.27m, 42 ≈ 0.55m
+            float strength = Mathf.Clamp(1.5f + amount * 0.12f, 1.5f, 8f);
+            if (TierSize > 1.01f) strength /= TierSize * 1.6f;   // 중간보스는 묵직하게
+            _knock = dir.normalized * Mathf.Max(_knock.magnitude, strength);
+        }
+
+        /// <summary>호스트: 남은 넉백만큼 내비메시 위로 밀고 빠르게 줄인다.</summary>
+        private void StepKnockback()
+        {
+            if (_knock.sqrMagnitude < 0.01f) { _knock = Vector3.zero; return; }
+            float dt = Runner.DeltaTime;
+            if (_agent != null && _agent.enabled && _agent.isOnNavMesh) _agent.Move(_knock * dt);
+            _knock = Vector3.MoveTowards(_knock, Vector3.zero, 24f * dt);
         }
 
         /// <summary>
@@ -431,6 +468,9 @@ namespace LastTruck.Networking
 
             // 붐버: 플레이어를 보면 도화선에 불이 붙고, 시간이 되면 터진다.
             if (_type != null && _type.selfDestruct && UpdateFuse()) return;
+
+            // 맞아서 밀려나는 중 (경직과 함께 보통 0.1~0.2초)
+            StepKnockback();
 
             // 경직 중: 제자리 (공격/이동 없음)
             if (Time.time < _stunUntil)

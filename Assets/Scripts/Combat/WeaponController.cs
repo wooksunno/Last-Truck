@@ -2343,6 +2343,9 @@ namespace Combat
         /// <summary>
         /// 마체테: 전방 부채꼴 안에서 가장 가까운 적 최대 1명에게만 피해를 준다.
         /// </summary>
+        /// <summary>근접 히트스톱 시간: 무거운(피해가 큰) 무기일수록 길게 (0.05~0.11초).</summary>
+        private static float MeleeHitStop(WeaponStats stats) => Mathf.Lerp(0.05f, 0.11f, Mathf.Clamp01(stats.damage / 45f));
+
         private void FireMeleeArc(WeaponStats stats)
         {
             Vector3 origin = transform.position + Vector3.up * 1f;
@@ -2387,7 +2390,12 @@ namespace Combat
 
             if (cleaved != null)
             {
-                if (cleaved.Count > 0) Combat.CameraShake.Shake(0.15f + 0.04f * Mathf.Min(cleaved.Count, 4));
+                if (cleaved.Count > 0)
+                {
+                    Combat.CameraShake.Shake(0.18f + 0.05f * Mathf.Min(cleaved.Count, 4));
+                    // 여러 마리를 베면 조금 더 길게 걸린다
+                    foreach (Damageable d in cleaved) HitFeel.HitStop(gameObject, d.gameObject, MeleeHitStop(stats) + 0.015f * Mathf.Min(cleaved.Count - 1, 3));
+                }
                 return;
             }
 
@@ -2397,7 +2405,8 @@ namespace Combat
                 TryApplyMeleeStun(nearest);   // 복서: 근접 무기 기절
                 WearOnHit();
                 SpawnMeleeHit(nearestPoint, stats.effectColor);
-                Combat.CameraShake.Shake(0.1f);
+                Combat.CameraShake.Shake(0.13f + Mathf.Clamp01(stats.damage / 60f) * 0.12f);
+                HitFeel.HitStop(gameObject, nearest.gameObject, MeleeHitStop(stats));   // 맞는 순간 "탁" 걸리는 느낌
             }
         }
 

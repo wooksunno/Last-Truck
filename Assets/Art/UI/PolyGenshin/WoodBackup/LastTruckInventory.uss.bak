@@ -1,0 +1,51 @@
+/* 우하단 인벤토리 핫바 (UI Toolkit). 판/칸 모양은 코드에서 Kenney 스프라이트를 입히고, 여기서는 배치/글자/상태만 정한다. */
+.lt-root { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+.lt-text {
+    color: rgb(255, 244, 220);
+    -unity-font-style: bold;
+    font-size: 20px;
+    -unity-text-outline-width: 1.2px;
+    -unity-text-outline-color: rgba(38, 22, 8, 0.95);
+}
+.inv-panel {
+    position: absolute; right: 22px; bottom: 22px;
+    padding: 14px 18px 18px 18px;
+    flex-direction: column;
+}
+
+.inv-header { flex-direction: row; align-items: center; height: 34px; margin-bottom: 8px; padding: 0 4px; }
+.inv-title  { font-size: 24px; }
+.inv-held   { flex-grow: 1; font-size: 17px; margin-left: 12px; color: rgb(232, 210, 170); -unity-text-align: middle-left; }
+.inv-used   { font-size: 22px; color: rgb(255, 200, 80); -unity-text-align: middle-right; }
+
+.inv-row  { flex-direction: row; }
+.inv-slot {
+    width: 98px; height: 98px; margin: 0 5px;
+    align-items: center; justify-content: center;
+    border-width: 0; border-radius: 10px;
+    transition-property: scale, border-width;
+    transition-duration: 0.12s;
+}
+.inv-slot:hover { scale: 1.04 1.04; }
+.inv-slot--selected {
+    scale: 1.07 1.07;
+    border-width: 3px; border-color: rgb(255, 208, 82);
+}
+.inv-slot--dragging { opacity: 0.45; }
+
+.inv-icon   { width: 64px; height: 64px; -unity-background-scale-mode: scale-to-fit; }
+.inv-letter { font-size: 26px; -unity-text-align: middle-center; }
+.inv-count  { position: absolute; right: 8px; bottom: 6px; font-size: 20px; -unity-text-align: lower-right; }
+.inv-key {
+    position: absolute; left: 6px; top: 5px; width: 26px; height: 26px;
+    font-size: 15px; -unity-text-align: middle-center;
+    border-radius: 13px; background-color: rgba(30, 18, 8, 0.85);
+}
+
+.inv-dur      { position: absolute; left: 12%; right: 12%; bottom: 6px; height: 7px; border-radius: 3px; background-color: rgba(15, 12, 10, 0.9); padding: 1px; }
+.inv-dur-fill { height: 100%; border-radius: 3px; }
+
+.inv-ghost {
+    position: absolute; width: 72px; height: 72px;
+    -unity-background-scale-mode: scale-to-fit; opacity: 0.85;
+}

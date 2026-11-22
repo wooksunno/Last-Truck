@@ -63,9 +63,20 @@ namespace CraftingSystem
             Refresh();
         }
 
+        private PouchInventory _hookedPouch;
+
         public void Refresh()
         {
             if (_inventory == null) return;
+
+            // 배낭 칸 수 표시가 배낭이 바뀔 때도 갱신되게
+            PouchInventory pouch = _inventory.Pouch;
+            if (pouch != _hookedPouch)
+            {
+                if (_hookedPouch != null) _hookedPouch.Changed -= Refresh;
+                _hookedPouch = pouch;
+                if (_hookedPouch != null) _hookedPouch.Changed += Refresh;
+            }
 
             IReadOnlyList<InventorySlot> data = _inventory.Slots;
             int cap = Mathf.Min(Mathf.Max(slots.Count, _toolkit != null ? _toolkit.SlotCount : 0), _inventory.MaxSlots);
@@ -93,7 +104,11 @@ namespace CraftingSystem
                     _toolkit.SetSlot(i, i < cap, empty ? null : s.item, empty ? 0 : s.count, i == _inventory.SelectedSlotIndex, empty ? 1f : s.DurabilityRatio);
                 }
                 ItemData heldItem = _inventory.SelectedItem;
-                _toolkit.SetSummary(used, cap, heldItem != null ? heldItem.itemName : "빈 손");
+                string held = heldItem != null ? heldItem.itemName : "빈 손";
+                if (_inventory.HasBackpack && _inventory.Pouch != null)
+                    held += "   [배낭 " + _inventory.Pouch.UsedSlots + "/" + _inventory.Pouch.MaxSlots + "]";
+                _toolkit.SetSummary(used, cap, held);
+                _toolkit.SetUseHint(ItemUseHints.For(heldItem));
             }
 
             if (usedCountText != null) usedCountText.text = used + "/" + cap;
@@ -116,6 +131,7 @@ namespace CraftingSystem
 
         private void OnDestroy()
         {
+            if (_hookedPouch != null) _hookedPouch.Changed -= Refresh;
             if (_toolkit != null) Destroy(_toolkit.gameObject);
         }
     }

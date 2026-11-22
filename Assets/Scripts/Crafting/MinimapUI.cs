@@ -57,6 +57,20 @@ namespace CraftingSystem
 
         #endregion
 
+        // UI Toolkit 미니맵은 씬이 바뀌어도 남는 오브젝트(DontDestroyOnLoad)라서, 게임 씬이 닫히면(방 목록으로 돌아가면) 같이 지운다.
+        // 안 지우면 로비 화면 오른쪽 위에 미니맵이 그대로 남고, 다음 게임에서 미니맵이 두 개 겹친다.
+        private void OnDestroy()
+        {
+            MinimapFilter.Changed -= MarkFilterDirty;
+            if (_view != null) Destroy(_view.gameObject);
+            _view = null;
+        }
+
+        private const int MaxPropDots = 250;   // 채집 소품 점은 이만큼까지 (숲 한가운데서도 미니맵이 점으로 뒤덮이지 않게)
+        private bool _filterDirty;
+        private void MarkFilterDirty() => _filterDirty = true;
+        private void OnEnable() { MinimapFilter.Changed -= MarkFilterDirty; MinimapFilter.Changed += MarkFilterDirty; }
+
         public void Initialize(Transform player, Transform truck)
         {
             _player = player;
@@ -105,6 +119,10 @@ namespace CraftingSystem
             var basicNodes = FindObjectsByType<ResourceNode>(FindObjectsSortMode.None);
             foreach (var n in basicNodes)
                 _trackedNodes.Add(n);
+
+            // 보물상자도 미니맵에 (아직 안 연 것만 보인다)
+            foreach (var c in FindObjectsByType<TreasureChest>(FindObjectsSortMode.None))
+                _trackedNodes.Add(c);
         }
 
         private void Update()
@@ -116,6 +134,7 @@ namespace CraftingSystem
             UpdateTruckArrow();
 
             _refreshTimer -= Time.deltaTime;
+            if (_filterDirty) { _filterDirty = false; _refreshTimer = 0f; }   // 표시 설정을 바꾸면 바로 다시 그린다
             if (_refreshTimer <= 0f)
             {
                 _refreshTimer = refreshInterval;
@@ -199,6 +218,11 @@ private void UpdateTruckArrow()
                     continue;
                 if (node is SpecialResourceNode special && special.IsDepleted)
                     continue;
+                if (node is TreasureChest chest && !chest.CanGatherNow)
+                    continue;   // 이미 연 상자
+                int category = MinimapFilter.CategoryOf(node);
+                if (!MinimapFilter.IsOn(category))
+                    continue;   // 미니맵 표시 설정에서 끈 분류
 
                 Vector3 delta = node.transform.position - _player.position;
                 delta.y = 0f;
@@ -207,7 +231,7 @@ private void UpdateTruckArrow()
                     continue;
 
                 Vector2 uiPos = new Vector2(delta.x, delta.z) * scale;
-                Color c = DotColor(node, renderer);
+                Color c = category == MinimapFilter.Other ? DotColor(node, renderer) : MinimapFilter.Categories[category].color;
 
                 if (_view != null)
                 {
@@ -223,8 +247,26 @@ private void UpdateTruckArrow()
                 dot.gameObject.SetActive(true);
             }
 
+            // 나무/돌/풀 같은 채집 소품 (맵 대부분의 나무·바위가 이쪽이다). 수가 많아서 켜진 분류만, 범위 안만, 최대 개수까지.
             if (_view != null)
             {
+                float r2 = viewRadiusWorld * viewRadiusWorld;
+                Vector3 me = _player.position;
+                List<GatherableProp> props = GatherableProp.AllProps;
+                int propDots = 0;
+                for (int i = 0; i < props.Count && propDots < MaxPropDots; i++)
+                {
+                    GatherableProp p = props[i];
+                    if (p == null || p.IsDone) continue;
+                    Vector3 d = p.transform.position - me;
+                    d.y = 0f;
+                    if (d.sqrMagnitude > r2) continue;
+                    int cat = MinimapFilter.CategoryOf(p.ItemId);
+                    if (!MinimapFilter.IsOn(cat)) continue;
+                    _view.SetDot(used, new Vector2(d.x, d.z) * scale, MinimapFilter.Categories[cat].color);
+                    used++;
+                    propDots++;
+                }
                 _view.HideDotsFrom(used);
                 return;
             }

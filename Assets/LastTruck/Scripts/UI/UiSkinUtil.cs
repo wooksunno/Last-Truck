@@ -22,7 +22,7 @@ namespace LastTruck
             if (img == null || sprite == null) return false;
             img.sprite = sprite;
             img.type = Image.Type.Sliced;
-            img.color = tint;
+            img.color = Skin != null ? Skin.ThemeTint(sprite, tint) : tint;
             img.pixelsPerUnitMultiplier = ppuMultiplier;
             return true;
         }
