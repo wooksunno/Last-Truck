@@ -53,7 +53,7 @@ namespace LastTruck
 
         // ---- 무전
         private enum RadioState { Hidden, Intro, Typing, Hold, Outro }
-        private VisualElement _radio, _dot;
+        private VisualElement _radio, _dot, _radioIcon;
         private VisualElement[] _eq;
         private Label _speaker, _status, _body;
         private RadioState _rs = RadioState.Hidden;
@@ -106,13 +106,18 @@ namespace LastTruck
             _accent.style.backgroundColor = Gold;
             _card.Add(_accent);
 
-            // 머리줄: [별] 생존 임무 ........ [J]
+            // 임무 제목과 단축키
             var head = Row();
             head.style.justifyContent = Justify.SpaceBetween;
             head.style.marginBottom = 6;
             var left = Row();
-            VisualElement star = Icon("star", 26f);
-            if (star != null) { star.style.marginRight = 8; star.style.unityBackgroundImageTintColor = Gold; left.Add(star); }
+            VisualElement flag = Icon("flag", 26f);
+            if (flag != null)
+            {
+                flag.style.marginRight = 8;
+                flag.style.unityBackgroundImageTintColor = Gold;
+                left.Add(flag);
+            }
             _title = Text("생존 임무", 30, Cream);
             left.Add(_title);
             head.Add(left);
@@ -400,6 +405,13 @@ namespace LastTruck
             _status = Text("수신 중", 15, new Color(1f, 0.45f, 0.45f, 1f));
             _status.style.marginRight = 14;
             head.Add(_status);
+            _radioIcon = Icon("chat", 22f);
+            if (_radioIcon != null)
+            {
+                _radioIcon.style.marginRight = 6;
+                _radioIcon.style.unityBackgroundImageTintColor = Gold;
+                head.Add(_radioIcon);
+            }
             _speaker = Text("관제소", 19, Gold);
             head.Add(_speaker);
             col.Add(head);
@@ -425,6 +437,7 @@ namespace LastTruck
                 if (end > 0) { tag = beat.Substring(1, end - 1); text = beat.Substring(end + 1).Trim(); }
             }
             _journal = tag == "일지";
+            if (_radioIcon != null) _radioIcon.style.display = _journal ? DisplayStyle.None : DisplayStyle.Flex;
             _speaker.text = _journal ? "생존 일지" : "관제소 무전";
             _speaker.style.color = _journal ? new Color(0.9f, 0.82f, 0.62f, 1f) : Gold;
 

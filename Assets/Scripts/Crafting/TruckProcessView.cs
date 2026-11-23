@@ -349,12 +349,15 @@ namespace CraftingSystem
                 badge.anchorMin = badge.anchorMax = new Vector2(1, 1); badge.pivot = new Vector2(1, 1);
                 badge.anchoredPosition = new Vector2(-8, -6); badge.sizeDelta = new Vector2(90, 22);
                 string countText = "x" + s.queued + (s.readyCount > 0 ? "  완료 " + s.readyCount : "");
-                Txt(badge, countText, 14, FontStyle.Bold, s.readyCount > 0 ? Green : Cream, TextAnchor.MiddleRight);
+                if (s.readyCount > 0)
+                    SlotStatusText(badge, countText, 14, Green, "chest_open");
+                else
+                    Txt(badge, countText, 14, FontStyle.Bold, Cream, TextAnchor.MiddleRight);
 
                 var timer = Mk("Timer", card);
                 timer.anchorMin = new Vector2(0, 0); timer.anchorMax = new Vector2(1, 0); timer.pivot = new Vector2(0.5f, 0);
                 timer.anchoredPosition = new Vector2(0, 52); timer.sizeDelta = new Vector2(-8, 28);
-                var tt = Txt(timer, s.timerText ?? "", 22, FontStyle.Bold, Amber, TextAnchor.MiddleCenter);
+                var tt = SlotStatusText(timer, s.timerText ?? "", 22, Amber, "clock", new Color32(249, 212, 140, 255));
 
                 var track = Mk("Track", card);
                 track.anchorMin = new Vector2(0, 0); track.anchorMax = new Vector2(1, 0); track.pivot = new Vector2(0.5f, 0);
@@ -369,9 +372,25 @@ namespace CraftingSystem
             else
             {
                 ItemIcon(icon, s.output);
-                Txt(label, s.readyCount > 1 ? "받기! x" + s.readyCount : "받기!", 18, FontStyle.Bold, Color.white, TextAnchor.MiddleCenter);
+                SlotStatusText(label, s.readyCount > 1 ? "받기! x" + s.readyCount : "받기!", 18, Color.white, "chest_open");
                 refs.slots.Add(new SlotRef());
             }
+        }
+
+        static Text SlotStatusText(RectTransform row, string text, int size, Color color, string iconName, Color? iconTint = null)
+        {
+            Image icon = LastTruck.UiIcons.Make(row, iconName, new Vector2(size, size), iconTint);
+            if (icon == null) return Txt(row, text, size, FontStyle.Bold, color, TextAnchor.MiddleCenter);
+
+            var layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.spacing = 4f;
+            layout.childControlWidth = layout.childControlHeight = true;
+            layout.childForceExpandWidth = layout.childForceExpandHeight = false;
+            var dimensions = icon.gameObject.AddComponent<LayoutElement>();
+            dimensions.minWidth = dimensions.preferredWidth = size;
+            dimensions.minHeight = dimensions.preferredHeight = size;
+            return Txt(Mk("Text", row), text, size, FontStyle.Bold, color, TextAnchor.MiddleCenter);
         }
 
         static void BuildUpgrade(RectTransform right, UpgradeInfo u)

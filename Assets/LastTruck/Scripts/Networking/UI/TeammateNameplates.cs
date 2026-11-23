@@ -19,6 +19,7 @@ namespace LastTruck.Networking
         [SerializeField] private float maxDistance = 60f;
         [SerializeField] private Vector2 plateSize = new Vector2(140f, 34f);
 
+        private const float AidCrossGap = 4f;
         private static readonly Color BarBackground = new Color(0f, 0f, 0f, 0.6f);
         private static readonly Color BarHigh = new Color(0.35f, 0.85f, 0.4f);
         private static readonly Color BarLow = new Color(0.9f, 0.3f, 0.25f);
@@ -34,7 +35,9 @@ namespace LastTruck.Networking
             public RectTransform Root;
             public TextMeshProUGUI Name;
             public Image Fill;
-            public string ShownName;
+            public Image AidCross;
+            public string Nickname;
+            public bool Downed;
         }
 
         private readonly Dictionary<NetworkPlayer, Plate> _plates = new Dictionary<NetworkPlayer, Plate>();
@@ -97,14 +100,7 @@ namespace LastTruck.Networking
             plate.Root.localScale = Vector3.one * scale;
 
             bool downed = player.IsDowned;
-            string nickname = player.Nickname.ToString();
-            string shown = downed ? nickname + " (기절)" : nickname;
-            if (plate.ShownName != shown)
-            {
-                plate.ShownName = shown;
-                plate.Name.text = shown;
-                plate.Name.color = downed ? DownedColor : Color.white;
-            }
+            SetPlateName(plate, player.Nickname.ToString(), downed);
 
             if (downed)
             {
@@ -118,6 +114,23 @@ namespace LastTruck.Networking
             float ratio = health != null && health.Max > 0f ? Mathf.Clamp01(health.Current / health.Max) : 1f;
             plate.Fill.fillAmount = ratio;
             plate.Fill.color = Color.Lerp(BarLow, BarHigh, ratio);
+        }
+
+        private static void SetPlateName(Plate plate, string nickname, bool downed)
+        {
+            if (plate.Nickname == nickname && plate.Downed == downed) return;
+            plate.Nickname = nickname;
+            plate.Downed = downed;
+            plate.Name.text = downed ? nickname + " (기절)" : nickname;
+            plate.Name.color = downed ? DownedColor : Color.white;
+            if (plate.AidCross == null) return;
+
+            // 기절 중에는 십자와 이름 전체를 원래 이름표 중심에 맞춘다.
+            RectTransform label = plate.Name.rectTransform;
+            float badgeWidth = downed ? plate.AidCross.rectTransform.rect.width + AidCrossGap : 0f;
+            label.sizeDelta = new Vector2(downed ? Mathf.Ceil(plate.Name.preferredWidth) : plate.Root.rect.width, 0f);
+            label.anchoredPosition = new Vector2(badgeWidth * 0.5f, 0f);
+            plate.AidCross.gameObject.SetActive(downed);
         }
 
         #endregion
@@ -135,10 +148,10 @@ namespace LastTruck.Networking
             var nameGo = new GameObject("Name", typeof(RectTransform), typeof(TextMeshProUGUI));
             nameGo.transform.SetParent(root, false);
             var nameRect = nameGo.GetComponent<RectTransform>();
-            nameRect.anchorMin = new Vector2(0f, 0.4f);
-            nameRect.anchorMax = new Vector2(1f, 1f);
-            nameRect.offsetMin = Vector2.zero;
-            nameRect.offsetMax = Vector2.zero;
+            nameRect.anchorMin = new Vector2(0.5f, 0.4f);
+            nameRect.anchorMax = new Vector2(0.5f, 1f);
+            nameRect.sizeDelta = new Vector2(plateSize.x, 0f);
+            nameRect.anchoredPosition = Vector2.zero;
             var nameText = nameGo.GetComponent<TextMeshProUGUI>();
             NetworkPrefabRegistry registry = NetworkPrefabRegistry.Instance;
             if (registry != null && registry.tmpFont != null) nameText.font = registry.tmpFont;
@@ -148,6 +161,16 @@ namespace LastTruck.Networking
             nameText.outlineWidth = 0.2f;
             nameText.outlineColor = new Color32(0, 0, 0, 200);
             nameText.raycastTarget = false;
+
+            Image aidCross = UiIcons.Make(nameRect, "aid_cross", new Vector2(18f, 18f), new Color32(255, 233, 184, 255));
+            if (aidCross != null)
+            {
+                RectTransform badge = aidCross.rectTransform;
+                badge.anchorMin = badge.anchorMax = new Vector2(0f, 0.5f);
+                badge.pivot = new Vector2(1f, 0.5f);
+                badge.anchoredPosition = new Vector2(-AidCrossGap, 0f);
+                aidCross.gameObject.SetActive(false);
+            }
 
             var barBack = new GameObject("HpBack", typeof(RectTransform), typeof(Image));
             barBack.transform.SetParent(root, false);
@@ -174,7 +197,7 @@ namespace LastTruck.Networking
             fill.fillOrigin = (int)Image.OriginHorizontal.Left;
             fill.raycastTarget = false;
 
-            return new Plate { Root = root, Name = nameText, Fill = fill };
+            return new Plate { Root = root, Name = nameText, Fill = fill, AidCross = aidCross };
         }
 
         #endregion

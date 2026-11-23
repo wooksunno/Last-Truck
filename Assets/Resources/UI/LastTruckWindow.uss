@@ -52,6 +52,25 @@
 
 .tw-body   { flex-grow: 1; padding: 10px 6px 10px 10px; }
 .tw-scroll { flex-grow: 1; }
+.tw-codex-list .unity-scroll-view__vertical-scroller .unity-base-slider__tracker {
+    left: 7px; right: 7px; width: auto;
+    background-image: url("../../Honeti/UltimateFlatGUI/ThemeBrown/Textures/Bars/ScrollBarVerticalBg.png");
+    -unity-background-image-tint-color: rgb(115, 93, 66);
+    -unity-slice-top: 12; -unity-slice-bottom: 12; -unity-slice-scale: 0.5;
+    background-color: transparent; border-width: 0;
+}
+.tw-codex-list .unity-scroll-view__vertical-scroller .unity-base-slider__dragger {
+    left: 4px; right: 4px; width: auto;
+    background-image: url("../../Honeti/UltimateFlatGUI/ThemeBrown/Textures/Bars/ScrollBarVerticalHandle.png");
+    -unity-background-image-tint-color: rgb(233, 188, 103);
+    -unity-slice-top: 22; -unity-slice-bottom: 22; -unity-slice-scale: 0.4;
+    background-color: transparent; border-width: 0;
+}
+.tw-codex-list .unity-scroll-view__vertical-scroller .unity-base-slider__dragger-border { visibility: hidden; }
+.tw-codex-list .unity-scroll-view__vertical-scroller > .unity-repeat-button {
+    background-color: rgb(73, 57, 38); -unity-background-image-tint-color: rgb(233, 188, 103);
+    border-width: 0; border-radius: 5px;
+}
 .tw-grid   { flex-direction: row; flex-wrap: wrap; }
 .tw-empty  { margin: 40px; font-size: 22px; color: rgb(220, 196, 160); }
 
@@ -180,7 +199,12 @@
 .tw-pslot-bar     { width: 120px; height: 12px; margin-top: 8px; border-radius: 6px; background-color: rgba(20, 12, 6, 0.9); padding: 2px; }
 .tw-pslot-fill    { height: 100%; border-radius: 4px; background-color: rgb(255, 196, 70); }
 .tw-pslot-queue   { position: absolute; left: 8px; top: 6px; font-size: 13px; -unity-text-outline-width: 0; padding: 1px 6px; border-radius: 6px; background-color: rgba(30, 18, 8, 0.85); }
-.tw-pslot-ready   { position: absolute; right: 8px; top: 6px; font-size: 13px; -unity-text-outline-width: 0; padding: 1px 6px; border-radius: 6px; background-color: rgba(40, 110, 40, 0.9); }
+.tw-pslot-status { flex-direction: row; align-items: center; justify-content: center; margin-top: 4px; }
+.tw-pslot-status > .tw-pslot-text, .tw-pslot-status > .tw-pslot-claim { margin-top: 0; }
+.tw-pslot-status-icon { width: 20px; height: 20px; margin-right: 4px; flex-shrink: 0; }
+.tw-pslot-ready { position: absolute; right: 8px; top: 6px; margin-top: 0; padding: 1px 5px; border-radius: 6px; background-color: rgba(40, 110, 40, 0.9); }
+.tw-pslot-ready .tw-pslot-status-icon { width: 13px; height: 13px; margin-right: 2px; }
+.tw-pslot-ready-text { font-size: 13px; -unity-text-outline-width: 0; }
 .tw-pslot-claim   { font-size: 18px; margin-top: 6px; color: rgb(170, 255, 140); }
 
 .tw-upgrade { margin-top: auto; padding: 12px 12px 10px 12px; border-radius: 12px; background-color: rgba(30, 18, 8, 0.82); }

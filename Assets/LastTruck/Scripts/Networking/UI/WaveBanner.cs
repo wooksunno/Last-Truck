@@ -14,7 +14,7 @@ namespace LastTruck.Networking
 
         private static WaveBanner _instance;
 
-        public static void Show(string title, string description, float seconds = 4f)
+        public static void Show(string title, string description, float seconds = 4f, bool nightWarning = false)
         {
             if (_instance == null)
             {
@@ -23,7 +23,7 @@ namespace LastTruck.Networking
                 _instance = go.AddComponent<WaveBanner>();
                 _instance.Build();
             }
-            _instance.Play(title, description, seconds);
+            _instance.Play(title, description, seconds, nightWarning);
         }
 
         #endregion
@@ -32,9 +32,11 @@ namespace LastTruck.Networking
 
         private const float FadeIn = 0.35f;
         private const float FadeOut = 0.6f;
+        private const float WarningSize = 56f;
 
         private CanvasGroup _group;
         private RectTransform _content;
+        private Image _warning;
         private TextMeshProUGUI _title;
         private TextMeshProUGUI _description;
         private float _startTime = -100f;
@@ -58,8 +60,25 @@ namespace LastTruck.Networking
             _content.anchoredPosition = new Vector2(0f, 230f);
             _content.sizeDelta = new Vector2(1400f, 200f);
 
-            _title = NewText(_content, "Title", 60f, FontStyles.Bold, new Color(1f, 0.72f, 0.3f));
-            _title.rectTransform.anchoredPosition = new Vector2(0f, 30f);
+            var titleRow = new GameObject("TitleRow", typeof(RectTransform), typeof(HorizontalLayoutGroup)).GetComponent<RectTransform>();
+            titleRow.SetParent(_content, false);
+            titleRow.anchoredPosition = new Vector2(0f, 30f);
+            titleRow.sizeDelta = new Vector2(_content.rect.width, 80f);
+            var layout = titleRow.GetComponent<HorizontalLayoutGroup>();
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.spacing = 8f;
+            layout.childControlWidth = true;
+            layout.childControlHeight = false;
+            layout.childForceExpandWidth = layout.childForceExpandHeight = false;
+
+            Color titleColor = new Color(1f, 0.72f, 0.3f);
+            _warning = UiIcons.Make(titleRow, "warning", new Vector2(WarningSize, WarningSize), titleColor);
+            if (_warning != null)
+            {
+                var size = _warning.gameObject.AddComponent<LayoutElement>();
+                size.minWidth = size.preferredWidth = WarningSize;
+            }
+            _title = NewText(titleRow, "Title", 60f, FontStyles.Bold, titleColor);
             _description = NewText(_content, "Description", 28f, FontStyles.Normal, new Color(0.95f, 0.95f, 0.95f));
             _description.rectTransform.anchoredPosition = new Vector2(0f, -40f);
         }
@@ -82,8 +101,9 @@ namespace LastTruck.Networking
             return text;
         }
 
-        private void Play(string title, string description, float seconds)
+        private void Play(string title, string description, float seconds, bool nightWarning)
         {
+            if (_warning != null) _warning.gameObject.SetActive(nightWarning);
             _title.text = ChatHud.Sanitize(title, 60);
             _description.text = ChatHud.Sanitize(description, 120);
             _hold = Mathf.Max(1f, seconds);

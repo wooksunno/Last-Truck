@@ -78,6 +78,7 @@ namespace LastTruck
 
                 _gridScroll = new ScrollView(ScrollViewMode.Vertical);
                 _gridScroll.AddToClassList("tw-scroll");
+                _gridScroll.AddToClassList("tw-codex-list");
                 _gridScroll.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
                 var grid = new VisualElement();
                 grid.AddToClassList("tw-grid");

@@ -45,6 +45,9 @@
 .lb-btn--off:hover { scale: 1 1; }
 .lb-btn-text { font-size: 22px; -unity-text-align: middle-center; }
 .lb-btn-icon { width: 26px; height: 26px; margin-right: 8px; -unity-background-scale-mode: scale-to-fit; }
+.lb-btn--character .lb-btn-icon { -unity-background-image-tint-color: rgb(86, 55, 21); }
+.lb-btn--privacy .lb-btn-icon { -unity-background-image-tint-color: rgb(77, 48, 25); }
+.lb-btn--privacy .lb-btn-text { color: rgb(77, 48, 25); -unity-text-outline-width: 0; }
 
 /* 입력칸 */
 .lb-field { margin: 0; height: 52px; }
@@ -71,7 +74,9 @@
 .lb-lock { width: 30px; height: 30px; margin-right: 12px; -unity-background-scale-mode: scale-to-fit; -unity-background-image-tint-color: rgb(255, 210, 120); }
 .lb-srow-title { flex-grow: 1; font-size: 24px; }
 .lb-srow-status { width: 130px; font-size: 20px; -unity-text-align: middle-right; margin-right: 22px; }
-.lb-srow-count { width: 90px; font-size: 22px; -unity-text-align: middle-right; }
+.lb-srow-occupancy { width: 104px; flex-shrink: 0; justify-content: flex-end; }
+.lb-srow-people { width: 22px; height: 22px; margin-right: 8px; -unity-background-scale-mode: scale-to-fit; -unity-background-image-tint-color: rgb(60, 36, 14); }
+.lb-srow-count { font-size: 22px; -unity-text-align: middle-right; }
 .lb-empty { margin: 60px; font-size: 22px; -unity-text-align: middle-center; color: rgb(220, 196, 160); -unity-font-style: normal; white-space: normal; }
 
 /* 모달 */
