@@ -263,7 +263,7 @@ namespace Combat
 
             PlantWobble.Wobble(best.Root, transform.position);
             ActionFx.Leaves(best.Root.transform.position + Vector3.up * 0.3f, best.ItemId, 4);
-            LastTruck.Audio.Sfx.PlayAt("swing_light", best.Root.transform.position, 0.9f, 1.25f, 0.05f);   // 풀이 바스락
+            LastTruck.Audio.Sfx.PlayAt("gather_plant", best.Root.transform.position, 1f, 1f, 0.05f);   // 풀이 바스락
         }
 
         public static bool IsPickaxe(string itemId) =>

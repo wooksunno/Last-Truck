@@ -41,6 +41,52 @@ namespace LastTruck.Audio
             WatchPhase();
             WatchTruck();
             WatchFootsteps();
+            WatchZombies();
+        }
+
+        // ───────────────────────── 좀비 울음 ─────────────────────────
+
+        private readonly List<LastTruck.Networking.NetworkMonster> _monsters = new List<LastTruck.Networking.NetworkMonster>();
+        private float _nextMonsterScan, _nextGrowl;
+
+        // 가까운(22m) 살아 있는 좀비 하나가 가끔씩 운다. 많을수록 자주 (최대 0.8초에 한 번).
+        private void WatchZombies()
+        {
+            float now = Time.unscaledTime;
+            if (now >= _nextMonsterScan)
+            {
+                _nextMonsterScan = now + 2f;
+                _monsters.Clear();
+                _monsters.AddRange(FindObjectsByType<LastTruck.Networking.NetworkMonster>(FindObjectsSortMode.None));
+            }
+            if (now < _nextGrowl) return;
+
+            Camera cam = Camera.main;
+            if (cam == null) { _nextGrowl = now + 1f; return; }
+            Vector3 ear = cam.transform.position;
+
+            int near = 0;
+            LastTruck.Networking.NetworkMonster pick = null;
+            foreach (LastTruck.Networking.NetworkMonster m in _monsters)
+            {
+                if (m == null || m.Object == null || !m.Object.IsValid) continue;
+                if ((m.transform.position - ear).sqrMagnitude > 22f * 22f) continue;
+                NetworkHealthCheck(m, out bool dead);
+                if (dead) continue;
+                near++;
+                if (Random.Range(0, near) == 0) pick = m;   // 가까운 것 중 아무거나 하나
+            }
+            if (pick == null) { _nextGrowl = now + 1f; return; }
+
+            float size = pick.TierSize > 0.01f ? pick.TierSize : 1f;
+            Sfx.PlayAt("zombie", pick.transform.position, 1f, Mathf.Clamp(1.15f - (size - 1f) * 0.35f, 0.7f, 1.2f), 0.3f);   // 큰 놈은 낮게
+            _nextGrowl = now + Mathf.Max(0.8f, Random.Range(2.5f, 5f) / Mathf.Sqrt(near));
+        }
+
+        private static void NetworkHealthCheck(LastTruck.Networking.NetworkMonster m, out bool dead)
+        {
+            var h = m.GetComponent<LastTruck.Networking.NetworkHealth>();
+            dead = h != null && h.IsDead;
         }
 
         // ───────────────────────── 버튼 클릭 ─────────────────────────
@@ -114,7 +160,9 @@ namespace LastTruck.Audio
             if (open != _uiWasOpen)
             {
                 _uiWasOpen = open;
-                Sfx.Play(open ? "ui_open" : "ui_close");
+                // 가방 여는 소리. 닫을 땐 같은 소리를 조금 낮고 작게
+                if (open) Sfx.Play("ui_open");
+                else Sfx.Play("ui_open", 0.65f, 0.85f);
             }
 
             // 가방 개수가 늘었다
@@ -198,7 +246,7 @@ namespace LastTruck.Audio
 
         // ───────────────────────── 발소리 ─────────────────────────
 
-        private class Walker { public Vector3 last; public float dist; public bool init; }
+        private class Walker { public Vector3 last; public float dist, speed; public bool init; }
         private readonly Dictionary<Transform, Walker> _walkers = new Dictionary<Transform, Walker>();
         private readonly List<Transform> _gone = new List<Transform>();
 
@@ -206,6 +254,7 @@ namespace LastTruck.Audio
         {
             float dt = Time.deltaTime;
             if (dt <= 0f) return;
+            bool localRunning = false;
 
             foreach (LastTruck.Networking.NetworkPlayer p in LastTruck.Networking.NetworkPlayer.All)
             {
@@ -218,9 +267,15 @@ namespace LastTruck.Audio
                 Vector3 d = pos - w.last;
                 w.last = pos;
                 float flat = new Vector2(d.x, d.z).magnitude;
-                float speed = flat / dt;
+                // 한 프레임 속도는 들쭉날쭉해서 부드럽게 (달리기 소리가 깜빡이지 않게)
+                w.speed = Mathf.Lerp(w.speed, flat / dt, 1f - Mathf.Exp(-dt * 10f));
+                float speed = w.speed;
                 // 트럭에 타서 실려 가거나 순간이동한 건 걸음이 아니다
                 if (speed < 1.2f || speed > 11.5f || Mathf.Abs(d.y) / dt > 6f) { w.dist = Mathf.Min(w.dist, 0.4f); continue; }
+
+                // 내 캐릭터가 달리는 중(Shift)이면 걸음 하나하나 대신 달리기 소리를 이어서 튼다
+                bool mine = _inv != null && p.GetComponent<PlayerInventory>() == _inv;
+                if (mine && speed > 8f) { localRunning = true; w.dist = 0f; continue; }
 
                 w.dist += flat;
                 float stride = speed > 8f ? 1.9f : 1.45f;   // 달리면 보폭이 길다
@@ -230,6 +285,8 @@ namespace LastTruck.Audio
                     Sfx.PlayAt("footstep", pos, speed > 8f ? 1f : 0.8f, 1f, 0f);
                 }
             }
+
+            Sfx.Loop("run_loop", localRunning);
 
             _gone.Clear();
             foreach (var kv in _walkers) if (kv.Key == null) _gone.Add(kv.Key);

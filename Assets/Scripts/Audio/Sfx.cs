@@ -19,15 +19,22 @@ namespace LastTruck.Audio
         // 묶음별 기본 크기 (팩마다 녹음 크기가 달라서 귀로 맞춘 값이 아니라 대략 맞춘 값)
         private static readonly Dictionary<string, float> BaseVolume = new Dictionary<string, float>
         {
-            { "ui_click", 0.45f }, { "ui_switch", 0.35f }, { "ui_open", 0.4f }, { "ui_close", 0.35f },
+            { "ui_click", 0.55f }, { "ui_switch", 0.35f }, { "ui_open", 0.55f },
             { "quest_open", 0.7f }, { "quest_flip", 0.65f }, { "quest_close", 0.55f },
-            { "pickup", 0.55f }, { "craft", 0.6f }, { "coins", 0.6f },
+            { "pickup", 0.55f }, { "craft", 0.5f }, { "coins", 0.6f }, { "notify_done", 0.7f },
             { "equip_blade", 0.45f }, { "equip_tool", 0.45f },
-            { "swing_blade", 0.5f }, { "swing_light", 0.45f },
-            { "hit_flesh", 0.75f }, { "hit_heavy", 0.85f }, { "kill", 0.8f },
-            { "gather_rock", 0.7f }, { "gather_wood", 0.7f },
+            { "swing_blade", 0.7f }, { "swing_light", 0.45f },
+            { "hit_flesh", 0.6f }, { "hit_heavy", 0.85f }, { "kill", 0.8f },
+            { "gather_rock", 0.8f }, { "gather_wood", 0.7f }, { "gather_plant", 0.8f },
             { "truck_hit", 0.7f }, { "truck_repair", 0.55f },
-            { "footstep", 0.28f }, { "bell", 0.75f },
+            { "footstep", 0.28f }, { "run_loop", 0.45f }, { "bell", 0.75f }, { "zombie", 0.7f },
+        };
+
+        // 파일 하나하나의 크기 보정 (같은 묶음 안에서 유난히 작은 녹음). 불러올 때 소리 자체를 키운다.
+        //  실측 최대치: grass 0.08 / done_c 0.26 / notify_b 0.75
+        private static readonly Dictionary<string, float> ClipGain = new Dictionary<string, float>
+        {
+            { "grass", 8f }, { "done_c", 3f }, { "notify_b", 1.3f },
         };
 
         private static readonly Dictionary<string, AudioClip[]> _clips = new Dictionary<string, AudioClip[]>();
@@ -43,6 +50,7 @@ namespace LastTruck.Audio
         {
             _clips.Clear(); _last.Clear(); _lastTime.Clear();
             _pool = null; _host = null; _next = 0; _volume = -1f;
+            _loop = null; _loopGroup = null; _loopTarget = 0f; _loopLevel = 0f;
         }
 
         public static float Volume
@@ -121,6 +129,7 @@ namespace LastTruck.Audio
             if (!_clips.TryGetValue(group, out AudioClip[] list))
             {
                 list = Resources.LoadAll<AudioClip>(Folder + group);
+                for (int k = 0; k < list.Length; k++) list[k] = Prepare(list[k]);
                 _clips[group] = list;
                 if (list.Length == 0) Debug.LogWarning("[Sfx] 소리 묶음이 비어 있어요: " + group);
             }
@@ -133,6 +142,83 @@ namespace LastTruck.Audio
             else { i = Random.Range(0, list.Length - 1); if (i >= prev) i++; }   // 방금 낸 소리는 건너뛴다
             _last[group] = i;
             return list[i];
+        }
+
+        /// <summary>
+        /// 짧은 소리를 불러올 때 한 번만 손질한다:
+        ///  - 앞쪽 무음을 잘라낸다 (예: 칼 공격 파일은 1.1초 조용하다가 소리가 나서, 휘두른 뒤 한참 늦게 들렸다)
+        ///  - ClipGain 에 있는 파일은 소리 자체를 키운다 (최대 0.95에서 멈춤)
+        /// 원본 에셋은 건드리지 않고 메모리 안에서 새 클립을 만든다.
+        /// </summary>
+        private static AudioClip Prepare(AudioClip clip)
+        {
+            if (clip == null || clip.loadType != AudioClipLoadType.DecompressOnLoad || clip.length > 8f) return clip;
+            try
+            {
+                if (clip.loadState != AudioDataLoadState.Loaded) clip.LoadAudioData();
+                int ch = clip.channels, hz = clip.frequency;
+                var data = new float[clip.samples * ch];
+                if (!clip.GetData(data, 0)) return clip;
+
+                int first = 0;
+                while (first < data.Length && Mathf.Abs(data[first]) < 0.03f) first++;
+                first = Mathf.Max(0, first - hz * ch / 100);   // 소리 시작 10ms 앞에서 자른다
+                first -= first % ch;
+                float gain = ClipGain.TryGetValue(clip.name, out float g) ? g : 1f;
+                if (first < hz * ch / 50 && Mathf.Approximately(gain, 1f)) return clip;   // 20ms 미만 무음 + 보정 없음 → 그대로
+
+                int len = data.Length - first;
+                if (len <= ch) return clip;
+                var cut = new float[len];
+                for (int i = 0; i < len; i++) cut[i] = Mathf.Clamp(data[first + i] * gain, -0.95f, 0.95f);
+                AudioClip made = AudioClip.Create(clip.name, len / ch, ch, hz, false);
+                made.SetData(cut, 0);
+                return made;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("[Sfx] 소리 손질 실패 " + clip.name + ": " + e.Message);
+                return clip;
+            }
+        }
+
+        // ───────── 반복 소리 (달리기처럼 켜고 끄는 소리) ─────────
+
+        private static AudioSource _loop;
+        private static string _loopGroup;
+        private static float _loopTarget, _loopLevel;
+
+        /// <summary>on이면 그 묶음을 반복 재생, off면 서서히 줄여 멈춘다. 매 프레임 불러도 된다.</summary>
+        public static void Loop(string group, bool on)
+        {
+            if (!Application.isPlaying) return;
+            if (on && (_loop == null || _loopGroup != group))
+            {
+                AudioClip clip = Pick(group);
+                if (clip == null) return;
+                if (_loop == null)
+                {
+                    NextSource();   // 풀/호스트 준비
+                    var go = new GameObject("Loop");
+                    go.transform.SetParent(_host.transform, false);
+                    _loop = go.AddComponent<AudioSource>();
+                    _loop.playOnAwake = false;
+                    _loop.loop = true;
+                    _loop.spatialBlend = 0f;
+                    _loop.volume = 0f;
+                }
+                _loop.clip = clip;
+                _loopGroup = group;
+                _loopLevel = 0f;
+            }
+            if (_loop == null) return;
+
+            _loopTarget = on ? 1f : 0f;
+            _loopLevel = Mathf.MoveTowards(_loopLevel, _loopTarget, Time.unscaledDeltaTime / (on ? 0.15f : 0.3f));
+            float baseVol = BaseVolume.TryGetValue(_loopGroup, out float b) ? b : 0.5f;
+            _loop.volume = Volume * baseVol * _loopLevel;
+            if (_loopLevel > 0.001f && !_loop.isPlaying) _loop.Play();
+            else if (_loopLevel <= 0.001f && _loop.isPlaying) _loop.Pause();
         }
 
         private static AudioSource NextSource()
