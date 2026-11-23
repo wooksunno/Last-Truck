@@ -1735,6 +1735,7 @@ MonoBehaviour:
   jumpRiseGravity: 2.6
   jumpFallGravity: 3.6
   jumpStateName: Jumping Up
+  applyLoadSlowdown: 0
   loadFreeItems: 10
   fullLoadSpeedMultiplier: 0.8
   sprintMultiplier: 1.6
@@ -1757,6 +1758,7 @@ MonoBehaviour:
   interactKey: 101
   gatherPunchInterval: 0.6
   gatherPickaxeInterval: 0.7
+  gatherPluckInterval: 0.75
 --- !u!114 &-764989210585237779
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1769,8 +1771,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 856eb99757da0c449bd690c02fdb4dac, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CraftingSystem.PlayerInventory
-  maxSlots: 4
   rawStackLimit: 20
+  truckAutoStoreRange: 18
   grantStarterItems: 0
   inventory:
     maxSlots: 32
@@ -1815,7 +1817,7 @@ MonoBehaviour:
   aimArmExtension: 0.8
   aimTorsoTwist: 60
   aimBlendTime: 0.15
-  rifleHeldPrefab: {fileID: 7303979588510500063, guid: f067f3f223312f94b811e3f543d78187, type: 3}
+  rifleHeldPrefab: {fileID: 1054422817188675615, guid: b93a6eca849b9114d8b1d5bb9682bdd5, type: 3}
   bulletPrefab: {fileID: 8284179023095087468, guid: f64da22345d982648955f8310811656f, type: 3}
   bulletSpeed: 90
   rifleTorsoTwist: 50
@@ -1846,15 +1848,15 @@ MonoBehaviour:
     casing: 0
     facesPlusZ: 0
   - itemId: vibration_blade
-    prefab: {fileID: 919132149155446097, guid: c85b70d5b9e5dda4d91f7d8ad5b574db, type: 3}
+    prefab: {fileID: 919132149155446097, guid: d3e6ee3bb8f07764cad1ef9273c20761, type: 3}
     localPosition: {x: 0, y: 0, z: 0}
     localEuler: {x: 0, y: 0, z: 0}
-    scale: 1.15
+    scale: 0.82
     isGun: 0
     casing: 0
     facesPlusZ: 0
   - itemId: wood_spear
-    prefab: {fileID: 919132149155446097, guid: 513bc70d3ef780943a201812e5d0aa8a, type: 3}
+    prefab: {fileID: 6712166364792762080, guid: 2255eebcde8a4904abeac3b7fc636b4f, type: 3}
     localPosition: {x: 0, y: 0, z: 0}
     localEuler: {x: 0, y: 0, z: 0}
     scale: 1
@@ -1862,29 +1864,29 @@ MonoBehaviour:
     casing: 0
     facesPlusZ: 0
   - itemId: pistol
-    prefab: {fileID: 919132149155446097, guid: b590ce5c19dad7d45b164a9b956e0d02, type: 3}
-    localPosition: {x: 0, y: 0.03, z: 0.1}
+    prefab: {fileID: 933509007188337868, guid: 4abce5c1fa0d79345a3d203b3f7ac3bb, type: 3}
+    localPosition: {x: 0, y: 0.03, z: 0.05}
     localEuler: {x: 0, y: 0, z: 0}
     scale: 1
     isGun: 1
     casing: 1
-    facesPlusZ: 0
+    facesPlusZ: 1
   - itemId: ak47
-    prefab: {fileID: 919132149155446097, guid: f9db856176e3d3749a175be33539dc4b, type: 3}
-    localPosition: {x: 0, y: 0.03, z: 0.1}
+    prefab: {fileID: 4126581263423527315, guid: 5f48bd5304b7eb042911d49fb91a2ff3, type: 3}
+    localPosition: {x: 0, y: 0.03, z: 0.05}
     localEuler: {x: 0, y: 0, z: 0}
     scale: 1
     isGun: 1
     casing: 2
-    facesPlusZ: 0
+    facesPlusZ: 1
   - itemId: shredder_drill_launcher
-    prefab: {fileID: 919132149155446097, guid: 109dc06e76a9f9e4ea506f0800eb92f8, type: 3}
-    localPosition: {x: 0, y: 0.03, z: 0.1}
+    prefab: {fileID: 8759327486689990424, guid: caa9d1739c99d0544a81f29f6427107a, type: 3}
+    localPosition: {x: 0, y: 0.03, z: 0.05}
     localEuler: {x: 0, y: 0, z: 0}
     scale: 1
     isGun: 1
     casing: 0
-    facesPlusZ: 0
+    facesPlusZ: 1
   - itemId: iron_field_cannon
     prefab: {fileID: 919132149155446097, guid: c51bf746c84622c46b1a136133213522, type: 3}
     localPosition: {x: 0, y: 0.03, z: 0.1}

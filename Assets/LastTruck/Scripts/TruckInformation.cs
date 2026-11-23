@@ -32,7 +32,7 @@ namespace LastTruck
 
         void Start()
         {
-            curDurability = Mathf.Max(1f, maxDurability - startingDamage);
+            curDurability = maxDurability;   // 처음부터 내구도 100%로 시작한다 (예전 startingDamage 60 → 40%는 혼자 할 때 너무 빠듯했다)
             OnDurabilityChanged?.Invoke(curDurability, maxDurability);
         }
 

@@ -104,6 +104,26 @@ namespace LastTruck.Networking
         private float _stunUntil;
         private float _stunImmuneUntil;
         private Vector3 _knock;   // 넉백 속도 (호스트, 맞으면 때린 쪽 반대로 잠깐 밀린다)
+
+        // ---- 동굴 잠복 좀비 (CaveLurkers가 만든다): 제자리에 있다가 가까이 오면 쫓아오고, 너무 멀리 끌려가면 돌아간다
+        private const float LurkDetect = 14f, LurkLose = 28f, LurkLeash = 45f;
+        /// <summary>동굴 잠복 좀비인가 (트럭을 노리지 않고, 아침 정리에도 지워지지 않는다).</summary>
+        [Networked] public NetworkBool Lurker { get; private set; }
+        private Vector3 _home;
+        private float _lurkCalmUntil;
+
+        /// <summary>호스트: 동굴 잠복 좀비로 만든다. speed > 0이면 그 속도로 달린다 (뛰는 좀비).</summary>
+        public void HostMakeLurker(Vector3 home, float speed)
+        {
+            if (!HasStateAuthority) return;
+            Lurker = true;
+            _home = home;
+            if (speed > 0f && _agent != null)
+            {
+                _agent.speed = speed;
+                _agent.acceleration = Mathf.Max(_agent.acceleration, speed * 4f);
+            }
+        }
         private float _hitDelay;
         private float _attackDuration;
         private float _shownSpeed;
@@ -382,7 +402,7 @@ namespace LastTruck.Networking
             if (dir.sqrMagnitude < 0.0001f) dir = -transform.forward;
             // 약한 연사(총)는 살짝, 묵직한 한 방(도끼/전투 도끼)은 크게: 10피해 ≈ 0.1m, 25 ≈ 0.27m, 42 ≈ 0.55m
             float strength = Mathf.Clamp(1.5f + amount * 0.12f, 1.5f, 8f);
-            if (TierSize > 1.01f) strength /= TierSize * 1.6f;   // 중간보스는 묵직하게
+            if (TierSize > 1.5f) strength /= TierSize * 1.6f;   // 중간보스(몸집 2배)만 묵직하게 (일반 좀비도 1.18배라 1.01 기준이면 다 덜 밀렸다)
             _knock = dir.normalized * Mathf.Max(_knock.magnitude, strength);
         }
 
@@ -532,23 +552,32 @@ namespace LastTruck.Networking
             Vector3 position = transform.position;
 
             // 타겟터: 트럭이 멀쩡하면 플레이어를 무시하고 트럭만 노린다.
-            if (_type != null && _type.prefersTruck && _truck != null && !_truck.IsBroken)
+            if (!Lurker && _type != null && _type.prefersTruck && _truck != null && !_truck.IsBroken)
             {
                 _targetPlayer = null;
                 return;
             }
 
+            // 동굴 잠복 좀비: 집에서 너무 멀리 끌려 나왔으면 포기하고 돌아간다 (잠깐은 다시 쫓지 않는다)
+            if (Lurker && _targetPlayer != null && HorizontalDistance(_home, position) > LurkLeash)
+            {
+                _targetPlayer = null;
+                _lurkCalmUntil = Time.time + 4f;
+            }
+            if (Lurker && Time.time < _lurkCalmUntil) return;
+            float lose = Lurker ? LurkLose : loseRange;
+
             // 쫓던 플레이어 유지 여부
             if (_targetPlayer != null)
             {
                 bool keep = _targetPlayer.IsAlive && !_targetPlayer.IsSeated &&
-                            HorizontalDistance(position, _targetPlayer.transform.position) <= loseRange;
+                            HorizontalDistance(position, _targetPlayer.transform.position) <= lose;
                 if (!keep) _targetPlayer = null;
             }
 
             // 인식 범위 안의 가장 가까운 플레이어 (쫓던 사람보다 더 가까운 사람이 있으면 바꾼다)
             NetworkPlayer nearest = null;
-            float nearestDistance = detectionRange;
+            float nearestDistance = Lurker ? LurkDetect : detectionRange;
             IReadOnlyList<NetworkPlayer> players = NetworkPlayer.All;
             for (int i = 0; i < players.Count; i++)
             {
@@ -616,6 +645,12 @@ namespace LastTruck.Networking
             if (_targetPlayer != null)
             {
                 destination = _targetPlayer.transform.position;
+            }
+            else if (Lurker)
+            {
+                // 잠복 좀비: 쫓을 사람이 없으면 제자리(집)로 돌아가 멈춰 선다
+                if (HorizontalDistance(transform.position, _home) < 1.5f) { _agent.isStopped = true; return; }
+                destination = _home;
             }
             else if (_truck != null)
             {

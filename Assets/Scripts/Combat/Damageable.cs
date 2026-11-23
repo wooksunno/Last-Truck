@@ -251,6 +251,10 @@ namespace Combat
         {
             SpawnDamagePopup(hitPoint, amount);
             HitFeel.Punch(gameObject, Mathf.Clamp01(amount / 40f));   // 몸이 순간 납작해졌다 튕겨 돌아온다
+            // 타격음: 플레이어가 맞으면 묵직하게, 몬스터는 세게 맞을수록 묵직한 소리
+            bool isPlayer = GetComponent<LastTruck.Networking.NetworkPlayer>() != null;
+            LastTruck.Audio.Sfx.PlayAt(isPlayer || amount >= 30 ? "hit_heavy" : "hit_flesh", hitPoint,
+                                       Mathf.Clamp(0.7f + amount / 60f, 0.7f, 1f), isPlayer ? 0.9f : 1f, 0.03f);
 
             if (_flashRoutine != null)
             {
@@ -345,6 +349,7 @@ namespace Combat
             if (GetComponent<LastTruck.Networking.NetworkPlayer>() != null) return;   // 플레이어 기절에는 쓰지 않는다
             float size = Mathf.Max(transform.lossyScale.x, transform.lossyScale.y);
             HitFeel.KillBurst(transform.position, size);
+            LastTruck.Audio.Sfx.PlayAt("kill", transform.position, 1f, size > 1.5f ? 0.75f : 1f, 0.05f);   // 큰 놈은 더 낮고 무겁게
             Camera cam = Camera.main;
             if (cam != null && (cam.transform.position - transform.position).sqrMagnitude < 30f * 30f)
                 CameraShake.Shake(size > 1.5f ? 0.45f : 0.18f);

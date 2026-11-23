@@ -263,6 +263,7 @@ namespace Combat
 
             PlantWobble.Wobble(best.Root, transform.position);
             ActionFx.Leaves(best.Root.transform.position + Vector3.up * 0.3f, best.ItemId, 4);
+            LastTruck.Audio.Sfx.PlayAt("swing_light", best.Root.transform.position, 0.9f, 1.25f, 0.05f);   // 풀이 바스락
         }
 
         public static bool IsPickaxe(string itemId) =>
@@ -354,14 +355,23 @@ namespace Combat
                     if (d < oreDist) { oreDist = d; ore = node; }
                 }
                 if (ore != null)
+                {
                     TreeShake.Shake(ore.gameObject, ore.transform.position, me, rockShakeAmplitudeScale, rockShakeFrequencyScale);
+                    LastTruck.Audio.Sfx.PlayAt("gather_rock", targetPosition, 1f, 1.05f, 0.05f);
+                }
                 yield break;
             }
 
             if (best.ItemId == ItemIds.Wood)
+            {
                 TreeShake.Shake(best.Root, best.transform.position, me);
+                LastTruck.Audio.Sfx.PlayAt("gather_wood", targetPosition, 1f, 1f, 0.05f);
+            }
             else
+            {
                 TreeShake.Shake(best.Root, best.Root.transform.position, me, rockShakeAmplitudeScale, rockShakeFrequencyScale);
+                LastTruck.Audio.Sfx.PlayAt("gather_rock", targetPosition, 1f, 0.95f, 0.05f);
+            }
         }
 
         private bool PlayAttackAnim(string trigger)
@@ -373,6 +383,11 @@ namespace Combat
             if (!_remoteView) AttackAnimPlayed?.Invoke(trigger);
             _attackLayerHoldUntil = Time.time + 0.25f;     // 전이가 시작될 때까지 레이어를 켜 둔다
             _animator.SetTrigger(trigger);
+            // 휘두르는 소리 (총 쏘는 동작에는 내지 않는다 - 총소리는 따로)
+            if (trigger == "AtkSlash" || trigger == "AtkStab" || trigger == "AtkChop")
+                LastTruck.Audio.Sfx.PlayAt("swing_blade", transform.position, 1f, trigger == "AtkChop" ? 0.85f : 1f, 0.05f);
+            else if (trigger == "AtkPunch" || trigger == "AtkThrow")
+                LastTruck.Audio.Sfx.PlayAt("swing_light", transform.position, 1f, 1.1f, 0.05f);
             return true;
         }
 

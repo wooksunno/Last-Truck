@@ -47,6 +47,8 @@ namespace CraftingSystem
         [SerializeField] private Camera targetCamera;
         [Tooltip("게임 시작 시 깎아둘 체력(회복 아이템 테스트용).")]
         [SerializeField] private float startingDamage = 30f;
+        [Tooltip("켜면 시작할 때 startingDamage만큼 체력을 깎는다 (회복 아이템 테스트용). 기본은 꺼짐 = 체력 100으로 시작.")]
+        [SerializeField] private bool applyStartingDamage;
 
         private PlayerInventory _inventory;
         private LastTruck.PlayerStats _stats;
@@ -78,7 +80,7 @@ private System.Collections.IEnumerator ApplyStartingDamage()
             // PlayerStats.Start()가 체력을 최대로 채운 뒤에 깎아야 하므로 한 프레임 기다린다.
             yield return null;
 
-            if (_stats == null || startingDamage <= 0f)
+            if (_stats == null || startingDamage <= 0f || !applyStartingDamage)   // 시작 체력은 기본으로 가득
                 yield break;
 
             // 멀티플레이: 체력은 호스트(NetworkHealth)가 관리한다. 여기서 내 화면 값만 깎으면 호스트는 체력이 가득 찬 상태라

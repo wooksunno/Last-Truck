@@ -238,6 +238,8 @@ namespace LastTruck
             _flashReward = reward;
             _flashUntil = Time.unscaledTime + 4f;
             int done = _index;
+            LastTruck.Audio.Sfx.Play("coins", 1f, 1f, 0.3f);           // 달성: 동전 짤랑
+            LastTruck.Audio.Sfx.Play("quest_flip", 0.8f, 1.1f, 0.3f);  // + 다음 임무로 책장 넘김
             // HUD가 있으면 도전과제 알림이 뜬다. 없을 때만 아래쪽 토스트로 알린다
             if (!LastTruckHud.IsReady)
                 HudToast.Show("도전과제 달성: " + m.title + (string.IsNullOrEmpty(reward) ? "" : "  →  보상 " + reward));

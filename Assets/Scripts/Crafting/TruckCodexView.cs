@@ -28,14 +28,24 @@ namespace CraftingSystem
         static readonly Color DarkText = new Color(0.22f, 0.19f, 0.16f, 1f);
 
         // ---------- 분류 ----------
-        public static readonly string[] CategoryNames = { "원재료", "가공 재료", "도구", "무기", "설비", "트럭 강화", "음식", "소모품" };
+        public static readonly string[] CategoryNames = { "원재료", "가공 재료", "도구", "무기", "설비", "트럭 강화", "음식", "소모품", "장비" };
         public static readonly Color[] CategoryColors =
         {
             new Color(0.45f, 0.82f, 0.66f), new Color(0.96f, 0.78f, 0.40f), new Color(0.50f, 0.74f, 0.96f), new Color(0.96f, 0.55f, 0.50f),
             new Color(0.70f, 0.62f, 0.96f), new Color(0.98f, 0.66f, 0.34f), new Color(0.96f, 0.68f, 0.86f), new Color(0.55f, 0.86f, 0.90f),
+            new Color(0.84f, 0.75f, 0.55f),
         };
 
-        const int FoodCategory = 6, ConsumableCategory = 7;
+        const int FoodCategory = 6, ConsumableCategory = 7, GearCategory = 8;
+
+        /// <summary>장비: 가방에 넣어 두기만 하면 효과가 나는 착용품 (갑옷/장갑/배낭/랜턴). 갑옷 끼는 법을 몰라서 따로 모았다.</summary>
+        static readonly HashSet<string> GearIds = new HashSet<string>
+        {
+            ItemIds.LeatherArmor, ItemIds.IronPlateArmor, ItemIds.AlloyPlateArmor, ItemIds.LeatherGloves,
+            ItemIds.LeatherPouchBackpack, ItemIds.Lantern, ItemIds.Binoculars,
+        };
+        // 탈출 부품은 트럭에 싣는 물건이라 트럭 분류로
+        static readonly HashSet<string> EscapeIds = new HashSet<string> { ItemIds.EscapeEngineCore, ItemIds.EscapeFuelTank, ItemIds.EscapeBeacon };
 
         static readonly HashSet<string> WeaponIds = new HashSet<string>
         {
@@ -47,6 +57,9 @@ namespace CraftingSystem
         static readonly HashSet<string> FoodIds = new HashSet<string>
         {
             ItemIds.Steak, ItemIds.GrilledFood, ItemIds.Jerky, ItemIds.HerbPorridge, ItemIds.HeartyStew,
+            // 먹을 수 있는 것 + 요리 재료는 모두 음식으로 (예전에는 고기 하나만 원재료 칸에 덩그러니 있었다)
+            ItemIds.CactusSteak, ItemIds.CactusJuice, ItemIds.GrassPorridge, ItemIds.DesertStew,
+            ItemIds.Meat, ItemIds.Fish, ItemIds.RottenMeat,
         };
         static readonly HashSet<string> FacilityIds = new HashSet<string>
         {
@@ -74,6 +87,7 @@ namespace CraftingSystem
         {
             ItemIds.Wood, ItemIds.Iron, ItemIds.StonePickaxe, ItemIds.Ak47,
             ItemIds.Campfire, ItemIds.TruckCompositeArmor, ItemIds.Steak, ItemIds.EmergencyRevivalKit,
+            ItemIds.LeatherArmor,
         };
 
         /// <summary>분류 이름("원재료" 등)에 해당하는 대표 아이템 그림 (분류 이름이 아니거나 그림이 없으면 null).</summary>
@@ -99,7 +113,8 @@ namespace CraftingSystem
             string id = it.itemID ?? "";
             if (WeaponIds.Contains(id)) return 3;
             if (FacilityIds.Contains(id)) return 4;
-            if (TruckIds.Contains(id)) return 5;
+            if (TruckIds.Contains(id) || EscapeIds.Contains(id)) return 5;
+            if (GearIds.Contains(id)) return GearCategory;
             if (FoodIds.Contains(id)) return FoodCategory;
             if (AmmoIds.Contains(id)) return ConsumableCategory;
             switch (it.itemType)

@@ -35,6 +35,7 @@ namespace LastTruck
         private float[] _pop;
         private float _cardIntro;
         private bool _cardOpen;               // 카드가 열려 있는가
+        private bool _cardWasOpen;            // 지난 프레임 (열고 닫는 소리용)
         private bool _pinned;                 // K 키로 열어 둔 상태
         private float _peekUntil;             // 낮/밤이 바뀔 때 이 시각까지 자동으로 열려 있다
         private float _objFx = 1f, _flashFx = 1f;
@@ -464,6 +465,9 @@ namespace LastTruck
                 if (end > 0) { tag = beat.Substring(1, end - 1); text = beat.Substring(end + 1).Trim(); }
             }
             _journal = tag == "일지";
+            // 일지는 책장 넘기는 소리, 무전은 딸깍 하고 켜지는 소리
+            if (_journal) LastTruck.Audio.Sfx.Play("quest_flip", 0.9f, 1.05f, 0.3f);
+            else LastTruck.Audio.Sfx.Play("ui_switch", 1f, 0.9f, 0.3f);
             _speaker.text = _journal ? "생존 일지" : "관제소 무전";
             _speaker.style.color = _journal ? new Color(0.9f, 0.82f, 0.62f, 1f) : Gold;
 
@@ -483,6 +487,7 @@ namespace LastTruck
             _condTitle.text = text;
             if (flash)
             {
+                LastTruck.Audio.Sfx.Play("quest_flip", 1f, 1f, 0.3f);   // 새 임무: 책장 넘기는 소리
                 _objFx = 0f;
                 _flashFx = 0f;
                 SetFlashColor(new Color(1f, 0.95f, 0.8f, 1f));
@@ -533,6 +538,13 @@ namespace LastTruck
             _accent.style.backgroundColor = accent;
 
             _cardOpen = _pinned || now < _peekUntil;
+
+            // 임무 카드 소리: 펼칠 때 책 펴는 소리, 접을 때 책 덮는 소리 (트럭/배낭 창에 가려 있을 땐 조용히)
+            if (_cardOpen != _cardWasOpen)
+            {
+                _cardWasOpen = _cardOpen;
+                if (!_suppressCard) LastTruck.Audio.Sfx.Play(_cardOpen ? "quest_open" : "quest_close", 1f, 1f, 0.2f);
+            }
 
             // 열 때: 왼쪽에서 튀어 들어온다 (살짝 넘쳤다가 자리 잡는다). 닫을 때: 왼쪽으로 빠져나간다.
             _cardIntro = _cardOpen ? Mathf.Min(1f, _cardIntro + dt / 0.75f) : Mathf.Max(0f, _cardIntro - dt / 0.35f);

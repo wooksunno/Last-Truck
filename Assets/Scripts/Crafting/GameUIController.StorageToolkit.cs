@@ -276,6 +276,8 @@ namespace CraftingSystem
                 ItemData item = sel.output.item;
                 m.item = item;
                 m.subtitle = TruckCodexView.CategoryNames[TruckCodexView.CategoryOf(item)] + "  ·  결과 ×" + Mathf.Max(1, sel.output.count);
+                string use = ItemUseHints.For(item);   // 만들기 전에 쓰는 법을 미리 (갑옷 = 가방에 있으면 자동 착용 등)
+                if (!string.IsNullOrEmpty(use) && TruckCodexView.CategoryOf(item) >= 2) m.subtitle += "\n" + use;
                 foreach (RecipeIngredient ing in sel.inputs)
                 {
                     if (ing == null || ing.item == null || ing.count <= 0) continue;

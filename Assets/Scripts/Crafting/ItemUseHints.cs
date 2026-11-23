@@ -1,3 +1,5 @@
+using UnityEngine;
+
 namespace CraftingSystem
 {
     /// <summary>
@@ -19,8 +21,13 @@ namespace CraftingSystem
             if (id == ItemIds.Lantern) return "가방에 있기만 하면 허리에 달려 주변을 밝혀요";
             if (id == ItemIds.Binoculars) return "오른쪽 클릭 꾹 · 멀리 보기";
             if (id == ItemIds.FishingRod) return "물가에서 왼쪽 클릭 · 낚싯대 던지기";
-            if (id == ItemIds.LeatherArmor || id == ItemIds.IronPlateArmor || id == ItemIds.AlloyPlateArmor)
-                return "가방에 있기만 하면 입은 것으로 쳐요 (받는 피해 감소)";
+            int armor = PlayerArmor.TierOfItem(id);
+            if (armor > 0)
+            {
+                float sp = PlayerArmor.SpeedScaleOfTier(armor);
+                return "따로 입을 필요 없이 가방이나 배낭에 있으면 자동 착용 · 받는 피해 -" + Mathf.RoundToInt(PlayerArmor.ReductionOfTier(armor) * 100f) + "%"
+                       + (sp < 0.999f ? " · 이동 -" + Mathf.RoundToInt((1f - sp) * 100f) + "%" : "");
+            }
             if (id == ItemIds.EmergencyPatchBoard || id == ItemIds.WeldingKit || id == ItemIds.HighTensionRepairPack)
                 return "부서진 트럭 옆에서 E 꾹 · 트럭 수리";
             if (TrapController.IsPlaceable(id)) return "E 꾹 · 발밑/앞에 설치";

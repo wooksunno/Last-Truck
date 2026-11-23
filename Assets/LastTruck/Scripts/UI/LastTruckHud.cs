@@ -316,7 +316,42 @@ namespace LastTruck
             track.Add(shine);
             _hpOverhead.Add(track);
 
+            // 갑옷: 방패 그림 + 감소율 (갑옷이 없으면 숨김). 갑옷은 가방/배낭에 있기만 하면 자동으로 입는다.
+            _armorBadge = new VisualElement { pickingMode = PickingMode.Ignore };
+            _armorBadge.style.position = Position.Absolute;
+            _armorBadge.style.left = 172; _armorBadge.style.top = 2;
+            _armorBadge.style.flexDirection = FlexDirection.Row;
+            _armorBadge.style.alignItems = Align.Center;
+            VisualElement shield = MakeIcon("shield", 26f);
+            if (shield != null) { shield.style.unityBackgroundImageTintColor = new Color(0.7f, 0.85f, 1f); _armorBadge.Add(shield); }
+            _armorText = MakeLabel("", "lt-text");
+            _armorText.style.fontSize = 17;
+            _armorText.style.color = new Color(0.75f, 0.88f, 1f);
+            _armorText.style.marginLeft = 2;
+            _armorBadge.Add(_armorText);
+            _armorBadge.style.display = DisplayStyle.None;
+            _hpOverhead.Add(_armorBadge);
+
             root.Add(_hpOverhead);
+        }
+
+        private VisualElement _armorBadge;
+        private Label _armorText;
+        private int _shownArmorTier = -1;
+
+        /// <summary>체력 막대 옆 갑옷 표시 + 처음 입는 순간(더 좋은 갑옷으로 바뀐 순간) 알림.</summary>
+        private void UpdateArmorBadge()
+        {
+            if (_armorBadge == null) return;
+            int tier = _stats != null ? CraftingSystem.PlayerArmor.LocalTier : 0;
+            if (tier != _shownArmorTier)
+            {
+                if (_shownArmorTier >= 0 && tier > _shownArmorTier)
+                    HudToast.Show("갑옷 착용! " + CraftingSystem.PlayerArmor.LocalSummary + "  (가방이나 배낭에 있으면 자동으로 입어요)");
+                _shownArmorTier = tier;
+                _armorBadge.style.display = tier > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+                if (tier > 0) _armorText.text = "-" + Mathf.RoundToInt(CraftingSystem.PlayerArmor.ReductionOfTier(tier) * 100f) + "%";
+            }
         }
 
         /// <summary>기존 낮/밤 시계(반원 눈금판): 미니맵 왼쪽. 위쪽 가운데 모래시계 판과 함께 보인다.</summary>
@@ -485,6 +520,7 @@ namespace LastTruck
 
             UpdateStatus();
             UpdateHpOverhead();
+            UpdateArmorBadge();
             UpdateDial();
             if (_weatherKit != null) _weatherKit.Tick();
             if (_achievements != null) _achievements.Tick();

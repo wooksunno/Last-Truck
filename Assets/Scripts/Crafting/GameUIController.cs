@@ -2199,7 +2199,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             if (EnsureToolkitWindow())
             {
                 m.listTitle = "인벤토리";   // 새 화면: 레시피 카드가 아니라 내가 가진 아이템 (도감에 가공법이 다 나온다)
-                m.listHint = "가공할 아이템을 누르면 바로 빈 칸에 들어가 가공이 시작돼요. 가공법이 없는 아이템은 눌러도 아무 일도 없어요.";
+                m.listHint = "가공할 아이템을 누를 때마다 1개씩 칸에 들어가 가공이 시작돼요 (칸당 " + TruckProcessingLocal.MaxPerSlot + "개). 가공법이 없는 아이템은 눌러도 아무 일도 없어요.";
                 _truckRefs = null;
                 _storageView.ShowProcess(m, BuildToolkitTabs(truckInv, 2), ClosePopup);
                 _storageToolkitActive = true;
@@ -2318,27 +2318,56 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             ShowPopup("트럭 거점", BuildTruckContent);
         }
 
-        /// <summary>빈 칸이 있으면 거기에, 없으면 같은 재료를 가공 중인 자리 있는 칸에 1개 넣는다.</summary>
+        /// <summary>
+        /// 누를 때마다 재료 1개를 넣는다. 빈 칸이 있으면 거기에, 없으면 같은 재료를 가공 중인 자리 있는 칸에.
+        /// 재료가 모자라거나 칸이 가득 찼으면 이유를 알려 준다.
+        /// </summary>
         private void PlaceAuto(RecipeData recipe)
         {
             if (recipe == null) return;
             FacilityType fac = _truckProcessingFacility;
             int count = ProcSlotCount(fac);
-            int target = -1;
-            for (int i = 0; i < count; i++)
-                if (ProcSlot(fac, i).IsEmpty) { target = i; break; }   // 빈 칸 먼저 (여러 칸이 동시에 돈다)
-            if (target < 0)
-                for (int i = 0; i < count; i++)
+            int perSlot = TruckProcessingLocal.MaxPerSlot;
+
+            // 몇 번 만들 수 있는가 (재료 할인 반영)
+            TruckInventory truckInv = ActiveTruckInventory;
+            CharacterAbilityController ability = LastTruck.Networking.LocalPlayerLookup.AbilityController;
+            int canMake = int.MaxValue;
+            foreach (RecipeIngredient c in TruckFacilities.CostFor(recipe, ability))
+                canMake = Mathf.Min(canMake, truckInv != null && c.count > 0 ? truckInv.GetMaterialCount(c.item) / c.count : 0);
+            if (canMake == int.MaxValue) canMake = 0;
+
+            // 넣을 자리: 같은 재료 칸 먼저, 그다음 빈 칸
+            var plan = new List<KeyValuePair<int, int>>();
+            int left = canMake;
+            for (int pass = 0; pass < 2 && left > 0; pass++)
+                for (int i = 0; i < count && left > 0; i++)
                 {
                     ProcessSlotView sv = ProcSlot(fac, i);
-                    if (sv.recipe == recipe && sv.queued + sv.readyCount < TruckProcessingLocal.MaxPerSlot) { target = i; break; }
+                    int room = pass == 0
+                        ? (!sv.IsEmpty && sv.recipe == recipe ? perSlot - (sv.queued + sv.readyCount) : 0)
+                        : (sv.IsEmpty ? perSlot : 0);
+                    int put = Mathf.Min(room, left);
+                    if (put <= 0) continue;
+                    plan.Add(new KeyValuePair<int, int>(i, put));
+                    left -= put;
                 }
-            if (target < 0)
+
+            if (plan.Count == 0)
             {
-                _truckProcessMessage = "칸이 가득 찼어요 (칸당 " + TruckProcessingLocal.MaxPerSlot + "개). 다 된 칸을 받거나 칸을 늘려 보세요.";
+                _truckProcessMessage = canMake <= 0
+                    ? "재료가 모자라요: " + TruckFacilities.CostText(recipe, ability)
+                    : "칸이 가득 찼어요 (칸당 " + perSlot + "개). 다 된 칸을 받거나 칸을 늘려 보세요.";
                 ShowPopup("트럭 거점", BuildTruckContent);
                 return;
             }
+
+            // 누를 때마다 1개씩 넣는다 (한 번에 다 넣는 방식은 피드백으로 되돌렸다).
+            // 넣을 칸: 빈 칸 먼저(여러 칸이 동시에 돈다), 없으면 같은 재료를 가공 중인 자리 있는 칸.
+            int target = -1;
+            for (int i = 0; i < count && target < 0; i++)
+                if (ProcSlot(fac, i).IsEmpty) target = i;
+            if (target < 0) target = plan[0].Key;
             PlaceProcessing(fac, target, recipe);
         }
 
