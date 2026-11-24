@@ -113,9 +113,13 @@ private int _withdrawMax;
             public RecipeData viaRecipe;
         }
 
-        public bool IsPopupOpen => _popupRoot != null && _popupRoot.activeSelf;
+        /// <summary>게임 입력을 막아야 하는 창이 열려 있는가: 이 컨트롤러의 창(트럭 창 등) 또는 ESC 설정 메뉴.
+        /// 다른 스크립트(공격/채집/이동 등)는 이것만 보면 된다.</summary>
+        public bool IsPopupOpen => IsOwnPopupOpen || LastTruck.SettingsMenu.IsOpen;
+        /// <summary>이 컨트롤러가 띄운 창(트럭 창/시설/파우치 등)이 열려 있는가 (설정 메뉴 제외).</summary>
+        public bool IsOwnPopupOpen => _popupRoot != null && _popupRoot.activeSelf;
         /// <summary>가죽 파우치 배낭 창이 열려 있는가.</summary>
-        public bool IsPouchOpen => IsPopupOpen && _activePouch != null;
+        public bool IsPouchOpen => IsOwnPopupOpen && _activePouch != null;
 
         private GameObject _truckHint;
 
@@ -126,7 +130,7 @@ private int _withdrawMax;
         public void SetTruckHint(bool show, Vector3 worldAnchor)
         {
             // 원형 메뉴나 트럭 창이 열려 있으면 숨긴다 (uGUI 안내가 UI Toolkit 메뉴 위에 그려져 가렸다)
-            if (LastTruck.TruckRadialMenu.IsOpen || IsPopupOpen)
+            if (LastTruck.TruckRadialMenu.IsOpen || IsOwnPopupOpen)
                 show = false;
             Camera cam = Camera.main;
             Vector3 screen = Vector3.zero;
@@ -705,14 +709,14 @@ private void ShowPopup(string title, System.Action builder)
             UpdatePopupToast();
 
             // 창이 다른 경로로 닫혔으면 UI Toolkit 보관함 창도 같이 닫는다
-            if (_storageToolkitActive && !IsPopupOpen)
+            if (_storageToolkitActive && !IsOwnPopupOpen)
                 HideStorageToolkit();
 
             if (!_truckViewDirty)
                 return;
             _truckViewDirty = false;
 
-            if (!IsPopupOpen || _activeTruck == null || _lastPopupBuilder == null)
+            if (!IsOwnPopupOpen || _activeTruck == null || _lastPopupBuilder == null)
                 return;
             if (_lastPopupBuilder != (System.Action)BuildTruckContent)
                 return;
@@ -1351,9 +1355,9 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             {
                 yield return null;
                 job.remaining -= Time.deltaTime;
-                if (_activeFacility == facility && IsPopupOpen && _storageToolkitActive && _storageView != null)
+                if (_activeFacility == facility && IsOwnPopupOpen && _storageToolkitActive && _storageView != null)
                     _storageView.SetFacilityProgress($"{Mathf.Max(0f, job.remaining):0.0}초", job.total > 0.01f ? 1f - Mathf.Clamp01(job.remaining / job.total) : 0f);
-                if (_activeFacility == facility && IsPopupOpen && _facilityCountdownText != null)
+                if (_activeFacility == facility && IsOwnPopupOpen && _facilityCountdownText != null)
                 {
                     _facilityCountdownText.text = $"{Mathf.Max(0f, job.remaining):0.0}초";
                     if (_facilityRefs != null && job.total > 0.01f)
@@ -1369,7 +1373,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
 
             RefreshPlayerInventoryUI();
 
-            if (_activeFacility == facility && IsPopupOpen)
+            if (_activeFacility == facility && IsOwnPopupOpen)
                 ShowPopup($"{facility.InteractLabel} 가공", BuildFacilityContent);
         }
 
@@ -2397,7 +2401,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 LastTruck.Networking.NetworkTruckProcessing.Instance.RequestPlace(recipe, FacilitySlotOf(fac), slotIndex, (ok, message) =>
                 {
                     _truckProcessMessage = ok ? null : message;
-                    if (_activeTruck == truck && IsPopupOpen && _truckProcessingPanelOpen)
+                    if (_activeTruck == truck && IsOwnPopupOpen && _truckProcessingPanelOpen)
                         ShowPopup("트럭 거점", BuildTruckContent);
                 });
                 return;
@@ -2433,7 +2437,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 {
                     _truckProcessMessage = "재료가 부족합니다.";
                 }
-                if (_activeTruck == truck && IsPopupOpen && _truckProcessingPanelOpen)
+                if (_activeTruck == truck && IsOwnPopupOpen && _truckProcessingPanelOpen)
                     ShowPopup("트럭 거점", BuildTruckContent);
             });
         }
@@ -2509,7 +2513,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
                 LastTruck.Networking.NetworkTruckProcessing.Instance.RequestUpgrade(FacilitySlotOf(fac), (ok, message) =>
                 {
                     _truckProcessMessage = ok ? null : message;
-                    if (_activeTruck == truck && IsPopupOpen && _truckProcessingPanelOpen)
+                    if (_activeTruck == truck && IsOwnPopupOpen && _truckProcessingPanelOpen)
                         ShowPopup("트럭 거점", BuildTruckContent);
                 });
                 return;
@@ -2540,7 +2544,7 @@ private void CreatePouchWithdrawPrompt(RectTransform parent, PouchInventory pouc
             if (!NetworkProcessing)
                 _localProcessing.Tick(Time.deltaTime);
 
-            if (!_truckProcessingPanelOpen || !IsPopupOpen)
+            if (!_truckProcessingPanelOpen || !IsOwnPopupOpen)
                 return;
 
             int rev = ProcRevision;

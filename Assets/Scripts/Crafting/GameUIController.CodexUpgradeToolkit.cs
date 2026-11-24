@@ -201,7 +201,7 @@ namespace CraftingSystem
                                 LastTruck.HudToast.Show("가방이 " + bagOwner.MaxSlots + "칸이 되었어요");
                             else if (!ok)
                                 LastTruck.HudToast.Show("경화 가공 가죽이 모자라요");
-                            if (IsPopupOpen && _truckUpgradeOpen) ShowPopup("트럭 거점", BuildTruckContent);
+                            if (IsOwnPopupOpen && _truckUpgradeOpen) ShowPopup("트럭 거점", BuildTruckContent);
                         });
                     };
                 }

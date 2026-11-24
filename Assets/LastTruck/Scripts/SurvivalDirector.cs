@@ -100,12 +100,21 @@ namespace LastTruck
         public static float HpScale(int cycle) { return 1f + 0.15f * Mathf.Max(0, cycle - 1); }
         /// <summary>
         /// 혼자 플레이할 때의 완화: 1일차 50%, 2일차 60%, 3일차 70%, 4일차 80%, 그 뒤 85%.
-        /// (때려 줄 동료가 없어서 후반에도 조금 남겨 둔다. 여럿이 하면 그대로다.)
+        /// (때려 줄 동료가 없어서 후반에도 조금 남겨 둔다.)
+        /// 여럿이 하면 1일차 75%, 2일차 85%, 3일차 95%, 그 뒤 100%.
         /// </summary>
         public static float SoloHpEase(int cycle)
         {
             GameManager gm = GameManager.Instance;
-            if (gm == null || gm.PlayerCount > 1) return 1f;
+            if (gm == null) return 1f;
+            if (gm.PlayerCount > 1)
+            {
+                // 여럿이 해도 초반에는 다들 나무/돌 무기뿐이라 1~3일차만 살짝 완화한다 (예전에는 2인부터 바로 100%라 2인이 가장 힘들었다)
+                if (cycle <= 1) return 0.75f;
+                if (cycle == 2) return 0.85f;
+                if (cycle == 3) return 0.95f;
+                return 1f;
+            }
             if (cycle <= 1) return 0.5f;
             if (cycle == 2) return 0.6f;
             if (cycle == 3) return 0.7f;
@@ -114,14 +123,28 @@ namespace LastTruck
         }
 
         /// <summary>
-        /// 처치 조건의 목표 수. 첫 밤(좀비 30마리)은 혼자 플레이하면 5마리로 줄어든다 (혼자서 첫날부터 30마리는 너무 버겁다).
+        /// 처치 조건의 목표 수. 인원 배율(GameManager.PlayerCountMultiplier: 1 / 1.4 / 1.7 / 2)을 따른다.
+        ///   첫 밤: 혼자 5 / 2인 21 / 3인 26 / 4인 30   (예전: 혼자 5, 2인부터 무조건 30 → 2인이 가장 힘들었다)
+        ///   60마리 밤: 혼자 30 / 2인 42 / 3인 51 / 4인 60
         /// </summary>
         public static int KillGoal(SurvivalKind k)
         {
             GameManager gm = GameManager.Instance;
             bool solo = gm == null || gm.PlayerCount <= 1;
-            if (k == SurvivalKind.Kill60) return solo ? 30 : 60;   // 혼자면 절반
-            return solo ? 5 : 30;
+            float m = gm != null ? gm.PlayerCountMultiplier : 1f;
+            if (k == SurvivalKind.Kill60) return solo ? 30 : Mathf.RoundToInt(30f * m);
+            return solo ? 5 : Mathf.RoundToInt(15f * m);
+        }
+
+        /// <summary>
+        /// 중간보스 체력 인원 보정: 보스 수는 그대로(혼자 2, 여럿 3)인데 때리는 사람만 늘면 보스가 금방 녹는다.
+        /// 1~2인 그대로, 3인 1.2배, 4인 1.4배.
+        /// </summary>
+        public static float BossTeamHp()
+        {
+            GameManager gm = GameManager.Instance;
+            int n = gm != null ? gm.PlayerCount : 1;
+            return n <= 2 ? 1f : 1f + 0.2f * (Mathf.Min(n, 4) - 2);
         }
 
         /// <summary>중간보스 밤의 보스 수 (혼자면 2마리).</summary>
@@ -390,8 +413,15 @@ namespace LastTruck
             _spawner.SpawnTiered(HpScale(_cycle) * SoloHpEase(_cycle), DamageScale(_cycle), NormalSize, false, go => { _pending = Mathf.Max(0, _pending - 1); });
         }
 
+        /// <summary>
+        /// 좀비를 한 마리씩 흘려 보낸다. 간격과 동시 최대 수는 인원 배율(1 / 1.4 / 1.7 / 2)을 따른다.
+        /// (예전에는 인원과 상관없이 같아서, 생존형 밤(90초/트럭 지키기/포탑 없이/트럭 없이)이 4인에게는 너무 쉽고 혼자에게는 상대적으로 버거웠다)
+        /// </summary>
         private void Trickle(float dt, GameManager gm, float interval, int cap, bool allow)
         {
+            float m = gm != null ? Mathf.Max(1f, gm.PlayerCountMultiplier) : 1f;
+            interval /= m;
+            cap = Mathf.RoundToInt(cap * m);
             _spawnTimer -= dt;
             if (_spawnTimer > 0f) return;
             if (!allow || AliveTotal() >= cap) { _spawnTimer = 0.4f; return; }
@@ -421,7 +451,7 @@ namespace LastTruck
                 _bossRequested++;
                 _bossSpawning = true;   // 스폰이 끝날 때까지 다음 보스를 또 부르지 않는다
                 _pending++;
-                _spawner.SpawnTiered(HpScale(_cycle) * SoloHpEase(_cycle) * BossHp, DamageScale(_cycle) * BossDamage, BossSize, true, go =>
+                _spawner.SpawnTiered(HpScale(_cycle) * SoloHpEase(_cycle) * BossHp * BossTeamHp(),DamageScale(_cycle) * BossDamage, BossSize, true, go =>
                 {
                     _pending = Mathf.Max(0, _pending - 1);
                     _bossSpawning = false;
@@ -495,7 +525,7 @@ namespace LastTruck
             {
                 _extraBossRequested = true;
                 _pending++;
-                _spawner.SpawnTiered(HpScale(_cycle) * SoloHpEase(_cycle) * BossHp, DamageScale(_cycle) * BossDamage, BossSize, true, go =>
+                _spawner.SpawnTiered(HpScale(_cycle) * SoloHpEase(_cycle) * BossHp * BossTeamHp(),DamageScale(_cycle) * BossDamage, BossSize, true, go =>
                 {
                     _pending = Mathf.Max(0, _pending - 1);
                     if (go == null) { _extraBossRequested = false; return; }

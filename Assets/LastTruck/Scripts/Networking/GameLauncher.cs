@@ -144,7 +144,10 @@ namespace LastTruck.Networking
 
         private void Start()
         {
-            Screen.SetResolution(800, 800, FullScreenMode.Windowed);
+            // 한 PC에서 창 두 개로 멀티플레이를 시험할 때만 작은 창으로 (실행 인자 -testwindow).
+            // 평소에는 프로젝트 설정대로 모니터 해상도 전체 화면.
+            if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-testwindow") >= 0)
+                Screen.SetResolution(800, 800, FullScreenMode.Windowed);
             if (_isDuplicate) return;
             EnterLobby();
         }
