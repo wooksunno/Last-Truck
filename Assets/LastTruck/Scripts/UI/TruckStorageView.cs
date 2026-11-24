@@ -800,6 +800,22 @@ namespace LastTruck
             return b;
         }
 
+        private static VisualElement ProcessSlotStatus(Label label, string iconName, Color? tint = null)
+        {
+            var row = Row("tw-pslot-status");
+            row.pickingMode = PickingMode.Ignore;
+            Sprite sprite = UiIcons.Get(iconName);
+            if (sprite != null)
+            {
+                var icon = new Image { sprite = sprite, scaleMode = ScaleMode.ScaleToFit,
+                    tintColor = tint ?? Color.white, pickingMode = PickingMode.Ignore };
+                icon.AddToClassList("tw-pslot-status-icon");
+                row.Add(icon);
+            }
+            row.Add(label);
+            return row;
+        }
+
         private VisualElement MakeUpgrade(CraftingSystem.TruckProcessView.UpgradeInfo up)
         {
             var box = new VisualElement();

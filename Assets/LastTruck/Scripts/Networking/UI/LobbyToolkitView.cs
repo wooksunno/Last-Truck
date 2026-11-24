@@ -54,7 +54,7 @@ namespace LastTruck.Networking
         private TextField _titleField, _createPwField;
         private Label _maxPlayersLabel, _privateLabel, _createPwHint;
         private Button _minusBtn, _plusBtn, _privateBtn;
-        private VisualElement _createPwRow;
+        private VisualElement _createPwRow, _privateIcon;
         private int _createMaxPlayers = LobbyRules.DefaultMaxPlayers;
         private bool _createPrivate = LobbyRules.DefaultPrivate;
 
@@ -239,7 +239,7 @@ namespace LastTruck.Networking
             left.Add(_myPortrait);
             _myCharName = L("", "lb-my-name");
             left.Add(_myCharName);
-            _changeCharBtn = Btn("캐릭터 변경", OpenCharacterSelect, null, "upgrade");
+            _changeCharBtn = Btn("캐릭터 변경", OpenCharacterSelect, "lb-btn--character", "user");
             left.Add(_changeCharBtn);
             panel.Add(left);
 
@@ -297,7 +297,8 @@ namespace LastTruck.Networking
 
             var r3 = Row("lb-form-row");
             r3.Add(L("공개 설정", "lb-form-label"));
-            _privateBtn = Btn("비공개", () => { _createPrivate = !_createPrivate; RefreshPasswordFieldState(); }, null, "lock");
+            _privateBtn = Btn("비공개", () => { _createPrivate = !_createPrivate; RefreshPasswordFieldState(); }, "lb-btn--privacy", "lock_locked");
+            _privateIcon = _privateBtn.Q<VisualElement>(className: "lb-btn-icon");
             _privateLabel = _privateBtn.Q<Label>();
             r3.Add(_privateBtn);
             m.Add(r3);
@@ -412,6 +413,16 @@ namespace LastTruck.Networking
             return e;
         }
 
+        private static VisualElement Icon(string name, string cls)
+        {
+            Sprite sprite = UiIcons.Get(name);
+            if (sprite == null) return null;
+            var icon = Box(cls);
+            icon.pickingMode = PickingMode.Ignore;
+            icon.style.backgroundImage = new StyleBackground(sprite);
+            return icon;
+        }
+
         private static VisualElement Grow() => Box("lb-grow");
 
         private VisualElement Panel(string cls, Sprite sprite, float scale, Color? tint = null)
@@ -446,17 +457,8 @@ namespace LastTruck.Networking
             if (!string.IsNullOrEmpty(cls)) b.AddToClassList(cls);
             b.userData = sprite != null ? sprite : _skin.buttonBrown;
             UiToolkitSkin.Slice(b, (Sprite)b.userData, 0.5f, ButtonTint((Sprite)b.userData));
-            if (!string.IsNullOrEmpty(icon))
-            {
-                Sprite s = UiIcons.Get(icon);
-                if (s != null)
-                {
-                    var i = Box("lb-btn-icon");
-                    i.pickingMode = PickingMode.Ignore;
-                    i.style.backgroundImage = new StyleBackground(s);
-                    b.Add(i);
-                }
-            }
+            var image = Icon(icon, "lb-btn-icon");
+            if (image != null) b.Add(image);
             b.Add(L(text, "lb-btn-text"));
             return b;
         }
@@ -580,10 +582,15 @@ namespace LastTruck.Networking
             r.status = L("", "lb-srow-status");
             r.count = L("", "lb-srow-count");
             r.count.AddToClassList("lt-dark");
+            var occupancy = Row("lb-srow-occupancy");
+            occupancy.pickingMode = PickingMode.Ignore;
+            var users = Icon("users", "lb-srow-people");
+            if (users != null) occupancy.Add(users);
+            occupancy.Add(r.count);
             r.root.Add(r.lockIcon);
             r.root.Add(r.title);
             r.root.Add(r.status);
-            r.root.Add(r.count);
+            r.root.Add(occupancy);
             _sessionScroll.Add(r.root);
             return r;
         }
@@ -694,6 +701,8 @@ namespace LastTruck.Networking
         private void RefreshPasswordFieldState()
         {
             _privateLabel.text = _createPrivate ? "비공개" : "공개";
+            if (_privateIcon != null)
+                _privateIcon.style.backgroundImage = new StyleBackground(UiIcons.Get(_createPrivate ? "lock_locked" : "lock_open"));
             _createPwField.SetEnabled(_createPrivate);
             _createPwRow.EnableInClassList("lb-field--off", !_createPrivate);
             Show(_createPwHint, _createPrivate);

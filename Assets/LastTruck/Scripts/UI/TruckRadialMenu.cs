@@ -215,7 +215,7 @@ namespace LastTruck
             _centerLabel.style.display = DisplayStyle.None;
             _center.Add(_centerLabel);
 
-            // 항목 5개
+            // 원 둘레에 놓일 항목
             for (int i = 0; i < Count; i++)
             {
                 Vector2 off = NodeOffset(i, Count, RingRadius);
@@ -230,8 +230,10 @@ namespace LastTruck
 
                 var icon = new VisualElement { pickingMode = PickingMode.Ignore };
                 icon.style.width = 76; icon.style.height = 76;
-                var sp = UiIcons.Get(GameUIController.TabIconNames[i]);
+                string iconName = GameUIController.TabIconNames[i];
+                var sp = UiIcons.Get(iconName);
                 if (sp != null) icon.style.backgroundImage = new StyleBackground(sp);
+                if (iconName == "medal") icon.style.unityBackgroundImageTintColor = (Color)new Color32(128, 84, 32, 255);
                 node.Add(icon);
 
                 // 잠김 표시 (가공: 설비가 없을 때)

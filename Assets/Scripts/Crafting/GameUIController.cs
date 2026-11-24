@@ -461,7 +461,7 @@ private void ShowPopup(string title, System.Action builder)
         private static readonly int[] TruckTabOrder = { 0, 1, 2, 3, 5, 4 };
         private bool _truckAchievementsOpen;
         // 책갈피/원형 메뉴에 쓰는 그림 이름 (Resources/UI/Icons)
-        public static readonly string[] TabIconNames = { "crate", "hammer", "gear", "book", "upgrade", "star" };
+        public static readonly string[] TabIconNames = { "crate", "hammer", "gear", "book", "upgrade", "medal" };
         private static readonly Color[] TruckTabColors =
         {
             new Color(0.50f, 0.74f, 0.96f), new Color(0.96f, 0.78f, 0.40f),
