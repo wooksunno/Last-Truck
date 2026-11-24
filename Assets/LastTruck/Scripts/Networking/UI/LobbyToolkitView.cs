@@ -168,6 +168,8 @@ namespace LastTruck.Networking
             _root = root;
             root.styleSheets.Add(uss);
             root.AddToClassList("lt-root");
+            // 원신풍 스킨이면 판이 남색, 버튼이 크림색이라 글씨 색을 반대로 맞춘다 (USS .lt-poly)
+            if (_skin.polyTheme) root.AddToClassList("lt-poly");
 
             if (_sdfFont == null && _skin.font != null)
                 _sdfFont = FontAsset.CreateFontAsset(_skin.font, 90, 9, UnityEngine.TextCore.LowLevel.GlyphRenderMode.SDFAA, 1024, 1024, AtlasPopulationMode.Dynamic, true);
@@ -457,6 +459,7 @@ namespace LastTruck.Networking
             if (!string.IsNullOrEmpty(cls)) b.AddToClassList(cls);
             b.userData = sprite != null ? sprite : _skin.buttonBrown;
             UiToolkitSkin.Slice(b, (Sprite)b.userData, 0.5f, ButtonTint((Sprite)b.userData));
+            b.EnableInClassList("lb-btn--cream", (Sprite)b.userData == _skin.buttonBrown);
             var image = Icon(icon, "lb-btn-icon");
             if (image != null) b.Add(image);
             b.Add(L(text, "lb-btn-text"));
@@ -471,6 +474,7 @@ namespace LastTruck.Networking
             Sprite normal = b.userData as Sprite ?? _skin.buttonBrown;
             Sprite s = on ? normal : (_skin.buttonGrey != null ? _skin.buttonGrey : normal);
             UiToolkitSkin.Slice(b, s, 0.5f, ButtonTint(s));
+            b.EnableInClassList("lb-btn--cream", s == _skin.buttonBrown);
         }
 
         private Color ButtonTint(Sprite s)

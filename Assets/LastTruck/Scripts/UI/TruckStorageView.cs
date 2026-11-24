@@ -787,7 +787,19 @@ namespace LastTruck
                     bar.Add(el.fill);
                     b.Add(bar);
                 }
-                else b.Add(MakeLabel("✔", "tw-ptile-check"));
+                else
+                {
+                    // 완성: 열린 상자 아이콘 (아이콘이 없으면 체크 글자)
+                    Sprite chest = UiIcons.Get("chest_open");
+                    if (chest != null)
+                    {
+                        var done = new Image { sprite = chest, scaleMode = ScaleMode.ScaleToFit,
+                            tintColor = new Color32(170, 255, 140, 255), pickingMode = PickingMode.Ignore };
+                        done.AddToClassList("tw-ptile-done-icon");
+                        b.Add(done);
+                    }
+                    else b.Add(MakeLabel("✔", "tw-ptile-check"));
+                }
                 // 칸에 든 개수 / 칸당 최대 (가공 대기 + 완성품)
                 int inSlot = sl.queued + sl.readyCount;
                 if (inSlot > 1 || sl.queued > 0) b.Add(MakeLabel(inSlot + "/" + CraftingSystem.TruckProcessingLocal.MaxPerSlot, "tw-ptile-queue"));

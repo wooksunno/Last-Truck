@@ -177,7 +177,19 @@ namespace LastTruck
             bar.Add(pct);
             barRow.Add(bar);
             var time = MakeLabel(idle ? "" : (done ? "완료" : (sl.timerText ?? "")), "tw-bbar-time");
-            barRow.Add(time);
+            if (idle) barRow.Add(time);
+            else
+            {
+                // 남은 시간 앞에 시계, 완료면 열린 상자 아이콘
+                var status = ProcessSlotStatus(time, done ? "chest_open" : "clock",
+                    done ? new Color32(170, 255, 140, 255) : new Color32(249, 212, 140, 255));
+                status.style.marginTop = 0;
+                status.style.marginLeft = 8;
+                time.style.marginLeft = 0;
+                time.style.width = StyleKeyword.Auto;
+                time.style.minWidth = 60;
+                barRow.Add(status);
+            }
             ui.Add(barRow);
             if (!idle && !done && el != null) { el.bigFill = fill; el.bigPercent = pct; el.bigTimer = time; }
 
@@ -321,7 +333,14 @@ namespace LastTruck
             btn.AddToClassList("tw-bbtn");
             UiToolkitSkin.Slice(btn, positive ? _skin.buttonBrown : _skin.buttonGrey, 0.5f,
                 positive ? new Color(0.50f, 0.88f, 0.56f, 1f) : new Color(0.95f, 0.62f, 0.55f, 1f));
-            btn.Add(MakeLabel(text, "tw-make-text"));
+            var label = MakeLabel(text, "tw-make-text");
+            if (positive && _skin != null && _skin.polyTheme)
+            {
+                // 원신풍 스킨은 버튼이 밝은 크림/연두라 흰 글씨가 묻힌다 → 짙은 글씨
+                label.style.color = (Color)new Color32(34, 66, 30, 255);
+                label.style.unityTextOutlineWidth = 0;
+            }
+            btn.Add(label);
             return btn;
         }
 

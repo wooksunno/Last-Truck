@@ -371,6 +371,7 @@
 .tw-ptile-plus { font-size: 34px; color: rgba(255, 236, 200, 0.5); -unity-text-outline-width: 0; }
 .tw-ptile-icon { width: 34px; height: 34px; -unity-background-scale-mode: scale-to-fit; }
 .tw-ptile-bar { width: 56px; height: 8px; margin-top: 5px; border-radius: 4px; background-color: rgba(10, 13, 24, 0.9); padding: 1px; }
+.tw-ptile-done-icon { width: 18px; height: 18px; margin-top: 3px; flex-shrink: 0; }
 .tw-ptile-check { font-size: 16px; margin-top: 2px; color: rgb(170, 255, 140); -unity-text-outline-width: 0; }
 .tw-ptile-queue { position: absolute; right: 3px; top: 1px; font-size: 12px; -unity-text-outline-width: 0; padding: 0 5px; border-radius: 6px; background-color: rgba(16, 20, 34, 0.9); color: rgb(255, 236, 200); }
 

@@ -149,3 +149,13 @@
 .lb-prow .lb-hostmark { color: rgb(184, 104, 16); }
 .lb-prow .lb-ready { color: rgb(36, 128, 40); }
 .lb-prow .lb-waiting { color: rgb(120, 96, 70); }
+
+/* 원신풍 스킨 (LastTruckUiSkin.polyTheme): 판/줄이 남색이라 위의 진갈색 글씨가 묻힌다 → 밝게. 크림색 버튼 위 글씨는 반대로 짙게. */
+.lt-poly .lt-dark { color: rgb(255, 240, 214); -unity-text-outline-width: 1px; -unity-text-outline-color: rgba(8, 12, 24, 0.9); }
+.lt-poly .lb-prow-char { color: rgb(214, 196, 160); -unity-text-outline-width: 0; }
+.lt-poly .lb-prow .lb-hostmark { color: rgb(255, 196, 92); }
+.lt-poly .lb-prow .lb-ready { color: rgb(140, 230, 140); }
+.lt-poly .lb-prow .lb-waiting { color: rgb(200, 182, 150); }
+.lt-poly .lb-srow-people { -unity-background-image-tint-color: rgb(232, 210, 170); }
+.lt-poly .lb-btn--cream .lb-btn-text { color: rgb(58, 42, 26); -unity-text-outline-width: 0; }
+.lt-poly .lb-btn--cream .lb-btn-icon { -unity-background-image-tint-color: rgb(70, 48, 24); }
