@@ -615,7 +615,16 @@ namespace LastTruck
             Vector2 p = RuntimePanelUtils.CameraTransformWorldToPanel(_hudRoot.panel, world, cam);
             _hpOverhead.style.display = DisplayStyle.Flex;
             _hpOverhead.style.left = p.x - 84f;
-            float hpTop = Mathf.Max(6f, p.y - 34f);   // 카메라가 가까워 머리가 화면 위로 나가도 막대는 보이게
+            // 카메라가 가까워 머리가 화면 위로 나가도 막대는 보이게 (화면 맨 위에 붙인다).
+            // 단, 위쪽 가운데의 낮/밤 시계판과 겹치면 시계판 바로 아래로 내린다.
+            float minTop = 6f;
+            if (_badge != null && _badge.resolvedStyle.display != DisplayStyle.None)
+            {
+                Rect b = _badge.worldBound;
+                if (b.width > 1f && p.x + 84f > b.xMin && p.x - 84f < b.xMax)
+                    minTop = b.yMax + 6f;
+            }
+            float hpTop = Mathf.Max(minTop, p.y - 34f);
             _hpOverhead.style.top = hpTop;
 
             // 기력 막대: 체력 막대 바로 밑

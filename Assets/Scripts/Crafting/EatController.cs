@@ -18,6 +18,7 @@ namespace CraftingSystem
             public float staminaAmount;     // 스태미나 회복량 (0 = 없음)
             public float repairFraction;    // 가방 속 가장 닳은 도구를 최대 내구도의 이 비율만큼 수리 (0 = 없음)
             public bool weaponUpgrade;      // 무기 강화 1단계 (PlayerGear)
+            public string verb;             // 안내 문구 동사 (비우면 "먹기"): 붕대는 "사용", 음료는 "마시기"
         }
 
         private static readonly Dictionary<string, Edible> Edibles = new Dictionary<string, Edible>
@@ -31,13 +32,13 @@ namespace CraftingSystem
             { ItemIds.HeartyStew, new Edible { holdSeconds = 2.6f, healAmount = 32f, staminaAmount = 40f } },
             // 사막 식물 요리 (선인장/들풀은 날것으로는 못 먹는다)
             { ItemIds.CactusSteak, new Edible { holdSeconds = 1.8f, healAmount = 14f } },
-            { ItemIds.CactusJuice, new Edible { holdSeconds = 1.2f, healAmount = 8f, staminaAmount = 60f } },   // 마시면 힘이 난다
+            { ItemIds.CactusJuice, new Edible { holdSeconds = 1.2f, healAmount = 8f, staminaAmount = 60f, verb = "마시기" } },   // 마시면 힘이 난다
             { ItemIds.GrassPorridge, new Edible { holdSeconds = 2f, healAmount = 16f } },
             { ItemIds.DesertStew, new Edible { holdSeconds = 2.6f, healAmount = 30f, staminaAmount = 50f } },
             // 소모품
-            { ItemIds.HerbBandage, new Edible { holdSeconds = 0.9f, healAmount = 12f } },
-            { ItemIds.CombatStimulant, new Edible { holdSeconds = 1f, healAmount = 4f, staminaAmount = 100f } },
-            { ItemIds.VitalityTonic, new Edible { holdSeconds = 1.8f, healAmount = 60f, staminaAmount = 100f } },
+            { ItemIds.HerbBandage, new Edible { holdSeconds = 0.9f, healAmount = 12f, verb = "사용" } },
+            { ItemIds.CombatStimulant, new Edible { holdSeconds = 1f, healAmount = 4f, staminaAmount = 100f, verb = "사용" } },
+            { ItemIds.VitalityTonic, new Edible { holdSeconds = 1.8f, healAmount = 60f, staminaAmount = 100f, verb = "마시기" } },
             // 도구 수리 (왼쪽 클릭 꾹: 가장 닳은 도구를 고친다)
             { ItemIds.ToolRepairKit, new Edible { holdSeconds = 1.5f, repairFraction = 0.5f } },
             // 무기 강화 (왼쪽 클릭 꾹: 내가 주는 피해가 영구히 오른다)
@@ -175,7 +176,8 @@ private bool IsHealthFull()
         {
             if (e.repairFraction > 0f) return "고칠 도구가 없어요 (가방에 닳은 도구/무기가 있어야 해요)";
             if (e.weaponUpgrade) return "무기 강화가 이미 최대예요 (" + PlayerGear.WeaponSummary + ")";
-            return item.itemName + ": 지금은 먹어도 효과가 없어요 (체력/기력이 가득해요)";
+            string used = e.verb == "사용" ? "써도" : e.verb == "마시기" ? "마셔도" : "먹어도";
+            return item.itemName + ": 지금은 " + used + " 효과가 없어요 (체력/기력이 가득해요)";
         }
 
         private bool IsPointerOverUi()
@@ -198,7 +200,7 @@ private bool IsHealthFull()
             string fx = "";
             if (e.healAmount > 0f) fx += "체력 +" + Mathf.RoundToInt(e.healAmount);
             if (e.staminaAmount > 0f) fx += (fx.Length > 0 ? ", " : "") + "기력 +" + Mathf.RoundToInt(e.staminaAmount);
-            return "왼쪽 클릭 꾹 · 먹기 (" + fx + ")";
+            return "왼쪽 클릭 꾹 · " + (string.IsNullOrEmpty(e.verb) ? "먹기" : e.verb) + " (" + fx + ")";
         }
 
         private bool IsPressBlocked()
