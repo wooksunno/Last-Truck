@@ -10,7 +10,7 @@ namespace LastTruck
     ///
     ///  - 밤마다 주어지는 생존 조건(SurvivalDirector)과 별개로, 낮 동안 무엇을 해야 할지 알려 준다
     ///    (나무 모으기 → 곡괭이 → 무기 → 모닥불 → 구리 → 갑옷 → 철 → 포탑 → 총 → 탈출 부품).
-    ///  - 임무를 달성하면 보상이 트럭 보관함에 들어간다 (멀티플레이는 내 가방/발밑). 보상에는 소모품과 "무기 강화 키트"가 섞여 있다.
+    ///  - 임무를 달성하면 보상이 전부 트럭 보관함에 들어간다 (트럭이 꽉 차면 넘친 만큼만 내 가방/발밑). 보상에는 소모품과 "무기 강화 키트"가 섞여 있다.
     ///  - 화면에는 도전과제처럼 보여 준다 (UI.AchievementHud): 달성 순간 위에서 내려오는 알림, 트럭 창의 도전과제 탭(목록).
     ///    HUD 스킨이 없을 때만 아래 OnGUI의 간단한 표시로 대신한다.
     ///
@@ -242,7 +242,7 @@ namespace LastTruck
             LastTruck.Audio.Sfx.Play("quest_flip", 0.7f, 1.1f, 0.3f);  // + 다음 임무로 책장 넘김
             // HUD가 있으면 도전과제 알림이 뜬다. 없을 때만 아래쪽 토스트로 알린다
             if (!LastTruckHud.IsReady)
-                HudToast.Show("도전과제 달성: " + m.title + (string.IsNullOrEmpty(reward) ? "" : "  →  보상 " + reward));
+                HudToast.Show("도전과제 달성: " + m.title + (string.IsNullOrEmpty(reward) ? "" : "  →  보상 " + reward + " (트럭 보관함)"));
             _index++;
             Completed?.Invoke(done);
             _shownCurrent = 0;
@@ -334,16 +334,7 @@ namespace LastTruck
                 if (item == null || r.count <= 0) continue;
                 names.Add(item.itemName + " x" + r.count);
 
-                // 키트/음식/무기처럼 손에 들고 쓰는 보상은 바로 내 가방(배낭)으로 (트럭에 들어가면 받은 줄도 모르고 지나친다)
-                if (bag != null && Networking.TruckInventorySync.GoesToCrafterBag(item))
-                {
-                    bag.AddOrDrop(item, r.count);
-                    string use = ItemUseHints.For(item);
-                    if (item.itemID == ItemIds.WeaponUpgradeKit || item.itemID == ItemIds.ToolRepairKit)
-                        HudToast.Show(item.itemName + "을(를) 받았어요! 숫자 키로 들고 " + use);
-                    continue;
-                }
-
+                // 보상은 종류와 상관없이 전부 트럭 보관함으로 (트럭이 꽉 차서 못 넣은 만큼만 내 가방/발밑)
                 if (truck != null || Networking.GameLauncher.IsOnlineSession)
                 {
                     Networking.TruckInventorySync.GrantItem(truck, item, r.count, bag);

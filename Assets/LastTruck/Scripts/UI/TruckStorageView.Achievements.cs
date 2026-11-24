@@ -87,7 +87,7 @@ namespace LastTruck
             _gridScroll.Add(body);
             frame.Add(_gridScroll);
 
-            _hoverLabel = MakeLabel("도전과제를 달성하면 보상이 트럭 보관함에 들어와요. 무기 강화 키트는 손에 들고 왼쪽 클릭을 꾹 누르면 써요.", "tw-hint");
+            _hoverLabel = MakeLabel("도전과제를 달성하면 보상이 전부 트럭 보관함에 들어와요. 보관함에서 꺼내 쓰세요 (무기 강화 키트는 손에 들고 왼쪽 클릭을 꾹).", "tw-hint");
             frame.Add(_hoverLabel);
             EndWindow(m.tabs);
         }

@@ -110,7 +110,7 @@ namespace LastTruck
             col.Add(_popupTitle);
 
             var rewardRow = Row();
-            Label tag = Text("보상", 18, Gold);
+            Label tag = Text("보상 → 트럭 보관함", 18, Gold);
             tag.style.marginRight = 10;
             rewardRow.Add(tag);
             _popupRewards = Row();

@@ -18,7 +18,7 @@ namespace CraftingSystem
         [SerializeField] private int rawStackLimit = 40;
         private const int MinRawStack = 40;
 
-        [Tooltip("트럭에서 이 거리(m) 안에서 얻은 재료(원재료/가공 재료)는 가방 대신 트럭 보관함으로 바로 들어간다 (트럭 = 움직이는 거점).")]
+        [Tooltip("트럭에서 이 거리(m) 안이면 '트럭 근처'로 본다 (IsNearTruck).")]
         [SerializeField] private float truckAutoStoreRange = 18f;
         [SerializeField] private bool grantStarterItems = true;
         [SerializeField] private ItemStackInventory inventory = new ItemStackInventory();
@@ -158,9 +158,7 @@ namespace CraftingSystem
         {
             if (item == null || amount <= 0) return 0;
 
-            // 트럭 가까이에서 얻은 재료는 트럭 보관함으로 바로 (트럭을 몰고 다니며 그 자리에서 캐는 플레이)
-            if (TryAutoStoreInTruck(item, amount)) return 0;
-
+            // (예전에는 트럭 근처에서 얻은 재료를 트럭 보관함으로 바로 넣었지만, 이제는 항상 가방으로 들어간다)
             int overflow = amount - Take(item, amount, 0);
             if (overflow > 0)
             {
@@ -172,11 +170,10 @@ namespace CraftingSystem
             return overflow;
         }
 
-        // ───────────── 트럭 옆 자동 보관 ─────────────
+        // ───────────── 트럭 근처 판정 ─────────────
 
         private TruckStation _truck;
         private float _truckSearchAt;
-        private static bool s_autoStoreExplained;
 
         /// <summary>트럭에서 truckAutoStoreRange m 안인가 (트럭 몸체 중심 기준).</summary>
         public bool IsNearTruck(out TruckStation truck)
@@ -192,26 +189,6 @@ namespace CraftingSystem
             d.y = 0f;
             return d.sqrMagnitude <= truckAutoStoreRange * truckAutoStoreRange;
         }
-
-        private bool TryAutoStoreInTruck(ItemData item, int amount)
-        {
-            if (item.HasDurability || (item.itemType != ItemType.Raw && item.itemType != ItemType.Intermediate)) return false;
-            if (TruckFacilities.IsFacilityItem(item)) return false;
-            if (SelectedItem != null && ItemMatching.IsSameItem(SelectedItem, item)) return false;   // 손에 들고 쓰는 재료(예: 기름)는 가방으로
-            if (!IsNearTruck(out TruckStation truck)) return false;
-
-            LastTruck.Networking.TruckInventorySync.GrantItem(truck.TruckInventory, item, amount, this);
-            if (!s_autoStoreExplained)
-            {
-                s_autoStoreExplained = true;
-                LastTruck.HudToast.Show("트럭 근처에서 얻은 재료는 트럭 보관함으로 바로 들어가요");
-            }
-            else LastTruck.HudToast.Show("+" + amount + " " + item.itemName + "  → 트럭");
-            return true;
-        }
-
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void ResetStatics() { s_autoStoreExplained = false; }
 
         // ───────────── 가죽 파우치 배낭 ─────────────
 

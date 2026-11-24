@@ -107,6 +107,7 @@ namespace LastTruck.Networking
 
         // ---- 동굴 잠복 좀비 (CaveLurkers가 만든다): 제자리에 있다가 가까이 오면 쫓아오고, 너무 멀리 끌려가면 돌아간다
         private const float LurkDetect = 14f, LurkLose = 28f, LurkLeash = 45f;
+        private const float LurkMaxHeight = 6f;   // 굴 위 지면을 걷는 사람(높이 차가 큰 사람)은 알아채지 못한다
         /// <summary>동굴 잠복 좀비인가 (트럭을 노리지 않고, 아침 정리에도 지워지지 않는다).</summary>
         [Networked] public NetworkBool Lurker { get; private set; }
         private Vector3 _home;
@@ -584,6 +585,7 @@ namespace LastTruck.Networking
                 NetworkPlayer player = players[i];
                 if (player == null || !player.IsAlive || !player.gameObject.activeInHierarchy) continue;
                 if (player.IsSeated) continue; // 트럭에 탄 사람은 트럭을 공격한다
+                if (Lurker && _targetPlayer == null && Mathf.Abs(player.transform.position.y - position.y) > LurkMaxHeight) continue;
 
                 float distance = HorizontalDistance(position, player.transform.position);
                 if (distance <= nearestDistance)
