@@ -41,6 +41,37 @@ MonoBehaviour:
     tint: {r: 1, g: 1, b: 1, a: 1}
     bodies:
     - Zombie_Businessman_Male_01
+    - Zombie_Bellboy_Male_01
+    - Zombie_Bride_Female_01
+    - Zombie_Business_Female_01
+    - Zombie_BusinessShirt_Male_01
+    - Zombie_Cheerleader_Female_01
+    - Zombie_Coat_Female_01
+    - Zombie_FastfoodWorker_Male_01
+    - Zombie_Father_Male_01
+    - Zombie_Father_Male_02
+    - Zombie_GamerGirl_Female_01
+    - Zombie_Gangster_Male_01
+    - Zombie_Grandma_Female_01
+    - Zombie_Grandpa_Male_01
+    - Zombie_Hipster_Female_01
+    - Zombie_Hipster_Male_01
+    - Zombie_Hobo_Male_01
+    - Zombie_Hoodie_Male_01
+    - Zombie_Jacket_Female_01
+    - Zombie_Jacket_Male_01
+    - Zombie_Jock_Male_01
+    - Zombie_Mother_Female_01
+    - Zombie_Mother_Female_02
+    - Zombie_Paramedic_Female_01
+    - Zombie_Patient_Female_01
+    - Zombie_Prisinor_Male_01
+    - Zombie_Punk_Female_01
+    - Zombie_Punk_Male_01
+    - Zombie_ShopKeeper_Female_01
+    - Zombie_ShopKeeper_Male_01
+    - Zombie_SummerGirl_Female_01
+    - Zombie_Tourist_Male_01
     animationSpeed: 1
   - kind: 1
     displayName: "\uD0F1\uCEE4"

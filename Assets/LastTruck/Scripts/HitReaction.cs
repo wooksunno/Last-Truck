@@ -100,14 +100,15 @@ namespace LastTruck
 
             const float hold = 0.08f;
             const float fade = 0.28f;
+            const float peak = 0.55f;   // 0.9면 몸 전체가 빨간 실루엣이 되어 얼굴/옷이 안 보였다 → 빨갛게 "물드는" 정도로
 
-            ApplyFlash(0.9f);
+            ApplyFlash(peak);
             yield return new WaitForSeconds(hold);
 
             for (float t = 0f; t < fade; t += Time.deltaTime)
             {
                 float k = 1f - t / fade;
-                ApplyFlash(0.9f * k * k);
+                ApplyFlash(peak * k * k);
                 yield return null;
             }
 

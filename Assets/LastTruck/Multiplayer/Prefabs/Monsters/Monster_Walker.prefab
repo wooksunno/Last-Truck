@@ -66,7 +66,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
       propertyPath: allowedBodies.Array.size
-      value: 1
+      value: 32
       objectReference: {fileID: 0}
     - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
       propertyPath: 'allowedBodies.Array.data[0]'
@@ -74,47 +74,127 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
       propertyPath: 'allowedBodies.Array.data[1]'
-      value: Zombie_Hoodie_Male_01
+      value: Zombie_Bellboy_Male_01
       objectReference: {fileID: 0}
     - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
       propertyPath: 'allowedBodies.Array.data[2]'
-      value: Zombie_Jacket_Female_01
+      value: Zombie_Bride_Female_01
       objectReference: {fileID: 0}
     - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
       propertyPath: 'allowedBodies.Array.data[3]'
-      value: Zombie_Father_Male_01
+      value: Zombie_Business_Female_01
       objectReference: {fileID: 0}
     - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
       propertyPath: 'allowedBodies.Array.data[4]'
-      value: Zombie_Mother_Female_01
+      value: Zombie_BusinessShirt_Male_01
       objectReference: {fileID: 0}
     - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
       propertyPath: 'allowedBodies.Array.data[5]'
-      value: Zombie_Tourist_Male_01
+      value: Zombie_Cheerleader_Female_01
       objectReference: {fileID: 0}
     - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
       propertyPath: 'allowedBodies.Array.data[6]'
-      value: Zombie_Hobo_Male_01
-      objectReference: {fileID: 0}
-    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
-      propertyPath: 'allowedBodies.Array.data[7]'
-      value: Zombie_ShopKeeper_Male_01
-      objectReference: {fileID: 0}
-    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
-      propertyPath: 'allowedBodies.Array.data[8]'
       value: Zombie_Coat_Female_01
       objectReference: {fileID: 0}
     - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+      propertyPath: 'allowedBodies.Array.data[7]'
+      value: Zombie_FastfoodWorker_Male_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+      propertyPath: 'allowedBodies.Array.data[8]'
+      value: Zombie_Father_Male_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
       propertyPath: 'allowedBodies.Array.data[9]'
-      value: Zombie_Hipster_Male_01
+      value: Zombie_Father_Male_02
       objectReference: {fileID: 0}
     - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
       propertyPath: 'allowedBodies.Array.data[10]'
-      value: Zombie_SchoolBoy_Male_01
+      value: Zombie_GamerGirl_Female_01
       objectReference: {fileID: 0}
     - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
       propertyPath: 'allowedBodies.Array.data[11]'
+      value: Zombie_Gangster_Male_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+      propertyPath: 'allowedBodies.Array.data[12]'
+      value: Zombie_Grandma_Female_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+      propertyPath: 'allowedBodies.Array.data[13]'
       value: Zombie_Grandpa_Male_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+      propertyPath: 'allowedBodies.Array.data[14]'
+      value: Zombie_Hipster_Female_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+      propertyPath: 'allowedBodies.Array.data[15]'
+      value: Zombie_Hipster_Male_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+      propertyPath: 'allowedBodies.Array.data[16]'
+      value: Zombie_Hobo_Male_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+      propertyPath: 'allowedBodies.Array.data[17]'
+      value: Zombie_Hoodie_Male_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+      propertyPath: 'allowedBodies.Array.data[18]'
+      value: Zombie_Jacket_Female_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+      propertyPath: 'allowedBodies.Array.data[19]'
+      value: Zombie_Jacket_Male_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+      propertyPath: 'allowedBodies.Array.data[20]'
+      value: Zombie_Jock_Male_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+      propertyPath: 'allowedBodies.Array.data[21]'
+      value: Zombie_Mother_Female_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+      propertyPath: 'allowedBodies.Array.data[22]'
+      value: Zombie_Mother_Female_02
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+      propertyPath: 'allowedBodies.Array.data[23]'
+      value: Zombie_Paramedic_Female_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+      propertyPath: 'allowedBodies.Array.data[24]'
+      value: Zombie_Patient_Female_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+      propertyPath: 'allowedBodies.Array.data[25]'
+      value: Zombie_Prisinor_Male_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+      propertyPath: 'allowedBodies.Array.data[26]'
+      value: Zombie_Punk_Female_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+      propertyPath: 'allowedBodies.Array.data[27]'
+      value: Zombie_Punk_Male_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+      propertyPath: 'allowedBodies.Array.data[28]'
+      value: Zombie_ShopKeeper_Female_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+      propertyPath: 'allowedBodies.Array.data[29]'
+      value: Zombie_ShopKeeper_Male_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+      propertyPath: 'allowedBodies.Array.data[30]'
+      value: Zombie_SummerGirl_Female_01
+      objectReference: {fileID: 0}
+    - target: {fileID: 8272605462407637454, guid: 79d4f9709a033e6419822d661cb6d743, type: 3}
+      propertyPath: 'allowedBodies.Array.data[31]'
+      value: Zombie_Tourist_Male_01
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

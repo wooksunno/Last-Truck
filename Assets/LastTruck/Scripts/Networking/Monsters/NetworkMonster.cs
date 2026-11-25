@@ -94,6 +94,20 @@ namespace LastTruck.Networking
         private static readonly int AttackHash = Animator.StringToHash("Attack");
         private static readonly int HitHash = Animator.StringToHash("Hit");
         private static readonly int DeadHash = Animator.StringToHash("Dead");
+        // Mixamo 좀비 애니메이터 (MixamoAnimatorSetup): 없는 컨트롤러(다른 몬스터)에서는 건드리지 않는다
+        private static readonly int LocoMulHash = Animator.StringToHash("LocoMul");
+        private static readonly int RunVariantHash = Animator.StringToHash("RunVariant");
+        private static readonly int HitVariantHash = Animator.StringToHash("HitVariant");
+        private static readonly int DeathVariantHash = Animator.StringToHash("DeathVariant");
+        private static readonly int KnockdownHash = Animator.StringToHash("Knockdown");
+        private bool _mixamoAnim, _variantsSet;
+        private float _walkClipSpeed, _runClipSpeedA, _runClipSpeedB;   // 클립이 원래 걷는 속도 (m/s, 몸 크기 1 기준)
+
+        // 넘어짐 (호스트): 세게 맞으면 뒤로 넘어졌다가 일어난다
+        private const float KnockdownSeconds = 3.7f;      // 넘어지기(1.9초) + 일어나기(1.8초)
+        private const float KnockdownCooldown = 8f;
+        private float _nextKnockdownTime;
+        private float _knockdownUntil;
         private Animator _animator;
         private MonsterAnimationSet _animSet;
         private bool _deathApplied;
@@ -203,7 +217,53 @@ namespace LastTruck.Networking
             _animator = GetComponentInChildren<Animator>();
             _animSet = GetComponent<MonsterAnimationSet>();
             ReadAttackTiming();
+            ReadLocomotionClips();
         }
+
+        /// <summary>Mixamo 좀비 애니메이터면 걷기/달리기 클립의 원래 속도를 읽는다 (재생 속도를 실제 이동 속도에 맞추려고).</summary>
+        private void ReadLocomotionClips()
+        {
+            _mixamoAnim = false;
+            if (_animator == null || _animator.runtimeAnimatorController == null) return;
+            // (애니메이터가 아직 초기화 전일 수 있어 파라미터 대신 클립 이름으로 알아본다)
+            foreach (AnimationClip clip in _animator.runtimeAnimatorController.animationClips)
+            {
+                if (clip == null) continue;
+                float v = clip.averageSpeed.magnitude;
+                if (clip.name == "Zombie_Limp_Walk") _walkClipSpeed = v;
+                else if (clip.name == "Zombie_Limp_Run") _jogClipSpeed = v;
+                else if (clip.name == "Zombie_Run") { _runClipSpeedA = v; _mixamoAnim = true; }
+                else if (clip.name == "Zombie_Running") _runClipSpeedB = v;
+            }
+        }
+
+        private static readonly int StateWalk = Animator.StringToHash("Walk");
+        private static readonly int StateJog = Animator.StringToHash("Jog");
+        private static readonly int StateRunA = Animator.StringToHash("RunA");
+        private static readonly int StateRunB = Animator.StringToHash("RunB");
+        private float _jogClipSpeed;
+
+        /// <summary>
+        /// 지금 이동 속도(m/s)에 맞는 걷기/뛰기 재생 배율 (발이 바닥에서 미끄러지지 않게).
+        /// 애니메이터가 실제로 재생 중인(또는 넘어가는 중인) 이동 상태의 클립 속도로 나눈다.
+        /// </summary>
+        private float LocomotionMultiplier(float speed)
+        {
+            // 서 있을 때(대기 동작)는 몬스터마다 재생 빠르기를 ±10% 다르게 (이동 중에는 이동 속도 자체가 ±10% 달라서 따로 줄 필요가 없다)
+            if (speed < 0.15f) return _animJitter;
+            AnimatorStateInfo st = _animator.IsInTransition(0) ? _animator.GetNextAnimatorStateInfo(0) : _animator.GetCurrentAnimatorStateInfo(0);
+            int h = st.shortNameHash;
+            float clip; Vector2 range;
+            if (h == StateRunA) { clip = _runClipSpeedA; range = new Vector2(0.6f, 2.2f); }
+            else if (h == StateRunB) { clip = _runClipSpeedB; range = new Vector2(0.6f, 2.2f); }
+            else if (h == StateJog) { clip = _jogClipSpeed; range = new Vector2(0.7f, 1.5f); }
+            else if (h == StateWalk) { clip = _walkClipSpeed; range = new Vector2(0.6f, 1.6f); }
+            else return _animJitter;
+            if (clip < 0.05f) return 1f;
+            float scale = Mathf.Max(0.1f, _animator.humanScale * transform.lossyScale.y) * Mathf.Max(0.1f, _animator.speed);
+            return Mathf.Clamp(speed / (clip * scale), range.x, range.y);
+        }
+        private int _variantRun;
 
         /// <summary>공격 클립의 길이와 OnAttackHit 이벤트 시간을 읽는다 (애니메이션과 피해 타이밍을 맞추기 위해).</summary>
         private void ReadAttackTiming()
@@ -336,6 +396,8 @@ namespace LastTruck.Networking
             _agent.updateRotation = false;
             _agent.Warp(transform.position);
             _agent.speed = Mathf.Max(0.5f, _type.moveSpeed * MonsterCatalog.Instance.speedScale);
+            // 이동 속도도 몬스터마다 ±10% (모션 재생 빠르기와 같은 값 → 발은 그대로 맞는다, 무리가 줄 맞춰 오지 않게)
+            _agent.speed *= SpeedJitter(Object.Id.Raw);
             _agent.acceleration = Mathf.Max(_agent.acceleration, _agent.speed * 3f);
             _agent.stoppingDistance = _type.ranged ? attackRange * 0.85f : attackRange * 0.9f;
             _truck = FindFirstObjectByType<LastTruck.TruckInformation>();
@@ -367,6 +429,15 @@ namespace LastTruck.Networking
         {
             if (_health == null || _health.IsDead || _health.Current <= 0f) return;
             AddKnockback(amount);   // 경직 면역 중이어도 맞으면 조금은 밀린다
+            if (Time.time < _knockdownUntil) return;   // 넘어져 있는 동안은 피격 동작으로 끊지 않는다
+
+            // 묵직한 한 방(체력의 30% 이상, 최소 25)이면 뒤로 넘어졌다가 일어난다 (중간보스 제외, 자주 넘어지지 않게 쿨다운)
+            if (_mixamoAnim && TierSize < 1.5f && Time.time >= _nextKnockdownTime &&
+                amount >= Mathf.Max(25f, _health.Max * 0.3f))
+            {
+                Knockdown(amount);
+                return;
+            }
             if (Time.time < _stunImmuneUntil) return;
 
             if (_pendingTarget != AttackTarget.None)
@@ -378,7 +449,21 @@ namespace LastTruck.Networking
             _stunUntil = Mathf.Max(_stunUntil, Time.time + _stunDuration);   // 더 긴 기절(복서)이 걸려 있으면 줄이지 않는다
             _stunImmuneUntil = _stunUntil + _stunImmunity;
             _nextAttackTime = Mathf.Max(_nextAttackTime, _stunUntil);
-            RPC_PlayHit();
+            RPC_PlayHit(UnityEngine.Random.Range(0, 2));
+        }
+
+        /// <summary>호스트: 뒤로 넘어졌다가 일어난다 (그동안 제자리, 공격 없음, 더 세게 밀린다).</summary>
+        private void Knockdown(float amount)
+        {
+            _pendingTarget = AttackTarget.None;
+            _pendingPlayer = null;
+            _attackLockUntil = 0f;
+            _knockdownUntil = Time.time + KnockdownSeconds;
+            _nextKnockdownTime = _knockdownUntil + KnockdownCooldown;
+            _stunUntil = Mathf.Max(_stunUntil, _knockdownUntil);
+            _stunImmuneUntil = _stunUntil + _stunImmunity;
+            _nextAttackTime = Mathf.Max(_nextAttackTime, _stunUntil);
+            RPC_PlayKnockdown();   // (밀려나는 거리는 보통 피격과 같다: 30피해 ≈ 1.3m)
         }
 
         /// <summary>
@@ -401,8 +486,8 @@ namespace LastTruck.Networking
             Vector3 dir = pos - nearest.transform.position;
             dir.y = 0f;
             if (dir.sqrMagnitude < 0.0001f) dir = -transform.forward;
-            // 약한 연사(총)는 살짝, 묵직한 한 방(도끼/전투 도끼)은 크게: 10피해 ≈ 0.1m, 25 ≈ 0.27m, 42 ≈ 0.55m
-            float strength = Mathf.Clamp(1.5f + amount * 0.12f, 1.5f, 8f);
+            // 약한 연사(총)는 살짝, 묵직한 한 방(도끼/전투 도끼)은 크게: 10피해 ≈ 0.4m, 25 ≈ 1m, 40 이상 ≈ 2m
+            float strength = Mathf.Clamp(2.5f + amount * 0.16f, 2.5f, 9f);
             if (TierSize > 1.5f) strength /= TierSize * 1.6f;   // 중간보스(몸집 2배)만 묵직하게 (일반 좀비도 1.18배라 1.01 기준이면 다 덜 밀렸다)
             _knock = dir.normalized * Mathf.Max(_knock.magnitude, strength);
         }
@@ -413,7 +498,7 @@ namespace LastTruck.Networking
             if (_knock.sqrMagnitude < 0.01f) { _knock = Vector3.zero; return; }
             float dt = Runner.DeltaTime;
             if (_agent != null && _agent.enabled && _agent.isOnNavMesh) _agent.Move(_knock * dt);
-            _knock = Vector3.MoveTowards(_knock, Vector3.zero, 24f * dt);
+            _knock = Vector3.MoveTowards(_knock, Vector3.zero, 20f * dt);
         }
 
         /// <summary>
@@ -447,7 +532,7 @@ namespace LastTruck.Networking
             _stunUntil = Mathf.Max(_stunUntil, Time.time + duration);
             _stunImmuneUntil = Mathf.Max(_stunImmuneUntil, _stunUntil + _stunImmunity);
             _nextAttackTime = Mathf.Max(_nextAttackTime, _stunUntil);
-            RPC_PlayHit();
+            if (Time.time >= _knockdownUntil) RPC_PlayHit(UnityEngine.Random.Range(0, 2));   // 넘어져 있으면 동작은 그대로
         }
 
         #endregion
@@ -739,7 +824,10 @@ namespace LastTruck.Networking
 
                 NetworkHealth targetHealth = player.Health;
                 if (targetHealth != null && !targetHealth.IsDead)
+                {
                     targetHealth.ApplyDamage(playerDamage * dmgScale, player.transform.position + Vector3.up, false);
+                    PushPlayer(player, transform.position, playerDamage * dmgScale);
+                }
             }
             else if (target == AttackTarget.Truck)
             {
@@ -789,6 +877,18 @@ namespace LastTruck.Networking
             if (_health != null && !_health.IsDead) _health.ApplyDamage(_health.Current + 1f, transform.position + Vector3.up, false);
         }
 
+        /// <summary>호스트: 맞은 플레이어를 때린 곳 반대쪽으로 밀어낸다 (8피해 ≈ 0.7m, 40피해 ≈ 1.4m). 모두에게 같은 위치로 동기화된다.</summary>
+        private static void PushPlayer(NetworkPlayer player, Vector3 from, float damage)
+        {
+            if (player == null || player.Health == null || player.Health.IsDead) return;
+            NetworkPlayerMovement movement = player.GetComponent<NetworkPlayerMovement>();
+            if (movement == null) return;
+            Vector3 dir = player.transform.position - from;
+            dir.y = 0f;
+            if (dir.sqrMagnitude < 0.0001f) dir = -player.transform.forward;
+            movement.PushFromHit(dir.normalized * Mathf.Clamp(3.5f + damage * 0.05f, 3.5f, 5.5f));   // 밀려나며 때린 쪽으로 몸을 돌린다
+        }
+
         /// <summary>
         /// 범위 피해: center에서 radius 안의 플레이어(트럭에 탄 사람 제외)와 트럭.
         /// frontArc면 몬스터 앞쪽 반원(180도)만.
@@ -810,7 +910,11 @@ namespace LastTruck.Networking
                 if (frontArc && offset.sqrMagnitude > 0.04f && Vector3.Dot(forward, offset.normalized) < 0f) continue;
 
                 NetworkHealth health = player.Health;
-                if (health != null && !health.IsDead) health.ApplyDamage(damageToPlayer, player.transform.position + Vector3.up, false);
+                if (health != null && !health.IsDead)
+                {
+                    health.ApplyDamage(damageToPlayer, player.transform.position + Vector3.up, false);
+                    PushPlayer(player, center, damageToPlayer);
+                }
             }
 
             if (_truck != null && !_truck.IsBroken && damageToTruck > 0f)
@@ -959,12 +1063,56 @@ namespace LastTruck.Networking
         }
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
-        private void RPC_PlayHit()
+        private void RPC_PlayHit(int variant)
         {
             if (_animator == null || !_animator.isActiveAndEnabled) return;
             _animator.ResetTrigger(AttackHash); // 공격이 취소되었으면 아직 안 나간 공격 모션도 취소
+            if (_mixamoAnim) _animator.SetInteger(HitVariantHash, variant);
             _animator.SetTrigger(HitHash);
         }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_PlayKnockdown()
+        {
+            if (_animator == null || !_animator.isActiveAndEnabled || !_mixamoAnim) return;
+            _animator.ResetTrigger(AttackHash);
+            _animator.ResetTrigger(HitHash);
+            _animator.SetTrigger(KnockdownHash);
+        }
+
+        /// <summary>달리기/사망 동작 종류: 몬스터마다 다르게, 모든 화면에서 같게 (네트워크 번호로 고른다).</summary>
+        private void ApplyVariants()
+        {
+            _variantsSet = true;
+            if (!_mixamoAnim) return;
+            uint id = Object != null && Object.IsValid ? Object.Id.Raw : 0u;
+            // 몬스터마다 다르게 (네트워크 번호로 정하므로 모든 화면에서 같다): 무리가 똑같이 움직이지 않게
+            // (번호가 연속이라 그냥 나누면 비슷한 값이 몰린다 → 항목마다 다른 소금을 넣어 골고루 섞는다)
+            _variantRun = (int)(Mix(id, 1u) % 2u);
+            _animator.SetInteger(RunVariantHash, _variantRun);
+            _animator.SetInteger(DeathVariantHash, (int)(Mix(id, 2u) % 4u));
+            _animator.SetBool(MirrorHash, (Mix(id, 3u) & 1u) == 1u);                    // 좌우 반전: 절뚝이는 다리/휘두르는 팔이 바뀐다
+            _animator.SetFloat(CycleOffsetHash, (Mix(id, 4u) % 1000u) / 1000f);        // 걸음 박자
+            _animator.SetFloat(IdleVariantHash, Mix(id, 5u) % 4u);                      // 대기 동작 4종
+            _animJitter = SpeedJitter(id);                                              // 재생 빠르기 ±10%
+        }
+
+        /// <summary>정수 섞기 (같은 번호 + 같은 소금이면 어느 컴퓨터에서나 같은 값).</summary>
+        private static uint Mix(uint x, uint salt)
+        {
+            x ^= salt * 0x9E3779B9u;
+            x ^= x >> 16; x *= 0x7FEB352Du;
+            x ^= x >> 15; x *= 0x846CA68Bu;
+            x ^= x >> 16;
+            return x;
+        }
+
+        /// <summary>몬스터마다 이동 속도/대기 동작 빠르기 배율 (0.9 ~ 1.1).</summary>
+        private static float SpeedJitter(uint id) => 0.9f + (Mix(id, 6u) % 200u) / 1000f;
+        private static readonly int MirrorHash = Animator.StringToHash("Mirror");
+        private static readonly int CycleOffsetHash = Animator.StringToHash("CycleOffset");
+        private static readonly int IdleVariantHash = Animator.StringToHash("IdleVariant");
+        private float _animJitter = 1f;
 
         public override void Render()
         {
@@ -982,9 +1130,11 @@ namespace LastTruck.Networking
             }
 
             if (_animator == null || !_animator.isActiveAndEnabled) return;
+            if (!_variantsSet) ApplyVariants();
             float target = dead ? 0f : MoveSpeed;
             _shownSpeed = Mathf.MoveTowards(_shownSpeed, target, 20f * Time.deltaTime);
             _animator.SetFloat(SpeedHash, _shownSpeed);
+            if (_mixamoAnim) _animator.SetFloat(LocoMulHash, LocomotionMultiplier(_shownSpeed));
             _animator.SetBool(DeadHash, dead);
         }
 

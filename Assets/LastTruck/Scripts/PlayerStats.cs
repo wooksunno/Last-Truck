@@ -116,9 +116,8 @@ namespace LastTruck
 
             OnHealthChanged?.Invoke(currentHealth, MaxHealth);
 
-            Hit_Ani(attackerPos, hasAttacker);
-            LastTruck.Networking.PlayerStatusHud.ShowDamageNumber(transform, damage);
-            LastTruck.Networking.PlayerStatusHud.PlayLocalHit();   // 화면 가장자리 붉게 + 카메라 흔들림
+            Hit_Ani(attackerPos, hasAttacker, damage);
+            LastTruck.Networking.PlayerStatusHud.PlayLocalHit();   // 화면 가장자리 붉게 + 카메라 흔들림 (데미지 숫자는 띄우지 않는다)
 
             if (currentHealth <= 0)
             {
@@ -144,12 +143,14 @@ namespace LastTruck
 
         #region 애니메이션
 
-        private void Hit_Ani(Vector3 attackerPosition = default, bool hasAttacker = false)
+        private void Hit_Ani(Vector3 attackerPosition = default, bool hasAttacker = false, float damage = 0f)
         {
             if (anim == null) anim = GetComponentInChildren<Animator>();
             if (anim != null)
             {
-                anim.SetTrigger("doHit");
+                // 묵직하게 맞으면(20 이상) 크게 휘청, 아니면 움찔 (MixamoAnimatorSetup: HitLarge / HitSmall)
+                bool big = damage >= 20f && HasAnimParam("doHitBig");
+                anim.SetTrigger(big ? "doHitBig" : "doHit");
             }
 
             // 경직(이동/공격 불가) + 몸 번쩍임, 불꽃, 붉은 화면, 카메라 흔들림
@@ -191,6 +192,7 @@ namespace LastTruck
             foreach (string flag in new[] { "isWalk", "isRun", "isSprint", "isJumping", "isFalling", "AtkShooting" })
                 if (HasAnimParam(flag)) anim.SetBool(flag, false);
             anim.ResetTrigger("doHit");
+            if (HasAnimParam("doHitBig")) anim.ResetTrigger("doHitBig");
 
             int dying = Animator.StringToHash("Dying");
             if (anim.HasState(0, dying))
@@ -223,8 +225,7 @@ namespace LastTruck
 
         void LastTruck.Networking.INetworkHealthListener.OnNetworkHit(float amount, Vector3 hitPoint)
         {
-            Hit_Ani();
-            LastTruck.Networking.PlayerStatusHud.ShowDamageNumber(transform, amount);
+            Hit_Ani(default, false, amount);
 
             var networkPlayer = GetComponent<LastTruck.Networking.NetworkPlayer>();
             if (networkPlayer != null && networkPlayer.IsLocal) LastTruck.Networking.PlayerStatusHud.PlayLocalHit();

@@ -249,8 +249,10 @@ namespace Combat
 
         private void PlayHitEffect(Vector3 hitPoint, int amount)
         {
-            SpawnDamagePopup(hitPoint, amount);
-            HitFeel.Punch(gameObject, Mathf.Clamp01(amount / 40f));   // 몸이 순간 납작해졌다 튕겨 돌아온다
+            // 데미지 숫자는 띄우지 않는다 (빨간 깜빡임 + 피격 동작 + 밀려남으로 맞은 걸 보여 준다)
+            // 몸이 납작해졌다 튕기는 연출은 애니메이션이 없는 것(자원/구조물)에만 (캐릭터는 피격 동작이 있어 어색해진다)
+            if (GetComponentInChildren<Animator>() == null)
+                HitFeel.Punch(gameObject, Mathf.Clamp01(amount / 40f));
             // 타격음: 플레이어가 맞으면 묵직하게, 몬스터는 세게 맞을수록 묵직한 소리
             bool isPlayer = GetComponent<LastTruck.Networking.NetworkPlayer>() != null;
             LastTruck.Audio.Sfx.PlayAt(isPlayer || amount >= 30 ? "hit_heavy" : "hit_flesh", hitPoint,
@@ -273,11 +275,7 @@ namespace Combat
 
         private IEnumerator FlashRed()
         {
-            // 맞는 순간 하얗게 번쩍 → 빨갛게 → 원래 색 (흰 섬광이 있어야 "맞았다"가 확실히 읽힌다)
-            for (int i = 0; i < _renderers.Length; i++)
-                SetColor(_renderers[i], new Color(1f, 0.95f, 0.9f));
-            yield return new WaitForSeconds(0.05f);
-
+            // 맞는 순간 빨갛게 → 원래 색
             for (int i = 0; i < _renderers.Length; i++)
                 if (_renderers[i] != null) SetColor(_renderers[i], Color.red);
 
