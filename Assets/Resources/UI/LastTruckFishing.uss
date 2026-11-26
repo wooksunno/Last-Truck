@@ -5,7 +5,7 @@
     -unity-font-style: bold;
     font-size: 20px;
     -unity-text-outline-width: 1.2px;
-    -unity-text-outline-color: rgba(38, 22, 8, 0.95);
+    -unity-text-outline-color: rgba(8, 12, 24, 0.95);
 }
 
 .fm-frame {
@@ -43,7 +43,7 @@
 
 .fm-progress {
     width: 26px; height: 100%; margin-left: 12px; justify-content: flex-end;
-    background-color: rgba(30, 18, 8, 0.9);
+    background-color: rgba(16, 20, 34, 0.9);
     border-width: 3px; border-color: rgb(58, 34, 16); border-radius: 10px;
     overflow: hidden;
 }

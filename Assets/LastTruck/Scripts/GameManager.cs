@@ -28,8 +28,22 @@ public class GameManager : MonoBehaviour
     [Tooltip("낮 턴의 지속 시간 (초). 실시간 타이머 기준.")]
     [SerializeField] private float dayDurationSeconds = 300f;
 
-    /// <summary>외부(연출 스크립트 등)에서 낮 진행률을 계산할 때 참조할 수 있도록 공개.</summary>
-    public float DayDurationSeconds => dayDurationSeconds;
+    [Tooltip("초반 낮 길이 (초). 1번째 낮, 2번째 낮, ... 목록보다 뒤의 낮은 dayDurationSeconds.\n" +
+             "처음 하는 사람이 설비 → 구리 → 곡괭이 → 철까지 가기 전에 밤이 와 버린다는 피드백으로 초반 낮을 길게 둔다.")]
+    [SerializeField] private float[] earlyDayDurations = { 480f, 420f, 360f };
+
+    /// <summary>
+    /// 지금 낮의 길이 (초). 회차(CurrentCycle)로만 정해지므로 멀티플레이 클라이언트도 호스트와 같다.
+    /// 외부(시계 UI/연출)에서 낮 진행률을 계산할 때 쓴다.
+    /// </summary>
+    public float DayDurationSeconds => DayLengthFor(CurrentCycle);
+
+    public float DayLengthFor(int cycle)
+    {
+        if (earlyDayDurations != null && cycle >= 1 && cycle <= earlyDayDurations.Length && earlyDayDurations[cycle - 1] > 0f)
+            return Mathf.Max(dayDurationSeconds, earlyDayDurations[cycle - 1]);
+        return dayDurationSeconds;
+    }
 
     [Header("해질녘 (낮 → 밤을 천천히)")]
     [Tooltip("낮이 끝나기 이 시간(초) 전부터 해가 기울기 시작해 낮이 끝나는 순간 완전한 밤이 된다.")]
@@ -45,7 +59,7 @@ public class GameManager : MonoBehaviour
         {
             if (_waitingForNetworkStart || (IsNetworkMirror && !_mirrorStarted)) return 0f;
             if (CurrentPhase == GamePhase.Night) return 1f;
-            float dusk = Mathf.Min(duskSeconds, dayDurationSeconds * 0.5f);
+            float dusk = Mathf.Min(duskSeconds, DayDurationSeconds * 0.5f);
             return dusk <= 0f ? 0f : Mathf.Clamp01(1f - DayTimeRemaining / dusk);
         }
     }
@@ -182,7 +196,7 @@ public class GameManager : MonoBehaviour
     private void StartDay()
     {
         CurrentPhase = GamePhase.Day;
-        DayTimeRemaining = dayDurationSeconds;
+        DayTimeRemaining = DayDurationSeconds;
 
         OnDayStarted?.Invoke(CurrentCycle);
         OnPhaseChanged?.Invoke(CurrentPhase);

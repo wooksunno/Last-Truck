@@ -131,7 +131,6 @@ namespace CraftingSystem
         // 나무/돌 소비처 (나무·돌을 계속 쓰게 만드는 아이템)
         public const string ThrowingStone = "throwing_stone"; // 투척용 돌멩이
         public const string WoodSpikeTrap = "wood_spike_trap"; // 나무 가시 덫
-        public const string Torch = "torch"; // 횃불 (손에 들면 주변을 밝힌다)
         // 플레이어 갑옷 (가방에 가지고 있으면 받는 피해가 줄어든다 - PlayerArmor)
         public const string LeatherArmor = "leather_armor";           // 가죽 갑옷 (-10%)
         public const string IronPlateArmor = "iron_plate_armor";      // 철제 갑옷 (-20%, 이동 -5%)
@@ -143,7 +142,7 @@ namespace CraftingSystem
         public const string CactusJuice = "cactus_juice";             // 선인장 주스
         public const string GrassPorridge = "grass_porridge";         // 풀죽
         public const string DesertStew = "desert_stew";               // 사막 스튜
-        public const string Lantern = "lantern"; // 랜턴 (손에 들면 주변이 환해지고 안개/비로 흐려진 시야가 걷힌다)
+        public const string Lantern = "lantern"; // 랜턴 (가방에 있으면 허리에 매달려 주변이 환해지고 안개/비로 흐려진 시야가 걷힌다)
         public const string WoodBarricade = "wood_barricade"; // 나무 바리케이드 (몬스터 길막)
         public const string StoneWall = "stone_wall"; // 돌 방벽 (몬스터 길막, 더 오래 감)
 

@@ -15,6 +15,8 @@ namespace CraftingSystem
 
         [SerializeField] private string displayName = "자원 채집";
         [SerializeField] private ItemData outputItem;
+        /// <summary>이 노드에서 나오는 아이템 (미니맵 분류용).</summary>
+        public ItemData OutputItem => outputItem;
         [SerializeField] private int outputAmount = 1;
         [Tooltip("채집에 걸리는 시간(초). 기획서에 명시된 값이 없어 기본값 0(즉시 채집).")]
         [SerializeField] private float gatherSeconds = 0f;

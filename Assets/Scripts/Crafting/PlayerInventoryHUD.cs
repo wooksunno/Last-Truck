@@ -33,7 +33,8 @@ namespace CraftingSystem
             }
             if (_toolkit == null)
             {
-                _toolkit = LastTruck.InventoryHotbarView.Create(slots.Count,
+                _toolkit = LastTruck.InventoryHotbarView.Create(Mathf.Max(slots.Count, PlayerInventory.MaxPossibleSlots),   // 가방을 늘려도 칸이 모자라지 않게 최대 칸 수만큼 만들어 두고, 쓰는 칸만 보인다
+                    
                     onSlotClicked,
                     (from, to) => _inventory.SwapSlots(from, to),
                     from => _inventory.DropSlot(from, int.MaxValue));
@@ -62,36 +63,52 @@ namespace CraftingSystem
             Refresh();
         }
 
+        private PouchInventory _hookedPouch;
+
         public void Refresh()
         {
             if (_inventory == null) return;
 
+            // 배낭 칸 수 표시가 배낭이 바뀔 때도 갱신되게
+            PouchInventory pouch = _inventory.Pouch;
+            if (pouch != _hookedPouch)
+            {
+                if (_hookedPouch != null) _hookedPouch.Changed -= Refresh;
+                _hookedPouch = pouch;
+                if (_hookedPouch != null) _hookedPouch.Changed += Refresh;
+            }
+
             IReadOnlyList<InventorySlot> data = _inventory.Slots;
-            int cap = Mathf.Min(slots.Count, _inventory.MaxSlots);
+            int cap = Mathf.Min(Mathf.Max(slots.Count, _toolkit != null ? _toolkit.SlotCount : 0), _inventory.MaxSlots);
             int used = 0;
+            for (int i = 0; i < cap && i < data.Count; i++)
+                if (data[i] != null && !data[i].IsEmpty) used++;
             for (int i = 0; i < slots.Count; i++)
             {
                 if (slots[i] == null) continue;
-                bool inRange = i < cap;
+                bool inRange = i < Mathf.Min(slots.Count, cap);
                 if (slots[i].gameObject.activeSelf != inRange) slots[i].gameObject.SetActive(inRange);
                 if (!inRange) continue;
 
                 InventorySlot s = i < data.Count ? data[i] : null;
                 bool empty = s == null || s.IsEmpty;
-                if (!empty) used++;
                 slots[i].Set(empty ? null : s.item, empty ? 0 : s.count, i == _inventory.SelectedSlotIndex, empty ? 1f : s.DurabilityRatio);
             }
 
             if (_toolkit != null)
             {
-                for (int i = 0; i < slots.Count; i++)
+                for (int i = 0; i < _toolkit.SlotCount; i++)
                 {
                     InventorySlot s = i < data.Count ? data[i] : null;
                     bool empty = s == null || s.IsEmpty;
                     _toolkit.SetSlot(i, i < cap, empty ? null : s.item, empty ? 0 : s.count, i == _inventory.SelectedSlotIndex, empty ? 1f : s.DurabilityRatio);
                 }
                 ItemData heldItem = _inventory.SelectedItem;
-                _toolkit.SetSummary(used, cap, heldItem != null ? heldItem.itemName : "빈 손");
+                string held = heldItem != null ? heldItem.itemName : "빈 손";
+                if (_inventory.HasBackpack && _inventory.Pouch != null)
+                    held += "   [배낭 " + _inventory.Pouch.UsedSlots + "/" + _inventory.Pouch.MaxSlots + "]";
+                _toolkit.SetSummary(used, cap, held);
+                _toolkit.SetUseHint(ItemUseHints.For(heldItem));
             }
 
             if (usedCountText != null) usedCountText.text = used + "/" + cap;
@@ -114,6 +131,7 @@ namespace CraftingSystem
 
         private void OnDestroy()
         {
+            if (_hookedPouch != null) _hookedPouch.Changed -= Refresh;
             if (_toolkit != null) Destroy(_toolkit.gameObject);
         }
     }

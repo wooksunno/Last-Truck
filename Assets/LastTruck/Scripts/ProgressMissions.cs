@@ -10,7 +10,7 @@ namespace LastTruck
     ///
     ///  - 밤마다 주어지는 생존 조건(SurvivalDirector)과 별개로, 낮 동안 무엇을 해야 할지 알려 준다
     ///    (나무 모으기 → 곡괭이 → 무기 → 모닥불 → 구리 → 갑옷 → 철 → 포탑 → 총 → 탈출 부품).
-    ///  - 임무를 달성하면 보상이 트럭 보관함에 들어간다 (멀티플레이는 내 가방/발밑). 보상에는 소모품과 "무기 강화 키트"가 섞여 있다.
+    ///  - 임무를 달성하면 보상이 전부 트럭 보관함에 들어간다 (트럭이 꽉 차면 넘친 만큼만 내 가방/발밑). 보상에는 소모품과 "무기 강화 키트"가 섞여 있다.
     ///  - 화면에는 도전과제처럼 보여 준다 (UI.AchievementHud): 달성 순간 위에서 내려오는 알림, 트럭 창의 도전과제 탭(목록).
     ///    HUD 스킨이 없을 때만 아래 OnGUI의 간단한 표시로 대신한다.
     ///
@@ -43,40 +43,42 @@ namespace LastTruck
 
         private static readonly Mission[] Missions =
         {
+            // 초반 길잡이: 처음 하는 사람도 조합식을 몰라도 따라갈 수 있게 재료를 안내에 그대로 적는다 (트럭 옆 Tab → 제작/가공)
             Have("나무 10개 모으기", "나무에 다가가 E를 꾹 누르세요", ItemIds.Wood, 10, R(ItemIds.Stone, 6)),
-            Have("나무 곡괭이 만들기", "트럭 옆에서 Tab → 조립", ItemIds.WoodPickaxe, 1, R(ItemIds.HerbBandage, 2)),
-            Have("돌 8개 캐기", "곡괭이를 손에 들고 바위를 캐세요", ItemIds.Stone, 8, R(ItemIds.Torch, 2)),
-            HaveAny("첫 무기 만들기", "나무창 / 돌도끼 / 구리 단검 중 하나",
+            Have("나무 곡괭이 만들기", "트럭 옆에서 Tab → 제작 → 도구: 나무 6개", ItemIds.WoodPickaxe, 1, R(ItemIds.HerbBandage, 2)),
+            Have("돌 8개 캐기", "곡괭이를 손에 들고 바위 앞에서 E 꾹", ItemIds.Stone, 8, R(ItemIds.ThrowingStone, 4)),
+            HaveAny("첫 무기 만들기", "Tab → 제작 → 무기: 나무창 / 돌도끼 등 (만들면 가방으로 들어와요)",
                 new[] { ItemIds.WoodSpear, ItemIds.StoneAxe, ItemIds.CopperDagger, ItemIds.Machete, ItemIds.HuntingBow },
                 R(ItemIds.ThrowingStone, 6)),
             new Mission
             {
-                title = "모닥불 설치하기", hint = "트럭에서 모닥불을 조립하면 굽기/제련을 할 수 있어요", goal = 1,
+                title = "모닥불 설치하기", hint = "Tab → 제작 → 설비: 나무 15 + 돌 3. 굽기/제련을 할 수 있어요", goal = 1,
                 current = p => p.FacilityBuilt(FacilityType.Campfire) ? 1 : 0,
                 rewards = new[] { R(ItemIds.Fish, 2), R(ItemIds.Wood, 10) },
             },
+            Have("돌 곡괭이 만들기", "Tab → 제작 → 도구: 나무 6 + 돌 5 (구리 광맥을 캘 수 있어요)", ItemIds.StonePickaxe, 1, R(ItemIds.WoodSpikeTrap, 2)),
+            Have("구리 원석 6개 캐기", "붉은 결정이 구리 광맥이에요 (돌 곡괭이로 E 꾹)", ItemIds.CopperOre, 6, R(ItemIds.Charcoal, 4)),
+            Have("순수 구리 3개 제련", "Tab → 가공 → 모닥불: 구리 원석을 누르면 칸에 들어가요", ItemIds.Copper, 3, R(ItemIds.WeaponUpgradeKit, 1)),
+            Have("구리 곡괭이 만들기", "숫돌 연마대(돌 10 + 나무 4) → 가공에서 구리 절삭날 → 제작에서 구리 곡괭이", ItemIds.CopperPickaxe, 1, R(ItemIds.ToolRepairKit, 2)),
             new Mission
             {
                 title = "첫 번째 밤 버티기", hint = "밤의 생존 조건을 달성하면 아침이 와요 (K: 생존 임무)", goal = 1,
                 current = p => p.Cycle() >= 2 ? 1 : 0,
                 rewards = new[] { R(ItemIds.WeaponUpgradeKit, 1), R(ItemIds.Steak, 2) },
             },
+            // (QA: 낮에 진행할 수 있는 임무를 먼저. "좀비 20마리"가 앞에 있으면 낮 내내 다음 안내가 막혔다)
+            Have("철 원석 6개 캐기", "푸른빛 결정이 철 광맥이에요 (구리 곡괭이로 E 꾹)", ItemIds.IronOre, 6, R(ItemIds.WeaponUpgradeKit, 1)),
+            HaveAny("철제 무기 만들기", "철 제련(모닥불) → 강화 철 날(숫돌) + 나무 손잡이(정밀 절단기) → 마체테/철도끼",
+                new[] { ItemIds.Machete, ItemIds.IronAxe, ItemIds.BattleAxe, ItemIds.FlameMachete, ItemIds.VibrationBlade },
+                R(ItemIds.Molotov, 3)),
+            HaveAny("갑옷 입기", "가죽 갑옷: 무두질 건조대에서 경화 가죽 4 + 젖은 가죽 2 (젖은 가죽은 좀비가 떨어뜨려요)",
+                new[] { ItemIds.LeatherArmor, ItemIds.IronPlateArmor, ItemIds.AlloyPlateArmor },
+                R(ItemIds.Steak, 3)),
             new Mission
             {
                 title = "좀비 20마리 처치", hint = "밤낮 가리지 않고 누적으로 세요", goal = 20,
                 current = p => p._kills, rewards = new[] { R(ItemIds.HerbBandage, 3) },
             },
-            Have("돌 곡괭이 만들기", "구리 광맥을 캐려면 돌 곡괭이가 필요해요", ItemIds.StonePickaxe, 1, R(ItemIds.WoodSpikeTrap, 2)),
-            Have("구리 원석 6개 캐기", "붉은 결정이 구리 광맥이에요", ItemIds.CopperOre, 6, R(ItemIds.Charcoal, 4)),
-            Have("순수 구리 3개 제련", "모닥불에서 구리 원석을 제련하세요", ItemIds.Copper, 3, R(ItemIds.WeaponUpgradeKit, 1)),
-            Have("구리 곡괭이 만들기", "숫돌 연마대에서 구리 절삭날을 만들어야 해요", ItemIds.CopperPickaxe, 1, R(ItemIds.ToolRepairKit, 2)),
-            HaveAny("갑옷 입기", "가죽 / 철제 / 합금 갑옷 중 하나 (가방에 넣어 두면 적용돼요)",
-                new[] { ItemIds.LeatherArmor, ItemIds.IronPlateArmor, ItemIds.AlloyPlateArmor },
-                R(ItemIds.Steak, 3)),
-            Have("철 원석 6개 캐기", "푸른빛 결정이 철 광맥이에요 (구리 곡괭이 필요)", ItemIds.IronOre, 6, R(ItemIds.WeaponUpgradeKit, 1)),
-            HaveAny("철제 무기 만들기", "마체테 / 철도끼 / 전투 도끼 중 하나",
-                new[] { ItemIds.Machete, ItemIds.IronAxe, ItemIds.BattleAxe, ItemIds.FlameMachete, ItemIds.VibrationBlade },
-                R(ItemIds.Molotov, 3)),
             new Mission
             {
                 title = "트럭 강화 3번 하기", hint = "트럭 옆에서 Tab → 강화", goal = 3,
@@ -187,6 +189,7 @@ namespace LastTruck
         // ---------------------------------------------------------------- 상태
 
         private int _index;
+        private GameManager _gameOf;   // 지금 진행 중인 게임 (바뀌면 처음부터)
         private int _kills;
         private readonly Dictionary<string, int> _seen = new Dictionary<string, int>();   // 아이템별로 지금까지 가져 본 최대 수
         private float _nextCheck;
@@ -210,6 +213,16 @@ namespace LastTruck
             if (player == null || gm == null || gm.IsWaitingForNetworkStart) { _started = false; return; }
             _started = true;
 
+            // 새 게임(게임 매니저가 바뀜)이면 도전과제를 처음부터 다시 (이 오브젝트는 게임이 끝나도 남는다)
+            if (gm != _gameOf)
+            {
+                _gameOf = gm;
+                _index = 0; _kills = 0; _shownCurrent = 0;
+                _seen.Clear();
+                _truck = null;
+                _flashUntil = 0f;
+            }
+
             if (_index >= Missions.Length) return;
 
             RefreshSeen(player);
@@ -225,9 +238,11 @@ namespace LastTruck
             _flashReward = reward;
             _flashUntil = Time.unscaledTime + 4f;
             int done = _index;
+            LastTruck.Audio.Sfx.Play("notify_done", 1f, 1f, 0.3f);     // 달성 알림
+            LastTruck.Audio.Sfx.Play("quest_flip", 0.7f, 1.1f, 0.3f);  // + 다음 임무로 책장 넘김
             // HUD가 있으면 도전과제 알림이 뜬다. 없을 때만 아래쪽 토스트로 알린다
             if (!LastTruckHud.IsReady)
-                HudToast.Show("도전과제 달성: " + m.title + (string.IsNullOrEmpty(reward) ? "" : "  →  보상 " + reward));
+                HudToast.Show("도전과제 달성: " + m.title + (string.IsNullOrEmpty(reward) ? "" : "  →  보상 " + reward + " (트럭 보관함)"));
             _index++;
             Completed?.Invoke(done);
             _shownCurrent = 0;
@@ -254,7 +269,8 @@ namespace LastTruck
             {
                 ItemData item = catalog.GetItem(id);
                 if (item == null) continue;
-                int have = (bag != null ? bag.GetItemCount(item) : 0) + (truck != null ? truck.GetItemCount(item) : 0);
+                int have = (bag != null ? bag.GetItemCount(item) : 0) + (truck != null ? truck.GetItemCount(item) : 0)
+                         + (bag != null && bag.Pouch != null ? bag.Pouch.GetItemCount(item) : 0);   // 배낭에 든 것도 센다
                 if (!_seen.TryGetValue(id, out int best) || have > best) _seen[id] = have;
             }
         }
@@ -318,6 +334,7 @@ namespace LastTruck
                 if (item == null || r.count <= 0) continue;
                 names.Add(item.itemName + " x" + r.count);
 
+                // 보상은 종류와 상관없이 전부 트럭 보관함으로 (트럭이 꽉 차서 못 넣은 만큼만 내 가방/발밑)
                 if (truck != null || Networking.GameLauncher.IsOnlineSession)
                 {
                     Networking.TruckInventorySync.GrantItem(truck, item, r.count, bag);
@@ -385,7 +402,7 @@ namespace LastTruck
             float panelH = (_collapsed && !flashNow ? 30f : flashNow ? 86f : _index >= Missions.Length ? 62f : 150f) * k;
             float y = bottom - panelH;
             Color gold = new Color(1f, 0.8f, 0.34f), cream = new Color(0.97f, 0.93f, 0.82f), green = new Color(0.4f, 1f, 0.62f);
-            Color panel = new Color(0.16f, 0.11f, 0.07f, 0.86f);
+            Color panel = new Color(0.09f, 0.11f, 0.18f, 0.9f);   // 남색 테마
 
             bool allDone = _index >= Missions.Length;
             bool flashing = Time.unscaledTime < _flashUntil;

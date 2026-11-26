@@ -30,7 +30,14 @@ namespace CraftingSystem
         [SerializeField] private Text authoredNameText;
         [SerializeField] private Text authoredSubText;
 
-public void Initialize(LastTruck.PlayerInteract playerInteract, EatController eat = null, TrapController trap = null)
+        // UI Toolkit 게이지는 씬이 바뀌어도 남는 오브젝트라서, 게임 씬이 닫히면 같이 지운다 (안 지우면 다음 게임에서 두 개가 겹친다)
+        private void OnDestroy()
+        {
+            if (_hud != null) Destroy(_hud.gameObject);
+            _hud = null;
+        }
+
+        public void Initialize(LastTruck.PlayerInteract playerInteract, EatController eat = null, TrapController trap = null)
         {
             _playerInteract = playerInteract;
             _eat = eat;

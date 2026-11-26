@@ -187,7 +187,7 @@ namespace LastTruck
             disc.style.left = c - discSize * 0.5f; disc.style.top = c - discSize * 0.5f;
             disc.style.width = discSize; disc.style.height = discSize;
             disc.style.backgroundImage = new StyleBackground(skin.roundBrownDark);
-            disc.style.unityBackgroundImageTintColor = new Color(0.55f, 0.46f, 0.4f, 0.78f);
+            disc.style.unityBackgroundImageTintColor = skin.ThemeTint(skin.roundBrownDark, new Color(0.55f, 0.46f, 0.4f, 0.78f));
             wheel.Add(disc);
 
             // 가운데 원 + 이름
@@ -215,7 +215,7 @@ namespace LastTruck
             _centerLabel.style.display = DisplayStyle.None;
             _center.Add(_centerLabel);
 
-            // 항목 5개
+            // 원 둘레에 놓일 항목
             for (int i = 0; i < Count; i++)
             {
                 Vector2 off = NodeOffset(i, Count, RingRadius);
@@ -230,8 +230,10 @@ namespace LastTruck
 
                 var icon = new VisualElement { pickingMode = PickingMode.Ignore };
                 icon.style.width = 76; icon.style.height = 76;
-                var sp = UiIcons.Get(GameUIController.TabIconNames[i]);
+                string iconName = GameUIController.TabIconNames[i];
+                var sp = UiIcons.Get(iconName);
                 if (sp != null) icon.style.backgroundImage = new StyleBackground(sp);
+                if (iconName == "medal") icon.style.unityBackgroundImageTintColor = (Color)new Color32(128, 84, 32, 255);
                 node.Add(icon);
 
                 // 잠김 표시 (가공: 설비가 없을 때)
@@ -385,7 +387,7 @@ namespace LastTruck
                 bool locked = i == 2 && _processLocked;
                 Color tint = sel ? new Color(1f, 0.86f, 0.45f, 1f)
                     : (locked ? new Color(0.5f, 0.5f, 0.55f, 1f) : new Color(0.88f, 0.8f, 0.72f, 1f));
-                _nodes[i].style.unityBackgroundImageTintColor = tint;
+                { LastTruckUiSkin sk = LastTruckUiSkin.Get(); _nodes[i].style.unityBackgroundImageTintColor = sk != null ? sk.ThemeTint(sk.roundBrown, tint) : tint; }
             }
 
             // 가운데: 고른 항목 이름 (없으면 트럭 그림)

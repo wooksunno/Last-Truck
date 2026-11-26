@@ -53,6 +53,8 @@ Shader "LastTruck/StylizedCharacter"
         _NightFogResist ("Night Fog Resist", Range(0,1)) = 0
         [HDR] _FlashColor ("Hit Flash Color", Color) = (1,1,1,1)
         _HitFlash ("Hit Flash", Range(0,1)) = 0
+        // 카메라를 가리는 몬스터를 점 무늬로 지운다 (0 = 다 보임, 1 = 다 지움, CameraOccluderFade가 정한다)
+        _DitherFade ("Dither Fade", Range(0,1)) = 0
 
         [Header(Outline)]
         _OutlineColor ("Outline Color", Color) = (0.12, 0.08, 0.14, 1)
@@ -103,7 +105,19 @@ Shader "LastTruck/StylizedCharacter"
         half4 _NightTint;
         half _NightTintStrength;
         half _NightFogResist;
+        half _DitherFade;
     CBUFFER_END
+
+    // 화면 4x4 점 무늬(베이어)로 _DitherFade만큼 픽셀을 버린다. 반투명이 아니라 정렬 문제 없이 "비쳐 보이는" 느낌을 낸다.
+    // positionCS: 프래그먼트의 SV_POSITION (xy = 화면 픽셀 좌표)
+    void DitherClip(float4 positionCS)
+    {
+        if (_DitherFade <= 0.001) return;
+        uint2 p = (uint2)positionCS.xy % 4u;
+        const float bayer[16] = { 0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5 };
+        float t = (bayer[p.y * 4u + p.x] + 0.5) / 16.0;
+        clip(t - _DitherFade);
+    }
 
     // AtmosphereController가 매 프레임 설정하는 전역값(낮 0 ~ 밤 1)
     float _GameNightFactor;
@@ -189,6 +203,7 @@ Shader "LastTruck/StylizedCharacter"
             half4 frag(Varyings i) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(i);
+                DitherClip(i.positionCS);
                 half4 tex = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv) * _BaseColor;
                 half3 albedo = tex.rgb;
                 half3 N = normalize(i.normalWS);
@@ -313,7 +328,8 @@ Shader "LastTruck/StylizedCharacter"
                 float3 nWS = TransformObjectToWorldNormal(input.normalOS);
                 // 카메라 거리에 비례해서 두께가 너무 얇아지거나 굵어지지 않게 보정
                 float dist = distance(_WorldSpaceCameraPos, posWS);
-                float w = _OutlineWidth * clamp(dist * 0.12, 0.5, 2.2);
+                // (멀수록 굵어지는 폭을 낮췄다: 예전엔 20m 밖에서 2.2배까지 굵어져서 몬스터가 하얀 테두리를 두른 것처럼 보였다)
+                float w = _OutlineWidth * clamp(dist * 0.07, 0.6, 1.3);
                 posWS += nWS * w;
                 o.positionCS = TransformWorldToHClip(posWS);
                 o.fogFactor = ComputeFogFactor(o.positionCS.z);
@@ -322,6 +338,7 @@ Shader "LastTruck/StylizedCharacter"
 
             half4 fragOutline(V i) : SV_Target
             {
+                DitherClip(i.positionCS);
                 // 밤에는 아웃라인이 은은한 달빛 테두리로 빛나서 어두운 바닥에서도 캐릭터 윤곽이 보인다
                 half3 c = lerp(_OutlineColor.rgb, _OutlineNightColor.rgb, saturate(_GameNightFactor) * _OutlineNightGlow);
                 // 밤 안개에 테두리가 완전히 묻히지 않게 일부만 안개를 섞는다
@@ -388,7 +405,7 @@ Shader "LastTruck/StylizedCharacter"
             struct A { float4 positionOS : POSITION; };
             struct V { float4 positionCS : SV_POSITION; };
             V vertDepth(A input) { V o; o.positionCS = TransformObjectToHClip(input.positionOS.xyz); return o; }
-            half fragDepth(V i) : SV_Target { return i.positionCS.z; }
+            half fragDepth(V i) : SV_Target { DitherClip(i.positionCS); return i.positionCS.z; }
             ENDHLSL
         }
 
@@ -404,7 +421,7 @@ Shader "LastTruck/StylizedCharacter"
             struct A { float4 positionOS : POSITION; float3 normalOS : NORMAL; };
             struct V { float4 positionCS : SV_POSITION; half3 normalWS : TEXCOORD0; };
             V vertDN(A input) { V o; o.positionCS = TransformObjectToHClip(input.positionOS.xyz); o.normalWS = TransformObjectToWorldNormal(input.normalOS); return o; }
-            half4 fragDN(V i) : SV_Target { return half4(NormalizeNormalPerPixel(i.normalWS), 0); }
+            half4 fragDN(V i) : SV_Target { DitherClip(i.positionCS); return half4(NormalizeNormalPerPixel(i.normalWS), 0); }
             ENDHLSL
         }
 
@@ -424,6 +441,7 @@ Shader "LastTruck/StylizedCharacter"
             V vertDN(A input) { V o; o.positionCS = TransformObjectToHClip(input.positionOS.xyz); o.normalWS = TransformObjectToWorldNormal(input.normalOS); return o; }
             half4 fragDN(V i) : SV_Target
             {
+                DitherClip(i.positionCS);
                 float3 n = NormalizeNormalPerPixel(i.normalWS);
             #if defined(_GBUFFER_NORMALS_OCT)
                 float2 oct = PackNormalOctQuadEncode(n) * 0.5 + 0.5;

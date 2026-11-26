@@ -289,8 +289,8 @@ namespace LastTruck
             var ca = profile.Add<ColorAdjustments>(true);
             // 뿌옇지 않게: 노출은 거의 그대로, 대비는 오히려 조금 올리고 채도로 맑은 파스텔 색을 낸다
             ca.postExposure.Override(0.08f);   // 낮은 전체적으로 밝고 산뜻하게 (간접광이 그림자를 받쳐 주므로 대비는 유지)
-            ca.contrast.Override(10f);
-            ca.saturation.Override(12f);
+            ca.contrast.Override(17f);          // 화면이 밋밋하다는 피드백: 대비/채도를 조금 더 (SSAO가 그림자를 받쳐 준다)
+            ca.saturation.Override(18f);
             ca.colorFilter.Override(new Color(1f, 0.985f, 0.95f));
 
             // 검은색을 없앤다: 가장 어두운 곳도 연한 라벤더 (파스텔의 핵심)

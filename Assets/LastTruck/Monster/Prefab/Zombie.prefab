@@ -102,12 +102,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 539107e69d794a8f836ed3ecd21da0ed, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MonsterAnimationSet
-  attackClip: {fileID: 7400000, guid: a47ab999fae673d4385f6716ae17f1b4, type: 2}
-  getHitClip: {fileID: 7400000, guid: 4ea83184c1588b846b2042c78e335418, type: 2}
-  deathClip: {fileID: 7400000, guid: b613000e3692df142b37e58b11a66b3b, type: 2}
-  attackHitTiming: 0.5
+  attackClip: {fileID: -203655887218126122, guid: de38ca9aec276664a8fc65dc5ae66bc1, type: 3}
+  getHitClip: {fileID: -203655887218126122, guid: daea609f3c5889c4dbded96348aea948, type: 3}
+  deathClip: {fileID: -203655887218126122, guid: 8b436394b7b08844794f5f705ad4257f, type: 3}
+  attackHitTiming: 0.4
   stunImmunitySeconds: 1
   corpseLingerSeconds: 0.5
+  attackPlaybackSpeed: 1.6
+  hitStunSeconds: 0.55
 --- !u!136 &8234844038741127473
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -145,6 +147,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::LastTruck.ZombieVariant
   bodyPrefix: Zombie_
   forcedIndex: -1
+  allowedBodies: []
 --- !u!1001 &1071179132690263883
 PrefabInstance:
   m_ObjectHideFlags: 0

@@ -101,6 +101,166 @@ namespace LastTruck
             north.AddToClassList("mm-north");
             if (LastTruckHud.SharedFont.HasValue) north.style.unityFontDefinition = LastTruckHud.SharedFont.Value;
             _frame.Add(north);
+
+            BuildFilter(root, skin, size + 28f);
+        }
+
+        // ------------------------------------------------------------------ 표시 설정 (어떤 채집물을 점으로 볼지)
+
+        private VisualElement _filterBtn, _filterPanel;
+        private readonly List<VisualElement> _chips = new List<VisualElement>();
+        private bool _filterOpen;
+
+        /// <summary>미니맵 바로 아래 [표시] 단추 + 누르면 펼쳐지는 분류 칩 (켜진 분류만 미니맵에 점이 찍힌다).</summary>
+        private void BuildFilter(VisualElement root, LastTruckUiSkin skin, float frameSize)
+        {
+            var holder = new VisualElement { pickingMode = PickingMode.Ignore };
+            holder.style.position = Position.Absolute;
+            holder.style.right = 22;
+            holder.style.top = 22 + frameSize + 4;
+            holder.style.alignItems = Align.FlexEnd;
+            root.Add(holder);
+
+            _filterBtn = new VisualElement { pickingMode = PickingMode.Position };
+            _filterBtn.style.flexDirection = FlexDirection.Row;
+            _filterBtn.style.alignItems = Align.Center;
+            _filterBtn.style.paddingLeft = 14; _filterBtn.style.paddingRight = 14;
+            _filterBtn.style.height = 32;
+            _filterBtn.style.marginRight = (frameSize - 150f) * 0.5f;   // 미니맵 가운데 아래
+            UiToolkitSkin.Slice(_filterBtn, skin.panelBrownDark, 0.3f, Color.white);
+            _filterBtn.Add(MiniLabel("◆ 표시할 채집물  [M]", 16, new Color(0.95f, 0.88f, 0.7f)));
+            _filterBtn.RegisterCallback<ClickEvent>(_ => SetFilterOpen(!_filterOpen));
+            _filterBtn.RegisterCallback<PointerEnterEvent>(_ => _filterBtn.style.scale = new Scale(new Vector2(1.05f, 1.05f)));
+            _filterBtn.RegisterCallback<PointerLeaveEvent>(_ => _filterBtn.style.scale = new Scale(Vector2.one));
+            holder.Add(_filterBtn);
+
+            _filterPanel = new VisualElement { pickingMode = PickingMode.Position };
+            _filterPanel.style.width = 300;
+            _filterPanel.style.marginTop = 6;
+            _filterPanel.style.paddingLeft = 12; _filterPanel.style.paddingRight = 12;
+            _filterPanel.style.paddingTop = 12; _filterPanel.style.paddingBottom = 12;
+            _filterPanel.style.flexDirection = FlexDirection.Row;
+            _filterPanel.style.flexWrap = Wrap.Wrap;
+            UiToolkitSkin.Slice(_filterPanel, skin.panelBrownDark, 0.45f, Color.white);
+            holder.Add(_filterPanel);
+
+            var catalog = CraftingSystem.ItemCatalog.GetOrCreate();
+            for (int i = 0; i < CraftingSystem.MinimapFilter.Categories.Length; i++)
+            {
+                int idx = i;
+                var cat = CraftingSystem.MinimapFilter.Categories[i];
+                var chip = new VisualElement { pickingMode = PickingMode.Position };
+                chip.style.flexDirection = FlexDirection.Row;
+                chip.style.alignItems = Align.Center;
+                chip.style.width = 132; chip.style.height = 34;
+                chip.style.marginRight = 6; chip.style.marginBottom = 6;
+                chip.style.paddingLeft = 8;
+                chip.style.borderTopLeftRadius = chip.style.borderTopRightRadius = chip.style.borderBottomLeftRadius = chip.style.borderBottomRightRadius = 6;
+                chip.style.borderLeftWidth = chip.style.borderRightWidth = chip.style.borderTopWidth = chip.style.borderBottomWidth = 1.5f;
+
+                var swatch = new VisualElement { pickingMode = PickingMode.Ignore };
+                swatch.style.width = 10; swatch.style.height = 10; swatch.style.marginRight = 6;
+                swatch.style.rotate = new Rotate(45f);   // 마름모 (폴리곤 느낌)
+                swatch.style.backgroundColor = cat.color;
+                chip.Add(swatch);
+
+                Sprite icon = null;
+                if (!string.IsNullOrEmpty(cat.iconItemId)) { var it = catalog.GetItem(cat.iconItemId); if (it != null) icon = it.icon; }
+                else icon = UiIcons.Get(idx == CraftingSystem.MinimapFilter.Chest ? "crate" : "grid");
+                if (icon != null)
+                {
+                    var ic = new VisualElement { pickingMode = PickingMode.Ignore };
+                    ic.style.width = 24; ic.style.height = 24; ic.style.marginRight = 6;
+                    ic.style.backgroundImage = new StyleBackground(icon);
+                    ic.style.unityBackgroundScaleMode = ScaleMode.ScaleToFit;
+                    chip.Add(ic);
+                }
+                chip.Add(MiniLabel(cat.name, 16, Color.white));
+                chip.RegisterCallback<ClickEvent>(_ => CraftingSystem.MinimapFilter.Toggle(idx));
+                _filterPanel.Add(chip);
+                _chips.Add(chip);
+            }
+
+            // 모두 켜기 / 끄기
+            var all = new VisualElement { pickingMode = PickingMode.Ignore };
+            all.style.flexDirection = FlexDirection.Row;
+            all.style.width = Length.Percent(100);
+            all.style.justifyContent = Justify.FlexEnd;
+            all.Add(SmallAction("모두 켜기", () => CraftingSystem.MinimapFilter.SetAll(true)));
+            all.Add(SmallAction("모두 끄기", () => CraftingSystem.MinimapFilter.SetAll(false)));
+            _filterPanel.Add(all);
+
+            CraftingSystem.MinimapFilter.Changed += RefreshFilter;
+            RefreshFilter();
+        }
+
+        private void OnDestroy()
+        {
+            CraftingSystem.MinimapFilter.Changed -= RefreshFilter;
+            if (_filterOpen) WantsCursor = false;
+        }
+
+        /// <summary>미니맵 표시 설정이 열려 있어서 마우스 커서가 필요한가 (PlayerMove가 보고 커서를 풀어 준다).</summary>
+        public static bool WantsCursor { get; private set; }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics() { WantsCursor = false; }
+
+        private void SetFilterOpen(bool open)
+        {
+            _filterOpen = open;
+            WantsCursor = open;
+            RefreshFilter();
+        }
+
+        // 게임 중에는 커서가 잠겨 있어서(카메라 회전) 미니맵 단추를 누를 수 없다 → M 키로 열고, 여는 동안 커서를 풀어 준다.
+        private void Update()
+        {
+            if (_filterPanel == null || _frame == null) return;
+            bool hudShown = _frame.resolvedStyle.display != DisplayStyle.None;
+            if (!hudShown) { if (_filterOpen) SetFilterOpen(false); return; }
+            if (Networking.ChatHud.IsTyping) return;
+            bool windowOpen = CraftingSystem.GameUIController.Instance != null && CraftingSystem.GameUIController.Instance.IsPopupOpen;
+            if (Input.GetKeyDown(KeyCode.M) && !windowOpen) SetFilterOpen(!_filterOpen);
+            else if (_filterOpen && windowOpen) SetFilterOpen(false);   // (Esc는 게임 나가기 창과 겹쳐서 쓰지 않는다)
+        }
+
+        private void RefreshFilter()
+        {
+            if (_filterPanel == null) return;
+            _filterPanel.style.display = _filterOpen ? DisplayStyle.Flex : DisplayStyle.None;
+            for (int i = 0; i < _chips.Count; i++)
+            {
+                bool on = CraftingSystem.MinimapFilter.IsOn(i);
+                VisualElement c = _chips[i];
+                c.style.opacity = on ? 1f : 0.4f;
+                c.style.backgroundColor = on ? new Color(0.84f, 0.75f, 0.55f, 0.18f) : new Color(0f, 0f, 0f, 0.25f);
+                Color b = on ? new Color(0.84f, 0.75f, 0.55f, 0.9f) : new Color(1f, 1f, 1f, 0.15f);
+                c.style.borderLeftColor = c.style.borderRightColor = c.style.borderTopColor = c.style.borderBottomColor = b;
+            }
+        }
+
+        private static Label MiniLabel(string text, float size, Color color)
+        {
+            var l = new Label(text) { pickingMode = PickingMode.Ignore };
+            l.AddToClassList("lt-text");
+            l.style.fontSize = size;
+            l.style.color = color;
+            l.style.unityFontStyleAndWeight = FontStyle.Bold;
+            l.style.unityTextOutlineWidth = 1f;
+            l.style.unityTextOutlineColor = new Color(0.03f, 0.05f, 0.1f, 0.95f);
+            if (LastTruckHud.SharedFont.HasValue) l.style.unityFontDefinition = LastTruckHud.SharedFont.Value;
+            return l;
+        }
+
+        private static VisualElement SmallAction(string text, System.Action onClick)
+        {
+            var b = new VisualElement { pickingMode = PickingMode.Position };
+            b.style.paddingLeft = 10; b.style.paddingRight = 10; b.style.paddingTop = 3; b.style.paddingBottom = 3;
+            b.style.marginLeft = 6;
+            b.Add(MiniLabel(text, 14, new Color(0.95f, 0.85f, 0.6f)));
+            b.RegisterCallback<ClickEvent>(_ => onClick());
+            return b;
         }
 
         public void SetVisible(bool visible)

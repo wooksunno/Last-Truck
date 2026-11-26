@@ -11,7 +11,8 @@ namespace LastTruck
         {
             if (e == null || sprite == null) return;
             e.style.backgroundImage = new StyleBackground(sprite);
-            if (tint.HasValue) e.style.unityBackgroundImageTintColor = tint.Value;
+            LastTruckUiSkin skin = LastTruckUiSkin.Get();
+            if (tint.HasValue) e.style.unityBackgroundImageTintColor = skin != null ? skin.ThemeTint(sprite, tint.Value) : tint.Value;
             e.style.unitySliceLeft = Mathf.RoundToInt(sprite.border.x);
             e.style.unitySliceBottom = Mathf.RoundToInt(sprite.border.y);
             e.style.unitySliceRight = Mathf.RoundToInt(sprite.border.z);

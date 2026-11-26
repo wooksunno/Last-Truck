@@ -34,8 +34,27 @@ namespace CraftingSystem
             public string timerText;          // 가공 중 남은 시간
             public int queued;                // 아직 가공할 개수 (지금 가공 중인 것 포함)
             public int readyCount;            // 받을 수 있는 완성품 개수
+            public int outCount = 1;          // 한 번 가공하면 나오는 결과물 개수 (결과 줄에 "×N"으로 보여 준다)
+            public string outName;            // 결과물 이름
+            public bool fresh;                // 방금 넣은 칸 (재료가 톡 들어가는 연출을 한 번 보여 준다)
             public bool sameSelected;         // 왼쪽에서 고른 재료가 이 칸의 재료와 같음 → 누르면 1개 더 넣기
-            public Action onClick;            // 빈 칸: 넣기 / 같은 재료: 1개 더 / 완료: 받기 / 그 밖의 가공 중: 빼기
+            public Action onClick;            // 빈 칸: 넣기 / 같은 재료: 1개 더 / 그 밖: 이 칸을 큰 화면에 보여 주기
+            // ---- 큰 가공 화면 (UI Toolkit): 고른 칸을 크게 보여 준다 ----
+            public Action onFocus;            // 칸 선택 줄에서 이 칸을 눌렀을 때 (빈 칸+재료 선택: 넣기 / 같은 재료: 1개 더 / 그 밖: 큰 화면에 보여 주기)
+            public ItemData inItem;           // 이 칸이 가공하는 재료 (완료된 칸도 채워 둔다)
+            public int inCount = 1;
+            public string inName;
+            public Action onCancel;           // 가공 중: 취소하고 재료 돌려받기
+            public Action onClaim;            // 완성품이 있을 때: 받기
+        }
+
+        /// <summary>가공 화면 왼쪽 "가진 아이템" 목록의 한 칸 (트럭 보관함 + 내 인벤토리). 누르면 바로 빈 가공 칸에 들어간다.</summary>
+        public class OwnedInfo
+        {
+            public ItemData item;
+            public int count;
+            public bool canProcess;     // 이 설비에서 가공법이 있는 아이템인가 (없으면 흐리게 보이고, 눌러도 아무 일도 없다)
+            public Action onClick;      // canProcess가 false면 null
         }
 
         public class CostLine { public ItemData item; public int need, have; }
@@ -52,6 +71,7 @@ namespace CraftingSystem
         public class ProcessModel
         {
             public List<SlotInfo> slots;         // 있으면 "여러 칸" 화면(트럭 가공), 없으면 입력→결과 한 줄 화면(현장 시설)
+            public int focus = -1;               // 큰 화면에 보여 줄 칸 번호 (-1이면 "비어 있어요" 안내)
             public string slotHeader;            // 예: "가공 칸 2 / 6"
             public string slotHint;              // 예: 선택한 재료 안내
             public UpgradeInfo upgrade;
@@ -60,6 +80,14 @@ namespace CraftingSystem
             public Color accent = new Color(0.96f, 0.78f, 0.40f);
             public List<TabInfo> tabs;           // 트럭 가공일 때 시설 탭(없으면 null)
             public List<CardInfo> cards = new List<CardInfo>();
+            // ---- 새 가공 화면 (UI Toolkit, 트럭 가공): 왼쪽 = 가진 아이템, 누르면 바로 가공 칸에 들어가 설비별 연출이 나온다 ----
+            public List<OwnedInfo> owned;                 // null이면 예전처럼 cards(레시피 카드)를 그린다
+            public FacilityType facility;                 // 설비별 가공 연출 (모닥불/숫돌/롤러/절삭기/정제탑/용광로/무두질)
+            public string pickTitle;                      // 아이템 하나로 만들 수 있는 가공법이 여러 개일 때 고르는 화면의 제목 (null이면 일반 목록)
+            public List<CardInfo> pickCards;              // 고를 수 있는 가공법 (눌러서 고르면 바로 칸에 들어간다)
+            public Action onPickBack;                     // 가공법 고르기 취소
+            public Action onClaimAll;                     // 완성된 칸이 있을 때 "모두 받기" (없으면 버튼을 그리지 않는다)
+            public int readyTotal;                        // 받을 수 있는 완성품 칸 수
             public string listTitle = "가공할 재료";
             public string listHint;
             public ItemData inItem; public string inText;
@@ -349,12 +377,15 @@ namespace CraftingSystem
                 badge.anchorMin = badge.anchorMax = new Vector2(1, 1); badge.pivot = new Vector2(1, 1);
                 badge.anchoredPosition = new Vector2(-8, -6); badge.sizeDelta = new Vector2(90, 22);
                 string countText = "x" + s.queued + (s.readyCount > 0 ? "  완료 " + s.readyCount : "");
-                Txt(badge, countText, 14, FontStyle.Bold, s.readyCount > 0 ? Green : Cream, TextAnchor.MiddleRight);
+                if (s.readyCount > 0)
+                    SlotStatusText(badge, countText, 14, Green, "chest_open");
+                else
+                    Txt(badge, countText, 14, FontStyle.Bold, Cream, TextAnchor.MiddleRight);
 
                 var timer = Mk("Timer", card);
                 timer.anchorMin = new Vector2(0, 0); timer.anchorMax = new Vector2(1, 0); timer.pivot = new Vector2(0.5f, 0);
                 timer.anchoredPosition = new Vector2(0, 52); timer.sizeDelta = new Vector2(-8, 28);
-                var tt = Txt(timer, s.timerText ?? "", 22, FontStyle.Bold, Amber, TextAnchor.MiddleCenter);
+                var tt = SlotStatusText(timer, s.timerText ?? "", 22, Amber, "clock", new Color32(249, 212, 140, 255));
 
                 var track = Mk("Track", card);
                 track.anchorMin = new Vector2(0, 0); track.anchorMax = new Vector2(1, 0); track.pivot = new Vector2(0.5f, 0);
@@ -369,9 +400,25 @@ namespace CraftingSystem
             else
             {
                 ItemIcon(icon, s.output);
-                Txt(label, s.readyCount > 1 ? "받기! x" + s.readyCount : "받기!", 18, FontStyle.Bold, Color.white, TextAnchor.MiddleCenter);
+                SlotStatusText(label, s.readyCount > 1 ? "받기! x" + s.readyCount : "받기!", 18, Color.white, "chest_open");
                 refs.slots.Add(new SlotRef());
             }
+        }
+
+        static Text SlotStatusText(RectTransform row, string text, int size, Color color, string iconName, Color? iconTint = null)
+        {
+            Image icon = LastTruck.UiIcons.Make(row, iconName, new Vector2(size, size), iconTint);
+            if (icon == null) return Txt(row, text, size, FontStyle.Bold, color, TextAnchor.MiddleCenter);
+
+            var layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.spacing = 4f;
+            layout.childControlWidth = layout.childControlHeight = true;
+            layout.childForceExpandWidth = layout.childForceExpandHeight = false;
+            var dimensions = icon.gameObject.AddComponent<LayoutElement>();
+            dimensions.minWidth = dimensions.preferredWidth = size;
+            dimensions.minHeight = dimensions.preferredHeight = size;
+            return Txt(Mk("Text", row), text, size, FontStyle.Bold, color, TextAnchor.MiddleCenter);
         }
 
         static void BuildUpgrade(RectTransform right, UpgradeInfo u)

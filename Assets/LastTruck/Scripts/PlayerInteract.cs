@@ -135,6 +135,21 @@ namespace LastTruck
         /// </summary>
         private void UpdateGatherPunch()
         {
+            // 기름 웅덩이: 몸을 숙였다 폈다 하며 손 펌프 손잡이를 누른다 (펌프/기름 연출은 OilWellRig)
+            if (currentInteractable is CraftingSystem.SpecialResourceNode well && !well.IsDepleted
+                && well.Item != null && well.Item.itemID == CraftingSystem.ItemIds.Oil)
+            {
+                if (Time.time < _nextGatherPunch)
+                    return;
+                if (_weapon == null)
+                    _weapon = GetComponent<Combat.WeaponController>();
+                if (_weapon == null || !_weapon.isActiveAndEnabled)
+                    return;
+                _nextGatherPunch = Time.time + gatherPluckInterval;
+                _weapon.PlayGatherPluck(well.transform);
+                return;
+            }
+
             // 풀/약초/선인장: 때리지 않고 몸을 숙여 뽑는다 (곡괭이·주먹 모션이 아니라 뽑는 동작)
             if (currentInteractable is CraftingSystem.GatherableProp plant && Combat.WeaponController.IsPluckItem(plant.ItemId))
             {

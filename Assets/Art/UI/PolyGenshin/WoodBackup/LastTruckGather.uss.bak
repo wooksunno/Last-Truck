@@ -1,0 +1,17 @@
+/* 채집 이름표 + 원형 게이지 (UI Toolkit). 위치는 코드에서 정한다. */
+.lt-root { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+.lt-text {
+    color: rgb(255, 244, 220);
+    -unity-font-style: bold;
+    font-size: 20px;
+    -unity-text-outline-width: 1.2px;
+    -unity-text-outline-color: rgba(38, 22, 8, 0.95);
+}
+
+.gh-plate { position: absolute; min-width: 110px; padding: 8px 20px 9px 20px; align-items: center; }
+.gh-name  { font-size: 22px; -unity-text-align: middle-center; }
+.gh-sub   { font-size: 14px; margin-top: 2px; color: rgb(232, 210, 170); -unity-text-align: middle-center; -unity-font-style: normal; }
+
+.gh-gauge   { position: absolute; width: 64px; height: 64px; align-items: center; justify-content: center; }
+.gh-ring    { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+.gh-percent { font-size: 14px; -unity-text-align: middle-center; }

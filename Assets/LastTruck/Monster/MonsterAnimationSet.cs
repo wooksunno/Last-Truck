@@ -28,11 +28,19 @@ public class MonsterAnimationSet : MonoBehaviour
     [Tooltip("사망 애니메이션이 끝난 뒤 사라지기까지 더 기다리는 시간(초).")]
     public float corpseLingerSeconds = 0.5f;
 
+    [Header("재생 속도 (애니메이터 상태 속도와 같게)")]
+    [Tooltip("공격 상태의 재생 속도. 클립이 길면(Mixamo 좀비 공격 2.5초) 빨리 돌려서 공격 템포를 맞춘다.")]
+    public float attackPlaybackSpeed = 1f;
+    [Tooltip("맞았을 때 멈추는 시간(초). 0이면 피격 클립 길이. Mixamo 피격 클립은 회복 동작까지 길어서(2초) 앞부분만 쓴다.")]
+    public float hitStunSeconds = 0f;
+
     #endregion
 
     #region 조회
 
-    public float AttackDuration => attackClip != null ? attackClip.length : 0.8f;
+    private float AttackSpeed => Mathf.Max(0.1f, attackPlaybackSpeed);
+
+    public float AttackDuration => (attackClip != null ? attackClip.length : 0.8f) / AttackSpeed;
 
     /// <summary>공격 시작부터 피해가 들어가기까지 시간.</summary>
     public float AttackHitDelay
@@ -42,13 +50,13 @@ public class MonsterAnimationSet : MonoBehaviour
             if (attackClip == null) return AttackDuration * attackHitTiming;
             foreach (AnimationEvent e in attackClip.events)
             {
-                if (e.functionName == "OnAttackHit") return e.time;
+                if (e.functionName == "OnAttackHit") return e.time / AttackSpeed;
             }
-            return attackClip.length * attackHitTiming;
+            return attackClip.length * attackHitTiming / AttackSpeed;
         }
     }
 
-    public float StunDuration => getHitClip != null ? getHitClip.length : 0.4f;
+    public float StunDuration => hitStunSeconds > 0f ? hitStunSeconds : (getHitClip != null ? getHitClip.length : 0.4f);
 
     public float DeathDuration => deathClip != null ? deathClip.length : 1.5f;
 

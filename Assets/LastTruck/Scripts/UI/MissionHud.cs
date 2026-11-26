@@ -35,6 +35,7 @@ namespace LastTruck
         private float[] _pop;
         private float _cardIntro;
         private bool _cardOpen;               // 카드가 열려 있는가
+        private bool _cardWasOpen;            // 지난 프레임 (열고 닫는 소리용)
         private bool _pinned;                 // K 키로 열어 둔 상태
         private float _peekUntil;             // 낮/밤이 바뀔 때 이 시각까지 자동으로 열려 있다
         private float _objFx = 1f, _flashFx = 1f;
@@ -53,7 +54,7 @@ namespace LastTruck
 
         // ---- 무전
         private enum RadioState { Hidden, Intro, Typing, Hold, Outro }
-        private VisualElement _radio, _dot;
+        private VisualElement _radio, _dot, _radioIcon;
         private VisualElement[] _eq;
         private Label _speaker, _status, _body;
         private RadioState _rs = RadioState.Hidden;
@@ -87,32 +88,49 @@ namespace LastTruck
             _card.style.position = Position.Absolute;
             // 왼쪽 아래 구석에 둔다 (화면 가운데를 가리지 않는다).
             // 예전 크기 그대로 0.84배로 줄여서 그린다: 글자/막대 비율은 유지하고 도전과제 카드와 글자 크기가 비슷해진다.
+            LastTruckUiSkin skin = LastTruckUiSkin.Get();
+            bool poly = skin != null && skin.polyTheme && skin.hudFade != null;
             _card.style.left = 24;
-            _card.style.bottom = CardBottom;
             _card.style.width = CardWidth / CardScale;
-            _card.style.transformOrigin = new TransformOrigin(new Length(0f, LengthUnit.Percent), new Length(100f, LengthUnit.Percent));
             _card.style.scale = new Scale(new Vector3(CardScale, CardScale, 1f));
             _card.style.paddingLeft = 26; _card.style.paddingRight = 20;
             _card.style.paddingTop = 18; _card.style.paddingBottom = 18;
-            LastTruckHud.Skin(_card, _cardSkin, 0.5f, new Color(0.7f, 0.6f, 0.55f, 0.97f));
-            if (_cardSkin == null) _card.style.backgroundColor = new Color(0.1f, 0.08f, 0.07f, 0.92f);
+            if (poly)
+            {
+                // 원신풍 임무 추적기: 왼쪽 위(트럭 내구도 막대 아래), 판 없이 글자 + 왼쪽에서 사라지는 그늘
+                _card.style.top = 64;
+                _card.style.transformOrigin = new TransformOrigin(new Length(0f, LengthUnit.Percent), new Length(0f, LengthUnit.Percent));
+                LastTruckHud.Skin(_card, skin.hudFade, 1f, Color.white);
+            }
+            else
+            {
+                _card.style.bottom = CardBottom;
+                _card.style.transformOrigin = new TransformOrigin(new Length(0f, LengthUnit.Percent), new Length(100f, LengthUnit.Percent));
+                LastTruckHud.Skin(_card, _cardSkin, 0.5f, new Color(0.7f, 0.6f, 0.55f, 0.97f));
+                if (_cardSkin == null) _card.style.backgroundColor = new Color(0.1f, 0.08f, 0.07f, 0.92f);
+            }
             _card.style.opacity = 0f;
 
             // 왼쪽 띠 (낮=금색, 밤=보라)
             _accent = new VisualElement { pickingMode = PickingMode.Ignore };
             _accent.style.position = Position.Absolute;
-            _accent.style.left = 10; _accent.style.top = 16; _accent.style.bottom = 16; _accent.style.width = 6;
-            Radius(_accent, 3);
+            _accent.style.left = 10; _accent.style.top = 16; _accent.style.bottom = 16; _accent.style.width = poly ? 3 : 6;
+            Radius(_accent, poly ? 1.5f : 3f);
             _accent.style.backgroundColor = Gold;
             _card.Add(_accent);
 
-            // 머리줄: [별] 생존 임무 ........ [J]
+            // 임무 제목과 단축키
             var head = Row();
             head.style.justifyContent = Justify.SpaceBetween;
             head.style.marginBottom = 6;
             var left = Row();
-            VisualElement star = Icon("star", 26f);
-            if (star != null) { star.style.marginRight = 8; star.style.unityBackgroundImageTintColor = Gold; left.Add(star); }
+            VisualElement flag = Icon("flag", 26f);
+            if (flag != null)
+            {
+                flag.style.marginRight = 8;
+                flag.style.unityBackgroundImageTintColor = Gold;
+                left.Add(flag);
+            }
             _title = Text("생존 임무", 30, Cream);
             left.Add(_title);
             head.Add(left);
@@ -227,6 +245,13 @@ namespace LastTruck
             Radius(_flash, 14);
             _flash.style.backgroundColor = new Color(1f, 0.95f, 0.8f, 1f);
             _flash.style.opacity = 0f;
+            if (poly)
+            {
+                // 판이 없으니 번쩍임도 그늘 모양으로 (네모 상자가 번쩍이지 않게)
+                _flash.style.backgroundImage = new StyleBackground(skin.hudFade);
+                _flash.style.unityBackgroundImageTintColor = new Color(1f, 0.9f, 0.6f, 1f);
+                _flash.style.backgroundColor = Color.clear;
+            }
             _card.Add(_flash);
 
             root.Add(_card);
@@ -337,6 +362,13 @@ namespace LastTruck
             return b;
         }
 
+        /// <summary>번쩍임 색 (투명 테마에서는 그늘 모양 그림의 색조로, 아니면 상자 바탕색으로).</summary>
+        private void SetFlashColor(Color c)
+        {
+            if (_flash.style.backgroundImage.value.sprite != null) _flash.style.unityBackgroundImageTintColor = c;
+            else _flash.style.backgroundColor = c;
+        }
+
         private static void SetBar(Bar b, float target, Color color, string label, float dt)
         {
             b.shown = Mathf.Lerp(b.shown, target, 1f - Mathf.Exp(-9f * dt));
@@ -358,9 +390,22 @@ namespace LastTruck
             _radio.style.alignItems = Align.Center;
             _radio.style.paddingLeft = 24; _radio.style.paddingRight = 28;
             _radio.style.paddingTop = 14; _radio.style.paddingBottom = 14;
-            // 다른 HUD 판과 같은 갈색 판 (예전의 푸른 강철판은 화면에서 혼자 튀었다)
-            LastTruckHud.Skin(_radio, _cardSkin != null ? _cardSkin : _radioSkin, 0.5f, new Color(0.7f, 0.6f, 0.55f, 0.97f));
-            if (_radioSkin == null) _radio.style.backgroundColor = new Color(0.07f, 0.09f, 0.13f, 0.93f);
+            LastTruckUiSkin skin = LastTruckUiSkin.Get();
+            bool poly = skin != null && skin.polyTheme && skin.hudBand != null;
+            if (poly)
+            {
+                // 원신풍 자막: 판 없이 양 끝이 사라지는 그늘 띠 위에 화자 + 대사
+                _radio.style.width = 900;
+                _radio.style.marginLeft = -450;
+                _radio.style.paddingLeft = 120; _radio.style.paddingRight = 120;
+                LastTruckHud.Skin(_radio, skin.hudBand, 1f, Color.white);
+            }
+            else
+            {
+                // 다른 HUD 판과 같은 갈색 판 (예전의 푸른 강철판은 화면에서 혼자 튀었다)
+                LastTruckHud.Skin(_radio, _cardSkin != null ? _cardSkin : _radioSkin, 0.5f, new Color(0.7f, 0.6f, 0.55f, 0.97f));
+                if (_radioSkin == null) _radio.style.backgroundColor = new Color(0.07f, 0.09f, 0.13f, 0.93f);
+            }
             _radio.style.opacity = 0f;
             _radio.style.display = DisplayStyle.None;
 
@@ -373,7 +418,7 @@ namespace LastTruck
             eqBox.style.marginRight = 18;
             eqBox.style.paddingLeft = 8; eqBox.style.paddingRight = 8;
             Radius(eqBox, 12);
-            eqBox.style.backgroundColor = new Color(0.02f, 0.05f, 0.04f, 0.9f);
+            eqBox.style.backgroundColor = poly ? Color.clear : new Color(0.02f, 0.05f, 0.04f, 0.9f);
             _eq = new VisualElement[5];
             for (int i = 0; i < _eq.Length; i++)
             {
@@ -400,6 +445,13 @@ namespace LastTruck
             _status = Text("수신 중", 15, new Color(1f, 0.45f, 0.45f, 1f));
             _status.style.marginRight = 14;
             head.Add(_status);
+            _radioIcon = Icon("chat", 22f);
+            if (_radioIcon != null)
+            {
+                _radioIcon.style.marginRight = 6;
+                _radioIcon.style.unityBackgroundImageTintColor = Gold;
+                head.Add(_radioIcon);
+            }
             _speaker = Text("관제소", 19, Gold);
             head.Add(_speaker);
             col.Add(head);
@@ -425,6 +477,10 @@ namespace LastTruck
                 if (end > 0) { tag = beat.Substring(1, end - 1); text = beat.Substring(end + 1).Trim(); }
             }
             _journal = tag == "일지";
+            // 일지는 책장 넘기는 소리, 무전은 딸깍 하고 켜지는 소리
+            if (_journal) LastTruck.Audio.Sfx.Play("quest_flip", 0.9f, 1.05f, 0.3f);
+            else LastTruck.Audio.Sfx.Play("ui_switch", 1f, 0.9f, 0.3f);
+            if (_radioIcon != null) _radioIcon.style.display = _journal ? DisplayStyle.None : DisplayStyle.Flex;
             _speaker.text = _journal ? "생존 일지" : "관제소 무전";
             _speaker.style.color = _journal ? new Color(0.9f, 0.82f, 0.62f, 1f) : Gold;
 
@@ -444,9 +500,10 @@ namespace LastTruck
             _condTitle.text = text;
             if (flash)
             {
+                LastTruck.Audio.Sfx.Play("quest_flip", 1f, 1f, 0.3f);   // 새 임무: 책장 넘기는 소리
                 _objFx = 0f;
                 _flashFx = 0f;
-                _flash.style.backgroundColor = new Color(1f, 0.95f, 0.8f, 1f);
+                SetFlashColor(new Color(1f, 0.95f, 0.8f, 1f));
             }
         }
 
@@ -478,9 +535,13 @@ namespace LastTruck
 
         public bool CardOpen { get { return _cardOpen; } }
 
+        private bool _suppressCard;
+
+        /// <summary>false면 임무 카드를 숨긴다 (트럭/배낭 창이 열려 있을 때). 무전 자막은 그대로 둔다.</summary>
         public void SetVisible(bool visible)
         {
-            if (!visible) { _card.style.display = DisplayStyle.None; _radio.style.display = DisplayStyle.None; }
+            _suppressCard = !visible;
+            if (!visible) _card.style.display = DisplayStyle.None;
         }
 
         private void TickCard(GameManager gm, float dt, float now)
@@ -491,12 +552,19 @@ namespace LastTruck
 
             _cardOpen = _pinned || now < _peekUntil;
 
+            // 임무 카드 소리: 펼칠 때 책 펴는 소리, 접을 때 책 덮는 소리 (트럭/배낭 창에 가려 있을 땐 조용히)
+            if (_cardOpen != _cardWasOpen)
+            {
+                _cardWasOpen = _cardOpen;
+                if (!_suppressCard) LastTruck.Audio.Sfx.Play(_cardOpen ? "quest_open" : "quest_close", 1f, 1f, 0.2f);
+            }
+
             // 열 때: 왼쪽에서 튀어 들어온다 (살짝 넘쳤다가 자리 잡는다). 닫을 때: 왼쪽으로 빠져나간다.
             _cardIntro = _cardOpen ? Mathf.Min(1f, _cardIntro + dt / 0.75f) : Mathf.Max(0f, _cardIntro - dt / 0.35f);
             float e = _cardOpen ? EaseOutBack(_cardIntro) : EaseOutCubic(_cardIntro);
             _card.style.translate = new Translate((e - 1f) * 380f, 0);
             _card.style.opacity = Mathf.Clamp01(_cardIntro * 4f);
-            _card.style.display = _cardIntro > 0.001f || _cardOpen ? DisplayStyle.Flex : DisplayStyle.None;
+            _card.style.display = !_suppressCard && (_cardIntro > 0.001f || _cardOpen) ? DisplayStyle.Flex : DisplayStyle.None;
             if (_cardIntro <= 0.001f && !_cardOpen) return;   // 닫혀 있으면 카드 안은 갱신하지 않는다
 
             // 조건 글: 갈아 끼울 때 아래에서 올라오며 나타난다
@@ -593,7 +661,7 @@ namespace LastTruck
             {
                 if (v.state != SurvivalResult.Active)
                 {
-                    _flash.style.backgroundColor = v.state == SurvivalResult.Success ? new Color(0.5f, 1f, 0.65f, 1f) : new Color(1f, 0.4f, 0.35f, 1f);
+                    SetFlashColor(v.state == SurvivalResult.Success ? new Color(0.5f, 1f, 0.65f, 1f) : new Color(1f, 0.4f, 0.35f, 1f));
                     _flashFx = 0f;
                 }
                 _lastResult = v.state;

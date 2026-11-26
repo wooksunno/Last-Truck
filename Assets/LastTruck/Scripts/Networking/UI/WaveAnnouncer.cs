@@ -36,7 +36,7 @@ namespace LastTruck.Networking
         {
             int night = MonsterWaveDirector.CurrentNight;
             MonsterWaveData wave = MonsterCatalog.Instance.GetWave(night);
-            WaveBanner.Show($"{night}번째 밤 · {wave.title}", wave.description);
+            WaveBanner.Show($"{night}번째 밤 · {wave.title}", wave.description, nightWarning: true);
             ChatHud.AddLocal(string.Empty, $"{night}번째 밤이 시작됐습니다: {wave.title} (좀비 {quota}마리)", ChatKind.Warning);
         }
 

@@ -179,3 +179,7 @@ MonoBehaviour:
   defaultAttackDuration: 0.333
   hitRangeTolerance: 0.5
   logSpawn: 1
+  _Lurker:
+    RawValue: 0
+  _KindValue: 0
+  _TierSize: 0

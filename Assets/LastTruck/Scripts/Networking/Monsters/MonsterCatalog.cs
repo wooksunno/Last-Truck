@@ -109,6 +109,22 @@ namespace LastTruck.Networking
     [CreateAssetMenu(menuName = "LastTruck/Monster Catalog", fileName = "MonsterCatalog")]
     public class MonsterCatalog : ScriptableObject
     {
+        /// <summary>
+        /// 워커(가장 흔한 좀비)가 고를 수 있는 일반인 몸 32종. 무리로 와도 다 같은 옷이 아니게.
+        /// 특수 좀비 몸(회사원 제외: 축구선수/도로공사/군인/폭주족/경찰/소방관/방호복)과 튀는 옷(광대/핫도그/속옷/잠수부/진압경찰), 아이는 뺐다.
+        /// </summary>
+        public static readonly string[] WalkerBodies =
+        {
+            "Zombie_Businessman_Male_01", "Zombie_Bellboy_Male_01", "Zombie_Bride_Female_01", "Zombie_Business_Female_01",
+            "Zombie_BusinessShirt_Male_01", "Zombie_Cheerleader_Female_01", "Zombie_Coat_Female_01", "Zombie_FastfoodWorker_Male_01",
+            "Zombie_Father_Male_01", "Zombie_Father_Male_02", "Zombie_GamerGirl_Female_01", "Zombie_Gangster_Male_01",
+            "Zombie_Grandma_Female_01", "Zombie_Grandpa_Male_01", "Zombie_Hipster_Female_01", "Zombie_Hipster_Male_01",
+            "Zombie_Hobo_Male_01", "Zombie_Hoodie_Male_01", "Zombie_Jacket_Female_01", "Zombie_Jacket_Male_01",
+            "Zombie_Jock_Male_01", "Zombie_Mother_Female_01", "Zombie_Mother_Female_02", "Zombie_Paramedic_Female_01",
+            "Zombie_Patient_Female_01", "Zombie_Prisinor_Male_01", "Zombie_Punk_Female_01", "Zombie_Punk_Male_01",
+            "Zombie_ShopKeeper_Female_01", "Zombie_ShopKeeper_Male_01", "Zombie_SummerGirl_Female_01", "Zombie_Tourist_Male_01",
+        };
+
         #region 인스펙터
 
         [Tooltip("기획표 이동 속도 → 실제 m/s 배율 (10 × 0.2 = 2m/s).")]
@@ -193,7 +209,7 @@ namespace LastTruck.Networking
                     kind = MonsterKind.Walker, displayName = "워커",
                     maxHealth = 50f, damage = 8f, attacksPerSecond = 0.7f, moveSpeed = 10f,
                     hitShape = MonsterHitShape.Single, attackRange = 1.5f,
-                    bodies = new[] { "Zombie_Businessman_Male_01" },
+                    bodies = WalkerBodies,
                 },
                 new MonsterTypeData
                 {

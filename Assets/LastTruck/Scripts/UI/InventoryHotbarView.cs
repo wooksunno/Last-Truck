@@ -39,6 +39,9 @@ namespace LastTruck
         private StyleFontDefinition _font;
         private FontAsset _ownFont;
 
+        /// <summary>만들어 둔 칸 수 (실제로 보이는 칸은 SetSlot의 visible로 정한다).</summary>
+        public int SlotCount => _slots.Count;
+
         private Action<int> _onClick;
         private Action<int, int> _onSwap;
         private Action<int> _onDropOut;
@@ -95,8 +98,42 @@ namespace LastTruck
 
             _panel = new VisualElement();
             _panel.AddToClassList("inv-panel");
-            UiToolkitSkin.Slice(_panel, _skin.panelBrownDark, 0.5f, new Color(0.62f, 0.51f, 0.45f, 1f));
+            bool poly = _skin.polyTheme && _skin.hudBand != null;
+            if (poly)
+            {
+                // 원신풍: 큰 판 없이 칸만 떠 있고, 뒤에 옅은 그늘만 깐다
+                _panel.style.backgroundImage = new StyleBackground(_skin.hudBand);
+                _panel.style.paddingLeft = 40; _panel.style.paddingRight = 40;
+            }
+            else UiToolkitSkin.Slice(_panel, _skin.panelBrownDark, 0.5f, new Color(0.62f, 0.51f, 0.45f, 1f));
             root.Add(_panel);
+
+            // 손에 든 아이템 사용법 (예: "왼쪽 클릭 꾹 · 무기 강화") - 핫바 판 바로 위에 뜬다
+            _useHint = MakeLabel("", "inv-held");
+            _useHint.style.position = Position.Absolute;
+            _useHint.style.right = 22;
+            _useHint.style.bottom = 22;
+            _useHint.style.flexGrow = 0;
+            _useHint.style.marginLeft = 0;
+            _useHint.style.paddingLeft = 14; _useHint.style.paddingRight = 14;
+            _useHint.style.paddingTop = 6; _useHint.style.paddingBottom = 6;
+            _useHint.style.fontSize = 18;
+            _useHint.style.color = new Color(1f, 0.93f, 0.72f);
+            if (poly)
+            {
+                _useHint.style.backgroundImage = new StyleBackground(_skin.hudBand);
+                _useHint.style.paddingLeft = 40; _useHint.style.paddingRight = 40;
+            }
+            else
+            {
+                _useHint.style.backgroundColor = new Color(0.12f, 0.08f, 0.05f, 0.82f);
+                _useHint.style.borderTopLeftRadius = _useHint.style.borderTopRightRadius =
+                    _useHint.style.borderBottomLeftRadius = _useHint.style.borderBottomRightRadius = 8;
+            }
+            _useHint.style.unityTextAlign = TextAnchor.MiddleRight;
+            _useHint.style.display = DisplayStyle.None;
+            root.Add(_useHint);
+            _panel.RegisterCallback<GeometryChangedEvent>(_ => PlaceUseHint());
 
             var header = new VisualElement { pickingMode = PickingMode.Ignore };
             header.AddToClassList("inv-header");
@@ -204,7 +241,7 @@ namespace LastTruck
                 s.selected = selected;
                 s.root.EnableInClassList("inv-slot--selected", selected);
                 Color tint = selected ? UiSkinUtil.SlotSelected : (item != null ? UiSkinUtil.SlotFilled : UiSkinUtil.SlotNormal);
-                s.root.style.unityBackgroundImageTintColor = tint;
+                s.root.style.unityBackgroundImageTintColor = _skin.ThemeTint(_skin.panelBrownDark, tint);
             }
 
             bool showDur = item != null && item.HasDurability;
@@ -240,6 +277,35 @@ namespace LastTruck
         {
             if (!IsBuilt) return;
             _panel.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+            _hidden = !visible;
+            ApplyUseHint();
+        }
+
+        private Label _useHint;
+        private string _useHintText;
+        private bool _hidden;
+
+        /// <summary>손에 든 아이템 사용법을 핫바 위에 보여 준다 (null/빈 문자열이면 숨김).</summary>
+        public void SetUseHint(string text)
+        {
+            if (!IsBuilt || _useHint == null || text == _useHintText) return;
+            _useHintText = text;
+            _useHint.text = text ?? "";
+            ApplyUseHint();
+        }
+
+        private void ApplyUseHint()
+        {
+            if (_useHint == null) return;
+            _useHint.style.display = !_hidden && !string.IsNullOrEmpty(_useHintText) ? DisplayStyle.Flex : DisplayStyle.None;
+        }
+
+        private void PlaceUseHint()
+        {
+            if (_useHint == null || _panel == null) return;
+            float h = _panel.resolvedStyle.height;
+            if (float.IsNaN(h) || h <= 0f) return;
+            _useHint.style.bottom = 22 + h + 8;
         }
 
         private void BlinkDurability()

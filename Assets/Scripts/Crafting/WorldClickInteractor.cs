@@ -97,6 +97,13 @@ namespace CraftingSystem
             if (LastTruck.Networking.ChatHud.IsTyping)
                 return;
 
+            // ESC 설정 메뉴가 열려 있으면 Esc/Tab/클릭은 설정 메뉴 몫 (트럭 안내도 숨긴다)
+            if (LastTruck.SettingsMenu.IsOpen)
+            {
+                if (ui != null) ui.SetTruckHint(false, _truckAnchor);
+                return;
+            }
+
             if (Input.GetKeyDown(KeyCode.Escape) && ui != null)
             {
                 ui.ClosePopup();

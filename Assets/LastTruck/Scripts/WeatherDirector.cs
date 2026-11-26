@@ -10,7 +10,7 @@ namespace LastTruck
     ///  - 날씨는 (회차, 낮/밤)만으로 정해지는 규칙이라 멀티플레이에서도 모두 같은 날씨가 나온다 (동기화 불필요).
     ///  - 안개는 AtmosphereController.WeatherFog로 보낸다 (안개가 짙어지고 빛이 줄어 어두워진다).
     ///  - 비는 카메라를 따라다니는 파티클로 내린다.
-    ///  - 랜턴/횃불을 들고 있으면(HeldLantern.LitAmount) 안개가 걷혀 주변이 잘 보인다.
+    ///  - 랜턴이 가방에 있으면(HeldLantern.LitAmount) 안개가 걷혀 주변이 잘 보인다.
     /// </summary>
     public class WeatherDirector : MonoBehaviour
     {
@@ -52,9 +52,9 @@ namespace LastTruck
         }
 
         // ================================================================ 날씨 패널티 (비/안개가 짙어지는 만큼 서서히 커진다)
-        //   비      : 이동 -8%, 트럭 -12%, 횃불이 꺼진다
+        //   비      : 이동 -8%, 트럭 -12%
         //   안개    : 좀비가 가까이(약 36% 더 가까이)서 갑자기 나타난다 (랜턴으로 시야를 틔워도 좀비는 가까이서 나온다)
-        //   폭풍우  : 이동 -14%, 트럭 -20%, 좀비 피해 +15%, 횃불이 꺼진다, 안개 패널티도 일부
+        //   폭풍우  : 이동 -14%, 트럭 -20%, 좀비 피해 +15%, 안개 패널티도 일부
 
         /// <summary>플레이어 이동 속도 배율 (비가 올수록 느려진다). 1 = 영향 없음.</summary>
         public static float PlayerSpeedScale { get { return _instance != null ? 1f - 0.14f * _instance._rain : 1f; } }
@@ -68,17 +68,14 @@ namespace LastTruck
         /// <summary>좀비 피해 배율 (폭풍우에서 +15%).</summary>
         public static float MonsterDamageScale { get { return Kind == WeatherKind.Storm && _instance != null ? 1f + 0.15f * Mathf.Clamp01(_instance._rain) : 1f; } }
 
-        /// <summary>비 때문에 횃불을 쓸 수 없는가 (랜턴은 쓸 수 있다).</summary>
-        public static bool TorchDoused { get { return _instance != null && _instance._rain > 0.35f; } }
-
         /// <summary>날씨별 패널티 한 줄 (없으면 빈 글).</summary>
         public static string PenaltyText(WeatherKind kind)
         {
             switch (kind)
             {
                 case WeatherKind.Fog: return "패널티: 좀비가 가까이서 나타나요";
-                case WeatherKind.Rain: return "패널티: 이동 -8% · 트럭 -12% · 횃불 꺼짐";
-                case WeatherKind.Storm: return "패널티: 이동 -14% · 트럭 -20% · 좀비 피해 +15% · 횃불 꺼짐";
+                case WeatherKind.Rain: return "패널티: 이동 -8% · 트럭 -12%";
+                case WeatherKind.Storm: return "패널티: 이동 -14% · 트럭 -20% · 좀비 피해 +15%";
                 default: return "";
             }
         }
@@ -121,9 +118,9 @@ namespace LastTruck
         {
             switch (kind)
             {
-                case WeatherKind.Fog: return "시야가 흐려요. 랜턴을 들면 걷혀요";
-                case WeatherKind.Rain: return "비가 내려요. 랜턴이 있으면 멀리 보여요";
-                case WeatherKind.Storm: return "시야가 아주 나빠요. 랜턴을 꼭 챙기세요";
+                case WeatherKind.Fog: return "시야가 흐려요. 랜턴을 가방에 넣어 두면 걷혀요";
+                case WeatherKind.Rain: return "비가 내려요. 랜턴이 가방에 있으면 멀리 보여요";
+                case WeatherKind.Storm: return "시야가 아주 나빠요. 랜턴을 꼭 가방에 챙기세요";
                 default: return "";
             }
         }

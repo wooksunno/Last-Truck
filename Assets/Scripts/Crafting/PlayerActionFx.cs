@@ -4,7 +4,7 @@ namespace CraftingSystem
 {
     /// <summary>
     /// 행동 연출용 공용 이펙트: 작은 조각(큐브)이 튀는 파티클을 코드로 만든다 (프리팹/에셋 없이 동작, 게임 셰이더 ToonWorld 색으로 그려져 로우폴리 느낌이 난다).
-    /// 풀잎 튀김, 돌 파편, 아이템 획득 반짝임, 회복 빛, 횃불 불씨 등.
+    /// 풀잎 튀김, 돌 파편, 아이템 획득 반짝임, 회복 빛, 불씨 등.
     /// </summary>
     public static class ActionFx
     {
@@ -138,7 +138,7 @@ namespace CraftingSystem
             if (repair) Burst(pos, new Color(1f, 0.62f, 0.25f), 12, 3.0f, 0.07f, 0.8f, 1.2f, 0.4f, true, 0.2f);
         }
 
-        /// <summary>횃불 불씨 (조금씩 올라가며 꺼진다).</summary>
+        /// <summary>불씨 (조금씩 올라가며 꺼진다).</summary>
         public static void Ember(Vector3 pos)
         {
             Burst(pos, new Color(1f, 0.55f, 0.18f), 1, 0.6f, 0.05f, 0.7f, -0.25f, 1.0f, true, 0.04f);
@@ -150,14 +150,14 @@ namespace CraftingSystem
     ///  - Pluck: 풀/선인장 같은 땅의 식물을 캘 때 몸을 숙여 뽑는 동작 (곡괭이 모션이 없는 채집용)
     ///  - Equip: 손에 든 물건을 바꿀 때 오른팔을 살짝 들었다 내리는 동작
     ///  - Eating: 먹고 마시는 동안 팔을 입으로 올리고 고개를 까딱이는 동작
-    ///  - Hold: 랜턴(팔을 앞으로 늘어뜨려 든다)/횃불(팔을 위로 쳐든다)
+    ///  - Hold: 물건을 앞으로 늘어뜨려 드는 자세 (지금은 쓰는 곳 없음: 랜턴은 허리에 찬다)
     /// 회전은 세계 좌표 축(캐릭터의 오른쪽 축) 기준이라 뼈대의 로컬 축 방향에 상관없이 동작한다.
     /// PlayerInventory가 자동으로 붙이고, 다른 사람의 채집 신호를 받는 캐릭터에는 필요할 때 붙는다.
     /// </summary>
     [DefaultExecutionOrder(200)]
     public class ActionPose : MonoBehaviour
     {
-        public enum HoldKind { None, Lantern, Torch }
+        public enum HoldKind { None, Lantern }
 
         public const float PluckSeconds = 0.65f;
         private const float EquipSeconds = 0.4f;
@@ -179,9 +179,8 @@ namespace CraftingSystem
         private float _eatW, _holdW;
         private HoldKind _poseKind;
         private int _lastCount = -1;
-        private float _nextEmber;
 
-        /// <summary>오른손 뼈 (없으면 null). 랜턴/횃불이 손을 따라가도록 쓴다.</summary>
+        /// <summary>오른손 뼈 (없으면 null). 손에 든 물건이 손을 따라가도록 쓴다.</summary>
         public Transform RightHand { get; private set; }
 
         public void Pluck() { _pluckStart = Time.time; }
@@ -275,13 +274,6 @@ namespace CraftingSystem
             _eatW = Mathf.MoveTowards(_eatW, _eating ? 1f : 0f, dt * 6f);
             _holdW = Mathf.MoveTowards(_holdW, _hold != HoldKind.None ? 1f : 0f, dt * 5f);
 
-            // 횃불 불씨
-            if (_hold == HoldKind.Torch && Time.time >= _nextEmber)
-            {
-                _nextEmber = Time.time + 0.13f;
-                ActionFx.Ember(HandPosition() + Vector3.up * 0.38f);
-            }
-
             // 땅의 식물 뽑기: 숙이고(0~0.35) 쑥 당기고(0.35~0.6) 일어난다
             float pluck = 0f;
             float pt = (Time.time - _pluckStart) / PluckSeconds;
@@ -302,14 +294,13 @@ namespace CraftingSystem
             float eat = _eatW;
 
             float hold = _holdW;
-            bool torch = _poseKind == HoldKind.Torch;
             float sway = Mathf.Sin(Time.time * 1.7f);
 
             Rot(_spine, pluck * 18f + eat * 4f + equip * 3f);
             Rot(_chest, pluck * 12f);
             Rot(_head, -pluck * 10f + eat * (5f + 4f * Mathf.Max(0f, chew)) - equip * 4f);
-            Rot(_rUpper, -(pluck * 35f + equip * 32f + eat * 72f + hold * (torch ? 62f : 18f + 2f * sway)));
-            Rot(_rLower, -(pluck * 20f + equip * 38f + eat * (95f + 5f * chew) + hold * (torch ? 55f : 30f)));
+            Rot(_rUpper, -(pluck * 35f + equip * 32f + eat * 72f + hold * (18f + 2f * sway)));
+            Rot(_rLower, -(pluck * 20f + equip * 38f + eat * (95f + 5f * chew) + hold * 30f));
             Rot(_lUpper, -(pluck * 10f + eat * 6f));
         }
     }

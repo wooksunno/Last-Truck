@@ -71,6 +71,16 @@ namespace LastTruck
             public Action onConvert;
             public bool convertEnabled = true;      // false면 회색(재료 부족/밤). 눌러도 이유만 알려준다
             public string convertDisabledReason;    // 비활성일 때 아래 안내 줄에 보여줄 이유
+
+            // 칸 위 동작 줄 (예: 보관함 "재료 모두 넣기", 배낭 "가죽 덧대기"). onAction이 null이면 줄을 그리지 않는다
+            public string actionInfo;               // 왼쪽 설명 (예: "배낭 4/6칸")
+            public string actionLabel;
+            public Action onAction;
+            public bool actionEnabled = true;
+            public string actionHint;               // 버튼에 마우스를 올리면 아래 안내 줄에
+            public string action2Label;             // 두 번째 버튼 (없으면 null)
+            public Action onAction2;
+            public string action2Hint;
         }
 
         // ---- 제작 탭 ----
@@ -240,6 +250,7 @@ namespace LastTruck
 
         public void Hide()
         {
+            ProcessDiorama.Hide();
             if (_window != null) _window.style.display = DisplayStyle.None;
         }
 
@@ -258,6 +269,37 @@ namespace LastTruck
             toolbar.Add(spacer);
             foreach (Chip c in m.sorts) toolbar.Add(MakeChip(c, "tw-chip tw-chip--sort"));
             if (m.categories.Count > 0 || m.sorts.Count > 0) frame.Add(toolbar);   // 가죽 파우치처럼 분류가 없으면 빈 줄을 두지 않는다
+
+            // 동작 줄
+            if (m.onAction != null || m.onAction2 != null)
+            {
+                var act = Row("tw-toolbar");
+                if (!string.IsNullOrEmpty(m.actionInfo))
+                {
+                    Label info = MakeLabel(m.actionInfo, "tw-hint");
+                    info.style.marginTop = 0; info.style.marginBottom = 0;
+                    info.style.unityTextAlign = TextAnchor.MiddleLeft;
+                    act.Add(info);
+                }
+                var actSpacer = new VisualElement { pickingMode = PickingMode.Ignore };
+                actSpacer.style.flexGrow = 1;
+                act.Add(actSpacer);
+                if (m.onAction2 != null)
+                {
+                    Button b2 = SmallButton(m.action2Label ?? "", () => m.onAction2?.Invoke());
+                    if (!string.IsNullOrEmpty(m.action2Hint)) b2.RegisterCallback<PointerEnterEvent>(_ => SetHint(m.action2Hint));
+                    act.Add(b2);
+                }
+                if (m.onAction != null)
+                {
+                    Button b = SmallButton(m.actionLabel ?? "", () => m.onAction?.Invoke());
+                    if (m.actionEnabled) b.AddToClassList("tw-btn--ok");
+                    else b.style.opacity = 0.55f;
+                    if (!string.IsNullOrEmpty(m.actionHint)) b.RegisterCallback<PointerEnterEvent>(_ => SetHint(m.actionHint));
+                    act.Add(b);
+                }
+                frame.Add(act);
+            }
 
             // 꺼내기
             if (m.withdrawItem != null)
@@ -289,6 +331,7 @@ namespace LastTruck
         /// <summary>창 틀(제목 + 닫기)을 새로 만든다. 같은 화면(mode)을 다시 그리면 스크롤 위치를 이어 간다.</summary>
         private VisualElement BeginWindow(string mode, string title, Action onClose)
         {
+            ProcessDiorama.Hide();   // 가공 화면이 아니면 3D 미니 장면 카메라를 끈다 (가공 화면이면 바로 다시 켠다)
             if (_root == null) return null;
             if (_gridScroll != null && _gridScroll.panel != null) _scrollY = _gridScroll.scrollOffset.y;
             if (mode != _mode) _scrollY = 0f;
@@ -507,6 +550,11 @@ namespace LastTruck
                     string count = ing.have + " / " + ing.need;
                     row.Add(MakeLabel(count, enough ? "tw-ing-count tw-ing-count--ok" : "tw-ing-count tw-ing-count--short"));
                 }
+                if (!enough && OnMissingItem != null)
+                {
+                    row.Add(MakeLabel("도감 ›", "tw-missing-tag"));
+                    MakeMissingLink(row, ing.item, true);
+                }
                 list.Add(row);
             }
             d.Add(list);
@@ -528,7 +576,11 @@ namespace LastTruck
 
         // ---- 가공 탭 ----
 
-        private class ProcSlotEl { public VisualElement fill; public Label timer; }
+        private class ProcSlotEl
+        {
+            public VisualElement fill; public Label timer; public Action<float> onProgress;
+            public VisualElement bigFill; public Label bigPercent, bigTimer;   // 큰 가공 화면 (고른 칸만)
+        }
         private readonly List<ProcSlotEl> _procSlots = new List<ProcSlotEl>();
 
         /// <summary>가공 탭: 위 설비 칩 → 왼쪽 가공할 재료 카드 → 오른쪽 가공 칸(타이머/받기) + 칸 늘리기.</summary>
@@ -567,20 +619,60 @@ namespace LastTruck
                 ti.style.backgroundImage = new StyleBackground(m.titleIcon);
                 listHead.Add(ti);
             }
-            listHead.Add(MakeLabel((m.title ?? "") + "  ·  " + (m.listTitle ?? "가공할 재료"), "tw-proc-title"));
+            listHead.Add(MakeLabel(m.listTitle ?? "가공할 재료", "tw-proc-title"));
             listPanel.Add(listHead);
+            // 가공법 고르기 화면이면 돌아가기 줄을 위에 둔다
+            if (m.owned != null && m.pickTitle != null && m.pickCards != null)
+            {
+                var backRow = Row("tw-toolbar");
+                backRow.Add(MakeChip(new Chip { text = "← 돌아가기", selected = false, accent = m.accent, onClick = () => m.onPickBack?.Invoke() }, "tw-chip tw-chip--cat"));
+                backRow.Add(MakeLabel(m.pickTitle + "(으)로 무엇을 만들까요?", "tw-proc-title"));
+                listPanel.Add(backRow);
+            }
             _gridScroll = new ScrollView(ScrollViewMode.Vertical);
             _gridScroll.AddToClassList("tw-scroll");
             _gridScroll.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
             var grid = new VisualElement();
             grid.AddToClassList("tw-grid");
-            foreach (var c in m.cards) grid.Add(MakeProcessCard(c, m.accent));
-            if (m.cards.Count == 0) grid.Add(MakeLabel("이 설비로 가공할 수 있는 재료가 없어요", "tw-empty"));
+            if (m.owned != null && m.pickTitle != null && m.pickCards != null)
+            {
+                foreach (var c in m.pickCards) grid.Add(MakeProcessCard(c, m.accent));   // 누르면 바로 가공 칸에 들어간다
+            }
+            else if (m.owned != null)
+            {
+                foreach (var o in m.owned) grid.Add(MakeOwnedSlot(o, m.accent));
+                if (m.owned.Count == 0) grid.Add(MakeLabel("가진 아이템이 없어요", "tw-empty"));
+            }
+            else
+            {
+                foreach (var c in m.cards) grid.Add(MakeProcessCard(c, m.accent));
+                if (m.cards.Count == 0) grid.Add(MakeLabel("이 설비로 가공할 수 있는 재료가 없어요", "tw-empty"));
+            }
             _gridScroll.Add(grid);
             listPanel.Add(_gridScroll);
             body.Add(listPanel);
 
-            // 오른쪽: 가공 칸
+            listPanel.AddToClassList("tw-proc-left");
+
+            // 칸마다 갱신용 칸을 먼저 만들어 둔다 (타이머가 창을 다시 그리지 않고 값을 바꾼다)
+            if (m.slots != null)
+                foreach (var _ in m.slots) _procSlots.Add(new ProcSlotEl());
+            var focusSlot = m.slots != null && m.focus >= 0 && m.focus < m.slots.Count ? m.slots[m.focus] : null;
+            var focusEl = focusSlot != null ? _procSlots[m.focus] : null;
+
+            // 가운데: 설비 장면 (가공 연출을 크게 + 위에 진행 막대 + 아래에 취소/받기 + 칸 선택 줄)
+            var tilesBox = new VisualElement();
+            tilesBox.AddToClassList("tw-scene-tiles");
+            tilesBox.Add(MakeLabel(m.slotHeader ?? "가공 칸", "tw-scene-tiles-title"));
+            var slotGrid = new VisualElement();
+            slotGrid.AddToClassList("tw-proc-slots");
+            if (m.slots != null)
+                for (int i = 0; i < m.slots.Count; i++)
+                    slotGrid.Add(MakeProcessTile(m.slots[i], i == m.focus, _procSlots[i]));
+            tilesBox.Add(slotGrid);
+            body.Add(MakeProcessScene(m, focusSlot, focusEl, tilesBox));
+
+            // 오른쪽: 결과 예상 + 모두 받기 + 칸 늘리기
             var right = new VisualElement();
             right.AddToClassList("tw-proc-right");
             UiToolkitSkin.Slice(right, _skin.panelBrown, 0.4f, new Color(0.55f, 0.45f, 0.38f, 1f));
@@ -588,12 +680,12 @@ namespace LastTruck
 
             if (!string.IsNullOrEmpty(m.discountBadge))
                 right.Add(MakeAbilityBanner(m.discountBadge));   // 요리사 등 고유 능력 재료 할인
-            right.Add(MakeLabel(m.slotHeader ?? "가공 칸", "tw-detail-need"));
-            var slotGrid = new VisualElement();
-            slotGrid.AddToClassList("tw-proc-slots");
-            if (m.slots != null)
-                foreach (var sl in m.slots) slotGrid.Add(MakeProcessSlot(sl));
-            right.Add(slotGrid);
+            right.Add(MakeResultPanel(m, focusSlot, focusEl));
+
+            // 큰 화면의 "받기"로 받을 수 있는 칸이 하나뿐이면 "모두 받기"는 필요 없다 (자리를 아낀다)
+            bool focusClaimable = focusSlot != null && focusSlot.onClaim != null;
+            if (m.onClaimAll != null && (m.readyTotal > 1 || (m.readyTotal == 1 && !focusClaimable)))
+                right.Add(MakeClaimAll(m));
 
             if (!string.IsNullOrEmpty(m.message))
                 right.Add(MakeLabel(m.message, "tw-proc-message"));
@@ -615,6 +707,10 @@ namespace LastTruck
             if (e == null) return;
             if (e.timer != null) e.timer.text = timerText;
             if (e.fill != null) e.fill.style.width = Length.Percent(Mathf.Clamp01(progress) * 100f);
+            if (e.bigFill != null) e.bigFill.style.width = Length.Percent(Mathf.Clamp01(progress) * 100f);
+            if (e.bigPercent != null) e.bigPercent.text = Mathf.FloorToInt(Mathf.Clamp01(progress) * 100f) + "%";
+            if (e.bigTimer != null) e.bigTimer.text = timerText;
+            e.onProgress?.Invoke(progress);   // 가공 연출(구워질수록 갈색 등)에도 진행도를 알려 준다
         }
 
         private VisualElement MakeProcessCard(CraftingSystem.TruckProcessView.CardInfo c, Color accent)
@@ -662,53 +758,74 @@ namespace LastTruck
             return box;
         }
 
-        private VisualElement MakeProcessSlot(CraftingSystem.TruckProcessView.SlotInfo sl)
+        /// <summary>칸 선택 줄의 작은 칸: 빈 칸 "+", 가공 중이면 재료 아이콘 + 진행 막대, 완성이면 결과물 + 초록 테두리. 누르면 큰 화면에 보여 준다.</summary>
+        private VisualElement MakeProcessTile(CraftingSystem.TruckProcessView.SlotInfo sl, bool focused, ProcSlotEl el)
         {
-            var b = new Button(() => sl.onClick?.Invoke()) { text = "" };
-            b.AddToClassList("tw-pslot");
-            var el = new ProcSlotEl();
+            var b = new Button(() => (sl.onFocus ?? sl.onClick)?.Invoke()) { text = "" };
+            b.AddToClassList("tw-ptile");
             Color tint = sl.state == 2 ? new Color(0.70f, 0.95f, 0.62f, 1f) : (sl.state == 1 ? UiSkinUtil.SlotFilled : UiSkinUtil.SlotNormal);
             UiToolkitSkin.Slice(b, _skin.panelBrownDark, 0.35f, tint);
-            if (sl.sameSelected) b.AddToClassList("tw-pslot--same");
+            if (focused) b.AddToClassList("tw-ptile--on");
+            if (sl.sameSelected) b.AddToClassList("tw-ptile--same");
+            if (sl.state == 2) b.AddToClassList("tw-ptile--done");
 
             if (sl.state == 0)
             {
-                b.Add(MakeLabel("+", "tw-pslot-plus"));
-                b.Add(MakeLabel("빈 칸", "tw-pslot-text"));
-            }
-            else if (sl.state == 1)
-            {
-                var row = Row("tw-pcard-row");
-                row.pickingMode = PickingMode.Ignore;
-                row.Add(ItemIconWithCount(sl.input, 0, "tw-pslot-icon"));
-                row.Add(MakeLabel("→", "tw-pcard-arrow"));
-                row.Add(ItemIconWithCount(sl.output, 0, "tw-pslot-icon"));
-                b.Add(row);
-                var bar = new VisualElement { pickingMode = PickingMode.Ignore };
-                bar.AddToClassList("tw-pslot-bar");
-                el.fill = new VisualElement { pickingMode = PickingMode.Ignore };
-                el.fill.AddToClassList("tw-pslot-fill");
-                el.fill.style.width = Length.Percent(Mathf.Clamp01(sl.progress) * 100f);
-                bar.Add(el.fill);
-                b.Add(bar);
-                el.timer = MakeLabel(sl.timerText ?? "", "tw-pslot-text");
-                b.Add(el.timer);
-                if (sl.queued > 1) b.Add(MakeLabel("대기 ×" + sl.queued, "tw-pslot-queue"));
-                if (sl.readyCount > 0) b.Add(MakeLabel("완성 ×" + sl.readyCount, "tw-pslot-ready"));
+                b.AddToClassList("tw-ptile--empty");
+                b.Add(MakeLabel("+", "tw-ptile-plus"));
             }
             else
             {
-                b.AddToClassList("tw-pslot--done");
-                b.Add(ItemIconWithCount(sl.output, 0, "tw-pslot-icon tw-pslot-icon--big"));
-                b.Add(MakeLabel("받기 ×" + Mathf.Max(1, sl.readyCount), "tw-pslot-claim"));
+                b.Add(ItemIconWithCount(sl.state == 2 ? sl.output : (sl.input ?? sl.inItem), 0, "tw-ptile-icon"));
+                if (sl.state == 1)
+                {
+                    var bar = new VisualElement { pickingMode = PickingMode.Ignore };
+                    bar.AddToClassList("tw-ptile-bar");
+                    el.fill = new VisualElement { pickingMode = PickingMode.Ignore };
+                    el.fill.AddToClassList("tw-pslot-fill");
+                    el.fill.style.width = Length.Percent(Mathf.Clamp01(sl.progress) * 100f);
+                    bar.Add(el.fill);
+                    b.Add(bar);
+                }
+                else
+                {
+                    // 완성: 열린 상자 아이콘 (아이콘이 없으면 체크 글자)
+                    Sprite chest = UiIcons.Get("chest_open");
+                    if (chest != null)
+                    {
+                        var done = new Image { sprite = chest, scaleMode = ScaleMode.ScaleToFit,
+                            tintColor = new Color32(170, 255, 140, 255), pickingMode = PickingMode.Ignore };
+                        done.AddToClassList("tw-ptile-done-icon");
+                        b.Add(done);
+                    }
+                    else b.Add(MakeLabel("✔", "tw-ptile-check"));
+                }
+                // 칸에 든 개수 / 칸당 최대 (가공 대기 + 완성품)
+                int inSlot = sl.queued + sl.readyCount;
+                if (inSlot > 1 || sl.queued > 0) b.Add(MakeLabel(inSlot + "/" + CraftingSystem.TruckProcessingLocal.MaxPerSlot, "tw-ptile-queue"));
             }
 
-            string hint = sl.state == 0 ? "빈 칸: 왼쪽에서 고른 재료를 넣어요"
-                : sl.state == 2 ? "다 됐어요! 누르면 결과물을 받아요"
-                : sl.sameSelected ? "같은 재료를 1개 더 넣어요" : "가공 중: 재료를 고르지 않고 누르면 남은 재료를 돌려받아요";
+            string hint = sl.state == 0 ? "빈 칸: 왼쪽에서 아이템을 누르면 여기에 들어가요"
+                : sl.state == 2 ? "다 됐어요! 눌러서 큰 화면에서 받아요"
+                : sl.sameSelected ? "같은 재료를 1개 더 넣어요" : "눌러서 이 칸의 가공 모습을 크게 봐요";
             b.RegisterCallback<PointerEnterEvent>(_ => SetHint(hint));
-            _procSlots.Add(el);
             return b;
+        }
+
+        private static VisualElement ProcessSlotStatus(Label label, string iconName, Color? tint = null)
+        {
+            var row = Row("tw-pslot-status");
+            row.pickingMode = PickingMode.Ignore;
+            Sprite sprite = UiIcons.Get(iconName);
+            if (sprite != null)
+            {
+                var icon = new Image { sprite = sprite, scaleMode = ScaleMode.ScaleToFit,
+                    tintColor = tint ?? Color.white, pickingMode = PickingMode.Ignore };
+                icon.AddToClassList("tw-pslot-status-icon");
+                row.Add(icon);
+            }
+            row.Add(label);
+            return row;
         }
 
         private VisualElement MakeUpgrade(CraftingSystem.TruckProcessView.UpgradeInfo up)
@@ -728,6 +845,7 @@ namespace LastTruck
                 cell.pickingMode = PickingMode.Ignore;
                 cell.Add(ItemIconWithCount(c.item, 0, "tw-ing-icon"));
                 cell.Add(MakeLabel(c.have + "/" + c.need, c.have >= c.need ? "tw-ing-count tw-ing-count--ok" : "tw-ing-count tw-ing-count--short"));
+                MakeMissingLink(cell, c.item, c.have < c.need);
                 costs.Add(cell);
             }
             var spacer = new VisualElement { pickingMode = PickingMode.Ignore };
@@ -830,12 +948,26 @@ namespace LastTruck
             b.AddToClassList("tw-tab");
             if (t.selected) b.AddToClassList("tw-tab--on");
             if (t.locked) b.AddToClassList("tw-tab--locked");
-            b.style.backgroundColor = t.selected ? t.color : new Color(t.color.r * 0.55f, t.color.g * 0.55f, t.color.b * 0.55f, 0.95f);
+            bool poly = _skin != null && _skin.polyTheme;
+            if (poly)
+            {
+                // 원신풍: 고른 탭 = 크림색 판 + 짙은 아이콘, 나머지 = 남색 판 + 금빛 아이콘. 탭마다의 색은 왼쪽 가는 띠로만 남긴다.
+                b.style.backgroundColor = Color.clear;
+                UiToolkitSkin.Slice(b, t.selected ? _skin.buttonBrown : _skin.panelBrownDark, 0.45f, Color.white);
+                var stripe = new VisualElement { pickingMode = PickingMode.Ignore };
+                stripe.style.position = Position.Absolute;
+                stripe.style.left = 7; stripe.style.top = 12; stripe.style.bottom = 12; stripe.style.width = 4;
+                stripe.style.borderTopLeftRadius = stripe.style.borderBottomLeftRadius = stripe.style.borderTopRightRadius = stripe.style.borderBottomRightRadius = 2;
+                stripe.style.backgroundColor = new Color(t.color.r, t.color.g, t.color.b, t.selected ? 1f : 0.7f);
+                b.Add(stripe);
+            }
+            else b.style.backgroundColor = t.selected ? t.color : new Color(t.color.r * 0.55f, t.color.g * 0.55f, t.color.b * 0.55f, 0.95f);
             if (t.icon != null)
             {
                 var icon = new VisualElement { pickingMode = PickingMode.Ignore };
                 icon.AddToClassList("tw-tab-icon");
                 icon.style.backgroundImage = new StyleBackground(t.icon);
+                if (poly) icon.style.unityBackgroundImageTintColor = t.selected ? new Color(0.23f, 0.26f, 0.33f, 1f) : new Color(0.88f, 0.79f, 0.6f, 1f);
                 b.Add(icon);
             }
             else b.Add(MakeLabel(t.label, "tw-tab-text"));
@@ -958,6 +1090,19 @@ namespace LastTruck
             UiToolkitSkin.Slice(b, _skin.buttonBrown, 0.5f, new Color(0.86f, 0.70f, 0.52f, 1f));
             b.Add(MakeLabel(text, "tw-btn-text"));
             return b;
+        }
+
+        /// <summary>모자란 재료를 누르면 그 아이템을 만드는 제작 도감으로 이동시키는 콜백 (GameUIController가 연결한다).</summary>
+        public Action<ItemData> OnMissingItem;
+
+        /// <summary>재료가 모자랄 때만: 눌러서 제작 도감으로 가는 링크로 만든다 (마우스를 올리면 안내 문구).</summary>
+        private void MakeMissingLink(VisualElement el, ItemData item, bool missing)
+        {
+            if (!missing || item == null || el == null) return;
+            el.pickingMode = PickingMode.Position;
+            el.AddToClassList("tw-missing-link");
+            el.RegisterCallback<PointerEnterEvent>(_ => SetHint(item.itemName + " — 눌러서 만드는 방법(제작 도감) 보기"));
+            el.RegisterCallback<ClickEvent>(_ => OnMissingItem?.Invoke(item));
         }
 
         private void SetHint(string text)
