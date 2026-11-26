@@ -49,6 +49,7 @@ namespace LastTruck
         private float _speedMultiplier = 1f;
 
         private bool _isCursorUnlocked = false;
+        private bool _mapCursor;   // 미니맵 표시 설정이 커서를 원한다
 
         private bool _isUIOpen = false;
         public bool IsUIOpen
@@ -341,6 +342,14 @@ namespace LastTruck
                 UpdateCursorState();
             }
 
+            // 미니맵 표시 설정(M)이 열려 있는 동안은 칩을 누를 수 있게 커서를 풀어 준다
+            bool mapCursor = MinimapView.WantsCursor;
+            if (mapCursor != _mapCursor)
+            {
+                _mapCursor = mapCursor;
+                UpdateCursorState();
+            }
+
             // UI가 켜져 있거나 이동이 잠긴 경우에만 이동 입력 차단
             bool shouldLockMovement = IsMovementBlocked;
 
@@ -394,7 +403,7 @@ namespace LastTruck
         /// </summary>
         public void UpdateCursorState()
         {
-            bool unlockCursor = _isCursorUnlocked || _isUIOpen;
+            bool unlockCursor = _isCursorUnlocked || _isUIOpen || _mapCursor;
 
             if (unlockCursor)
             {

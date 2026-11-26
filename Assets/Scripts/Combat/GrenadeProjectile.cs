@@ -79,6 +79,32 @@ namespace Combat
             transform.position += step;
         }
 
+        // 터지는 순간의 이펙트: 파편 수류탄 = 폭발, 화염병 = 불덩이, 독가스 = 뻥 터지는 초록 연기, 돌 = 돌가루
+        private void SpawnBlastFx(Vector3 point)
+        {
+            Vector3 p = point + Vector3.up * 0.1f;
+            if (_area == AreaKind.Flare) return;
+            if (_area == AreaKind.Fire)
+            {
+                CombatFx.Spawn("FX_Fire_Explosion_01", p, Quaternion.identity, Mathf.Max(0.6f, _blastRadius / 2.6f), 6f);
+            }
+            else if (_gasDuration > 0f)
+            {
+                GameObject puff = CombatFx.Spawn("FX_Grenade_Explosive_01", p, Quaternion.identity, 0.55f, 5f);
+                if (puff != null) CombatFx.Tint(puff, new Color(0.5f, 0.9f, 0.25f, 0.9f));
+            }
+            else if (_blastRadius > 1.5f)
+            {
+                CombatFx.Spawn("FX_Grenade_Explosive_01", p, Quaternion.identity, Mathf.Max(1f, _blastRadius / 1.6f), 6f);
+                Camera cam = Camera.main;
+                if (cam != null && (cam.transform.position - point).sqrMagnitude < 18f * 18f) CameraShake.Shake(0.18f);
+            }
+            else
+            {
+                CombatFx.Spawn("FX_Impact_Stone_01", p, Quaternion.identity, 0.7f, 3f);
+            }
+        }
+
         private void Explode(Vector3 point)
         {
             _exploded = true;
@@ -93,6 +119,8 @@ namespace Combat
                 d.TakeDamage(_blastDamage, col.ClosestPoint(point));
                 damaged.Add(d);
             }
+
+            SpawnBlastFx(point);
 
             if (_area == AreaKind.Flare)
             {

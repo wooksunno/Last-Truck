@@ -261,6 +261,36 @@ namespace LastTruck.Networking
             RPC_ConsumeResult(source, requestId, ok);
         }
 
+        /// <summary>가방 칸 늘리기처럼 "아이템 N개"만 내는 비용을 호스트가 확인하고 뺀다 (가죽만 허용).</summary>
+        public void RequestConsumeItem(ItemData item, int count, Action<bool> onResult)
+        {
+            int index = ItemIndexLookup.IndexOf(item);
+            if (index < 0 || count <= 0)
+            {
+                onResult?.Invoke(false);
+                return;
+            }
+
+            int id = _nextConsumeId++;
+            _pendingConsumes[id] = onResult;
+            RPC_RequestConsumeItem(index, count, id);
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_RequestConsumeItem(int itemIndex, int count, int requestId, RpcInfo info = default)
+        {
+            if (!RpcGuard.Allow(Runner, info.Source, nameof(RPC_RequestConsumeItem), 60)) return;
+            PlayerRef source = info.Source != PlayerRef.None ? info.Source : Runner.LocalPlayer;
+            ItemData item = ItemIndexLookup.ItemAt(itemIndex);
+            bool ok = false;
+            if (item != null && item.itemID == ItemIds.TannedLeather && count > 0 && count <= 16)
+            {
+                using (TruckInventory.SuppressBag(source != Runner.LocalPlayer))   // 남의 요청은 트럭 재료로만
+                    ok = TruckInventorySync.ConsumeItemLocal(Truck, item, count);
+            }
+            RPC_ConsumeResult(source, requestId, ok);
+        }
+
         [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
         private void RPC_ConsumeResult([RpcTarget] PlayerRef target, int requestId, NetworkBool ok)
         {
@@ -322,8 +352,17 @@ namespace LastTruck.Networking
             TruckCraftingManager craft = truck.GetComponent<TruckCraftingManager>();
             if (craft != null)
             {
+                bool ok;
                 using (TruckInventory.SuppressBag(source != Runner.LocalPlayer))   // 남의 요청은 트럭 재료로만 (호스트 가방 보호)
-                    craft.TryCraft(recipe, ability);
+                    ok = craft.TryCraft(recipe, ability);
+
+                // 도구/무기/소모품은 만든 사람 가방으로 보낸다 (가방이 꽉 차면 그 사람 컴퓨터가 남는 만큼 트럭으로 되돌린다)
+                ItemData output = recipe.output != null ? recipe.output.item : null;
+                if (ok && source != Runner.LocalPlayer && TruckInventorySync.GoesToCrafterBag(output))
+                {
+                    int n = TruckInventorySync.TakeCraftedFromTruck(truck, output, recipe.output.count);
+                    if (n > 0) RPC_GiveItem(source, ItemIndexLookup.IndexOf(output), n, 0);
+                }
             }
         }
 
@@ -355,7 +394,7 @@ namespace LastTruck.Networking
             if (item == null || count <= 0) return;
 
             PlayerInventory player = TruckInventorySync.LocalPlayerInventory;
-            int added = player != null ? TruckInventorySync.AddAndCount(player.Inventory, item, count, durability) : 0;
+            int added = player != null ? player.Take(item, count, durability) : 0;   // 가방 → (배낭이 있으면) 배낭
             int leftover = count - added;
             if (leftover <= 0) return;
 
@@ -468,6 +507,25 @@ namespace LastTruck.Networking
             net.RequestDeposit(item, count);
         }
 
+        /// <summary>
+        /// 아무 인벤토리(내 가방/배낭) → 트럭. 겹쳐지는 재료만 (도구/무기는 Deposit으로 한 개씩).
+        /// 클라이언트는 먼저 빼고 호스트에 넣어 달라고 요청한다 (트럭이 꽉 차면 호스트가 내 가방으로 돌려준다).
+        /// </summary>
+        public static int DepositFrom(TruckInventory truck, ItemStackInventory source, ItemData item, int count)
+        {
+            if (truck == null || source == null || item == null || count <= 0 || item.HasDurability) return 0;
+            count = Mathf.Min(count, source.GetItemCount(item));
+            if (count <= 0) return 0;
+
+            NetworkTruckInventory net = IsRemoteClient ? Net : null;
+            if (net == null)
+                return MoveItems(source, truck.Inventory, item, count);
+
+            if (!source.RemoveItem(item, count)) return 0;
+            net.RequestDeposit(item, count);
+            return count;
+        }
+
         /// <summary>트럭 → 내 가방. durability: 도구/무기면 꺼낼 "그" 도구의 남은 내구도 (칸의 CurrentDurability).</summary>
         public static void Withdraw(TruckInventory truck, PlayerInventory player, ItemData item, int count, int durability = 0)
         {
@@ -492,11 +550,61 @@ namespace LastTruck.Networking
             NetworkTruckInventory net = IsRemoteClient ? Net : null;
             if (net == null)
             {
-                if (!craft.TryCraft(recipe)) Debug.LogWarning("재료가 부족합니다.");
+                if (!craft.TryCraft(recipe)) { Debug.LogWarning("재료가 부족합니다."); return; }
+                DeliverCraftedLocal(craft.Inventory, recipe);
                 return;
             }
 
             net.RequestCraft(recipe);
+            ItemData output = recipe.output != null ? recipe.output.item : null;
+            if (GoesToCrafterBag(output)) HudToast.Show(output.itemName + " 제작! 가방으로 들어와요");
+        }
+
+        /// <summary>
+        /// 제작 결과물을 만든 사람 가방으로 보내는가.
+        /// 트럭에 있어야 하는 것(설비, 트럭 파츠, 포탑 탄약, 탈출 부품)과 다른 제작에 쓰는 재료는 트럭 보관함에 그대로 둔다.
+        /// </summary>
+        public static bool GoesToCrafterBag(ItemData item)
+        {
+            if (item == null) return false;
+            if (item.itemType == ItemType.Raw || item.itemType == ItemType.Intermediate) return false;
+            if (TruckFacilities.IsFacilityItem(item) || TruckUpgradeRules.IsPart(item.itemID)) return false;
+            foreach (TruckUpgradeRules.Ammo a in TruckUpgradeRules.AmmoTypes)
+                if (a.id == item.itemID) return false;
+            string id = item.itemID;
+            return id != ItemIds.EscapeEngineCore && id != ItemIds.EscapeFuelTank && id != ItemIds.EscapeBeacon;
+        }
+
+        /// <summary>방금 트럭에 들어간 결과물을 count개까지 꺼낸다 (도구/무기는 새 것 한 개씩). 꺼낸 개수.</summary>
+        public static int TakeCraftedFromTruck(TruckInventory truck, ItemData item, int count)
+        {
+            if (truck == null || item == null || count <= 0) return 0;
+            if (item.HasDurability)
+            {
+                int n = 0;
+                for (int i = 0; i < count; i++)
+                    if (truck.Inventory.RemoveDurable(item, item.maxDurability)) n++;
+                return n;
+            }
+            int take = Mathf.Min(count, truck.Inventory.GetItemCount(item));
+            return take > 0 && truck.Inventory.RemoveItem(item, take) ? take : 0;
+        }
+
+        /// <summary>싱글/호스트: 제작 결과물을 내 가방(넘치면 배낭)으로 옮긴다. 둘 다 꽉 차면 트럭 보관함에 남긴다.</summary>
+        private static void DeliverCraftedLocal(TruckInventory truck, RecipeData recipe)
+        {
+            ItemData item = recipe.output != null ? recipe.output.item : null;
+            PlayerInventory player = LocalPlayerInventory;
+            if (player == null && !GameLauncher.IsOnlineSession) player = UnityEngine.Object.FindFirstObjectByType<PlayerInventory>();
+            if (player == null || !GoesToCrafterBag(item)) return;
+
+            int n = TakeCraftedFromTruck(truck, item, recipe.output.count);
+            if (n <= 0) return;
+            int given = player.Take(item, n, 0);
+            if (given < n) truck.Inventory.AddItem(item, n - given);
+            HudToast.Show(given >= n
+                ? item.itemName + (n > 1 ? " ×" + n : "") + " 제작! 가방에 넣었어요"
+                : item.itemName + " 제작! 가방이 가득 차서 " + (n - given) + "개는 트럭 보관함에 넣었어요");
         }
 
         /// <summary>
@@ -620,6 +728,31 @@ namespace LastTruck.Networking
             message = $"광물 변환: {input.itemName} x{inputCount} → {result.itemName} x{outputCount}";
             AbilityDebug.Report(ability.CharacterName, "convert", "과학자 " + message);
             return true;
+        }
+
+        /// <summary>아이템 하나를 N개 낸다 (가방 칸 늘리기). 싱글/호스트는 바로, 클라이언트는 호스트가 확인한 뒤 onResult가 불린다.</summary>
+        public static void ConsumeItem(TruckInventory truck, ItemData item, int count, Action<bool> onResult)
+        {
+            if (truck == null || item == null || count <= 0)
+            {
+                onResult?.Invoke(false);
+                return;
+            }
+
+            NetworkTruckInventory net = IsRemoteClient ? Net : null;
+            if (net == null)
+            {
+                onResult?.Invoke(ConsumeItemLocal(truck, item, count));
+                return;
+            }
+            net.RequestConsumeItem(item, count, onResult);
+        }
+
+        public static bool ConsumeItemLocal(TruckInventory truck, ItemData item, int count)
+        {
+            if (truck == null || item == null || count <= 0) return false;
+            if (truck.GetMaterialCount(item) < count) return false;
+            return truck.RemoveMaterial(item, count);
         }
 
         /// <summary>재료가 모두 있으면 빼고 true (능력 할인 없이 레시피 수량 그대로).</summary>

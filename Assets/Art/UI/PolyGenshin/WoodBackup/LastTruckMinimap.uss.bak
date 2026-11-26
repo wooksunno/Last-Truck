@@ -1,0 +1,29 @@
+/* 오른쪽 위 원형 미니맵 (UI Toolkit). 크기는 코드에서 반지름에 맞춰 정한다. */
+.lt-root { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+
+.mm-frame  { position: absolute; right: 22px; top: 22px; align-items: center; justify-content: center; }
+.mm-shadow { position: absolute; left: 4px; top: 8px; right: -4px; bottom: -4px; border-radius: 50%; background-color: rgba(0, 0, 0, 0.35); }
+.mm-map {
+    overflow: hidden;
+    background-color: rgb(40, 38, 33);
+    border-width: 3px; border-color: rgb(30, 20, 10);
+}
+.mm-range  { position: absolute; border-width: 1px; border-color: rgba(255, 236, 200, 0.12); }
+.mm-layer  { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+.mm-dot    { position: absolute; width: 9px; height: 9px; border-radius: 5px; border-width: 1px; border-color: rgba(0, 0, 0, 0.55); }
+.mm-mate   { position: absolute; width: 13px; height: 13px; border-radius: 7px; border-width: 2px; border-color: rgb(20, 40, 20); }
+.mm-truck  { position: absolute; width: 26px; height: 26px; -unity-background-scale-mode: scale-to-fit; -unity-background-image-tint-color: rgb(255, 176, 40); }
+.mm-truck--dot { width: 16px; height: 16px; border-radius: 8px; background-color: rgb(255, 166, 26); }
+.mm-truck-arrow { position: absolute; width: 22px; height: 22px; }
+.mm-player { position: absolute; width: 18px; height: 18px; }
+
+.mm-ring {
+    position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+    -unity-background-scale-mode: stretch-to-fill;
+}
+.mm-ring--plain { left: 8px; top: 8px; right: 8px; bottom: 8px; border-radius: 50%; border-width: 7px; border-color: rgb(226, 178, 84); }
+.mm-north {
+    position: absolute; top: -6px; left: 50%; translate: -50% 0;
+    font-size: 20px; -unity-font-style: bold; color: rgb(255, 244, 220);
+    -unity-text-outline-width: 1.4px; -unity-text-outline-color: rgba(38, 22, 8, 0.95);
+}

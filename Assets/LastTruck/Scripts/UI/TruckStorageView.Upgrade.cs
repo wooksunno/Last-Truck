@@ -229,6 +229,7 @@ namespace LastTruck
                 if (c.item != null && c.item.icon != null) ci.style.backgroundImage = new StyleBackground(c.item.icon);
                 chip.Add(ci);
                 chip.Add(MakeLabel(c.have + "/" + c.need, c.have >= c.need ? "tw-stat-cost-n tw-ing-count--ok" : "tw-stat-cost-n tw-ing-count--short"));
+                MakeMissingLink(chip, c.item, c.have < c.need);
                 row.Add(chip);
             }
 

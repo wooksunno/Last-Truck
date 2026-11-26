@@ -41,7 +41,26 @@ namespace CraftingSystem
                 if (slot == null || slot.IsEmpty || slot.item == null) continue;
                 best = Mathf.Max(best, TierOfItem(slot.item.itemID));
             }
+            // 배낭 안에 있어도 입은 것으로 친다 (배낭이 있으면 새로 얻은 갑옷이 배낭으로 먼저 들어가서, 예전에는 적용되지 않았다)
+            if (inventory.HasBackpack && inventory.Pouch != null)
+                foreach (InventorySlot slot in inventory.Pouch.Slots)
+                    if (slot != null && !slot.IsEmpty && slot.item != null)
+                        best = Mathf.Max(best, TierOfItem(slot.item.itemID));
             return best;
+        }
+
+        /// <summary>HUD 표시용: "가죽 갑옷 · 피해 -10%" (갑옷이 없으면 null).</summary>
+        public static string LocalSummary
+        {
+            get
+            {
+                int t = LocalTier;
+                if (t <= 0) return null;
+                string s = Names[Mathf.Clamp(t, 1, MaxTier) - 1] + " · 받는 피해 -" + Mathf.RoundToInt(ReductionOfTier(t) * 100f) + "%";
+                float sp = SpeedScaleOfTier(t);
+                if (sp < 0.999f) s += " · 이동 -" + Mathf.RoundToInt((1f - sp) * 100f) + "%";
+                return s;
+            }
         }
 
         /// <summary>받는 피해 감소 비율 (0 ~ 0.3).</summary>

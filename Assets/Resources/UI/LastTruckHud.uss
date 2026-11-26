@@ -6,7 +6,8 @@
     -unity-font-style: bold;
     font-size: 20px;
     -unity-text-outline-width: 1.2px;
-    -unity-text-outline-color: rgba(38, 22, 8, 0.95);
+    -unity-text-outline-color: rgba(8, 12, 24, 0.95);
+    text-shadow: 0 2px 5px rgba(0, 0, 0, 0.6);   /* 판 없는 투명 HUD에서도 읽히게 */
 }
 
 .lt-status-plate { position: absolute; right: 36px; top: 276px; width: 290px; padding: 18px 22px 16px 22px; }
@@ -16,7 +17,7 @@
 .lt-tag   { width: 54px; font-size: 20px; -unity-text-align: middle-left; }
 .lt-track {
     flex-grow: 1; height: 24px; justify-content: center; overflow: hidden;
-    background-color: rgba(28, 16, 8, 0.92);
+    background-color: rgba(16, 20, 34, 0.92);
     border-radius: 12px; border-width: 2px; border-color: rgba(255, 236, 190, 0.45);
 }
 .lt-fill  { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; border-radius: 10px; }

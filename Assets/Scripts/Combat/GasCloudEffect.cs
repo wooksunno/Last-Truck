@@ -27,8 +27,17 @@ namespace Combat
             StartCoroutine(Run());
         }
 
+        private GameObject _smoke, _bubbles;
+
         private void BuildVisual()
         {
+            // 진짜 연기: 초록빛 연기 구름(번져 오르며 흩어짐) + 보글거리는 독 방울
+            float k = Mathf.Max(0.3f, _radius / 4.2f);   // 기준(배율 1)의 연기는 반경 약 9m라서 반경에 맞게 줄인다
+            _smoke = CombatFx.Spawn("FX_Grenade_Smoke_01", transform.position, Quaternion.identity, k * 0.8f, 0f, transform);
+            if (_smoke != null) CombatFx.Tint(_smoke, new Color(0.42f, 0.85f, 0.22f, 0.5f));
+            _bubbles = CombatFx.Spawn("FX_Poison_Green_01", transform.position, Quaternion.identity, k * 1.2f, 0f, transform);
+            if (_smoke != null || _bubbles != null) return;
+
             GameObject visual = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             visual.name = "GasCloudVisual";
             Destroy(visual.GetComponent<Collider>());
@@ -53,7 +62,16 @@ namespace Combat
                 Tick();
             }
 
+            // 새로 뿜는 것만 멈추고, 남은 연기는 서서히 흩어지게 둔다
+            ReleaseFx(_smoke); ReleaseFx(_bubbles);
             Destroy(gameObject);
+        }
+
+        private static void ReleaseFx(GameObject fx)
+        {
+            if (fx == null) return;
+            fx.transform.SetParent(null, true);
+            CombatFx.StopEmitting(fx, 8f);
         }
 
         private void Tick()

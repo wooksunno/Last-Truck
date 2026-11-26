@@ -4,7 +4,7 @@ namespace CraftingSystem
 {
     /// <summary>
     /// 개발용 단축키. 게임이 시작되면 자동으로 만들어진다 (씬에 둘 필요 없음). 개발 빌드(에디터 포함)에서만 동작한다.
-    ///   Ctrl+A : 설비 전체 + 트럭에 붙일 수 있는 부착물(포탑/엔진/전면/장갑) 전체를 받는다 (CraftingCheats.GrantFacilitiesAndParts).
+    ///   Ctrl+A : 설비 전체 + 트럭에 붙일 수 있는 부착물(포탑/엔진/전면/장갑) + 그 밖의 모든 아이템을 트럭 보관함에 받는다 (CraftingCheats.GrantFacilitiesAndParts).
     /// (Ctrl+1~7은 유니티 에디터가 창 열기에 쓰는 키라 피했다.)
     /// 정식 빌드에서 빼려면 이 파일을 지우면 된다.
     /// </summary>

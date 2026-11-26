@@ -216,8 +216,8 @@ namespace CraftingSystem
             Add("tan_lure_pheromone", "독성 유인 페로몬 추출", FacilityType.LeatherTanningRack, new[] { (ItemIds.PoisonHerb, 1) }, ItemIds.LurePheromone, 1);
 
             // ── 트럭 조립: 설비 ─────────────────────────────────
-            Add("assemble_campfire", "모닥불 조립", FacilityType.None, new[] { (ItemIds.Wood, 30), (ItemIds.Stone, 4) }, ItemIds.Campfire, 1);
-            Add("assemble_grindstone", "숫돌 연마대 조립", FacilityType.None, new[] { (ItemIds.Stone, 20), (ItemIds.Wood, 5) }, ItemIds.Grindstone, 1);
+            Add("assemble_campfire", "모닥불 조립", FacilityType.None, new[] { (ItemIds.Wood, 15), (ItemIds.Stone, 3) }, ItemIds.Campfire, 1);
+            Add("assemble_grindstone", "숫돌 연마대 조립", FacilityType.None, new[] { (ItemIds.Stone, 10), (ItemIds.Wood, 4) }, ItemIds.Grindstone, 1);
             Add("assemble_leather_tanning_rack", "가죽 무두질 건조대 조립", FacilityType.None, new[] { (ItemIds.Wood, 25), (ItemIds.Stone, 10), (ItemIds.CopperOre, 8) }, ItemIds.LeatherTanningRack, 1);
             Add("assemble_roller_press", "롤러 프레스기 조립", FacilityType.None, new[] { (ItemIds.Wood, 15), (ItemIds.Stone, 25), (ItemIds.CopperOre, 15) }, ItemIds.RollerPressMachine, 1);
             Add("assemble_precision_cutter", "절삭기 조립", FacilityType.None, new[] { (ItemIds.Wood, 25), (ItemIds.Stone, 20), (ItemIds.IronOre, 10) }, ItemIds.PrecisionCutterMachine, 1);
@@ -225,9 +225,9 @@ namespace CraftingSystem
             Add("assemble_superheated_furnace", "초고온 용광로 조립", FacilityType.None, new[] { (ItemIds.Stone, 30), (ItemIds.IronOre, 20), (ItemIds.Oil, 4) }, ItemIds.SuperheatedFurnace, 1);
 
             // ── 트럭 조립: 도구 / 채집 ──────────────────────────
-            Add("assemble_wood_pickaxe", "나무 곡괭이 조립", FacilityType.None, new[] { (ItemIds.Wood, 8) }, ItemIds.WoodPickaxe, 1);
-            Add("assemble_stone_pickaxe", "돌 곡괭이 조립", FacilityType.None, new[] { (ItemIds.Wood, 10), (ItemIds.Stone, 8) }, ItemIds.StonePickaxe, 1);
-            Add("assemble_copper_pickaxe", "구리 곡괭이 조립", FacilityType.None, new[] { (ItemIds.CopperBlade, 1), (ItemIds.Wood, 6) }, ItemIds.CopperPickaxe, 1);   // 손잡이(절삭기 ← 철 원석 ← 구리 곡괭이)를 요구하면 순환이라 나무를 그대로 쓴다
+            Add("assemble_wood_pickaxe", "나무 곡괭이 조립", FacilityType.None, new[] { (ItemIds.Wood, 6) }, ItemIds.WoodPickaxe, 1);
+            Add("assemble_stone_pickaxe", "돌 곡괭이 조립", FacilityType.None, new[] { (ItemIds.Wood, 6), (ItemIds.Stone, 5) }, ItemIds.StonePickaxe, 1);
+            Add("assemble_copper_pickaxe", "구리 곡괭이 조립", FacilityType.None, new[] { (ItemIds.CopperBlade, 1), (ItemIds.Wood, 4) }, ItemIds.CopperPickaxe, 1);   // 손잡이(절삭기 ← 철 원석 ← 구리 곡괭이)를 요구하면 순환이라 나무를 그대로 쓴다
             Add("assemble_iron_pickaxe", "철제 곡괭이 조립", FacilityType.None, new[] { (ItemIds.ReinforcedIronBlade, 1), (ItemIds.WoodHandle, 1), (ItemIds.Copper, 2) }, ItemIds.IronPickaxe, 1);
             Add("assemble_platinum_drill", "금 착암 드릴 조립", FacilityType.None, new[] { (ItemIds.PlatinumGear, 1), (ItemIds.ReinforcedIronBlade, 1), (ItemIds.Iron, 3) }, ItemIds.PlatinumDrill, 1);
             Add("assemble_diamond_crusher", "다이아몬드 분쇄기 조립", FacilityType.None, new[] { (ItemIds.DiamondCuttingTip, 1), (ItemIds.PlatinumDrill, 1) }, ItemIds.DiamondCrusher, 1);

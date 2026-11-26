@@ -6,7 +6,7 @@
     -unity-font-style: bold;
     font-size: 20px;
     -unity-text-outline-width: 1.2px;
-    -unity-text-outline-color: rgba(38, 22, 8, 0.95);
+    -unity-text-outline-color: rgba(8, 12, 24, 0.95);
 }
 
 .tw-window { position: absolute; left: 30px; top: 96px; bottom: 24px; right: 550px; flex-direction: row; }
@@ -40,7 +40,7 @@
 .tw-withdraw-name { width: 180px; font-size: 18px; color: rgb(60, 36, 14); -unity-text-outline-width: 0; white-space: normal; }
 .tw-amount {
     width: 74px; height: 44px; margin: 0 6px; font-size: 24px; -unity-text-align: middle-center;
-    background-color: rgba(40, 24, 10, 0.85); border-radius: 8px;
+    background-color: rgba(26, 32, 50, 0.85); border-radius: 8px;
 }
 .tw-btn {
     height: 44px; min-width: 56px; margin: 0 3px; padding: 0 10px;
@@ -88,7 +88,7 @@
     font-size: 14px; margin-top: 6px; -unity-text-align: middle-center; white-space: nowrap; overflow: hidden; max-width: 86px;
     color: rgb(255, 236, 200); -unity-text-outline-width: 0; text-shadow: 1px 1px 0 rgba(20, 10, 4, 0.9);
 }
-.tw-dur      { position: absolute; left: 12%; right: 12%; bottom: 5px; height: 6px; border-radius: 3px; background-color: rgba(15, 12, 10, 0.9); padding: 1px; }
+.tw-dur      { position: absolute; left: 12%; right: 12%; bottom: 5px; height: 6px; border-radius: 3px; background-color: rgba(10, 12, 20, 0.9); padding: 1px; }
 .tw-dur-fill { height: 100%; border-radius: 3px; }
 
 .tw-hint { height: 30px; margin-top: 6px; font-size: 16px; color: rgb(232, 210, 170); -unity-text-align: middle-left; }
@@ -143,7 +143,7 @@
 .tw-ing-list { flex-grow: 1; }
 .tw-ing {
     flex-direction: row; align-items: center; height: 56px; margin-bottom: 6px; padding: 0 12px 0 8px;
-    background-color: rgba(30, 18, 8, 0.82); border-radius: 10px;
+    background-color: rgba(16, 20, 34, 0.82); border-radius: 10px;
 }
 .tw-ing-icon  { width: 42px; height: 42px; margin-right: 10px; -unity-background-scale-mode: scale-to-fit; }
 .tw-ing-name  { flex-grow: 1; font-size: 18px; }
@@ -167,8 +167,8 @@
 .tw-proc-head { flex-direction: row; align-items: center; height: 40px; margin: 4px 0 4px 6px; }
 .tw-proc-title-icon { width: 32px; height: 32px; margin-right: 8px; -unity-background-scale-mode: scale-to-fit; }
 .tw-proc-title { font-size: 20px; }
-.tw-proc-right { width: 520px; padding: 16px 18px 14px 18px; }
-.tw-proc-slots { flex-direction: row; flex-wrap: wrap; }
+.tw-proc-right { width: 290px; flex-shrink: 0; padding: 14px 12px 12px 12px; }
+.tw-proc-slots { flex-shrink: 0; flex-direction: row; flex-wrap: wrap; }
 .tw-proc-message { margin: 6px 0; font-size: 17px; color: rgb(255, 120, 100); white-space: normal; }
 
 .tw-pcard {
@@ -184,19 +184,31 @@
 .tw-icon-count  { position: absolute; right: -6px; bottom: -4px; font-size: 15px; }
 
 .tw-pslot {
-    width: 150px; height: 140px; margin: 6px; padding: 10px 6px 6px 6px;
-    align-items: center; justify-content: center;
+    width: 146px; height: 184px; margin: 4px; padding: 6px 6px 6px 6px;
+    align-items: center; justify-content: flex-start;
     background-color: rgba(0, 0, 0, 0); border-width: 0; border-radius: 12px;
     transition-property: scale; transition-duration: 0.1s;
 }
+.tw-pslot--empty { justify-content: center; }
+/* 가공 연출 아래 결과 줄 */
+.tw-pslot-resbox  { align-items: center; }
+.tw-pslot-result  { flex-direction: row; align-items: center; justify-content: center; margin-top: 0; }
+.tw-pslot-icon-s  { width: 24px; height: 24px; -unity-background-scale-mode: scale-to-fit; }
+.tw-pslot-resqty  { font-size: 16px; margin-left: 4px; color: rgb(255, 236, 200); }
+.tw-pslot-resname { font-size: 13px; max-width: 132px; overflow: hidden; color: rgb(255, 225, 170); -unity-text-outline-width: 0; white-space: nowrap; text-overflow: ellipsis; }
+/* 가진 아이템 칸: 가공법이 있으면 테두리, 없으면 흐리게 (눌러도 아무 일 없음) */
+.tw-slot--proc { border-width: 2px; border-color: rgba(255, 208, 82, 0.5); }
+.tw-slot--dim  { opacity: 0.42; }
+.tw-slot--dim:hover { scale: 1 1; border-width: 0; }
+.tw-claimall { flex-grow: 0; height: 46px; margin: 6px 4px 0 4px; }
 .tw-pslot:hover   { scale: 1.05 1.05; }
 .tw-pslot--same   { border-width: 3px; border-color: rgb(255, 208, 82); }
 .tw-pslot--done   { border-width: 3px; border-color: rgb(150, 240, 110); }
 .tw-pslot-plus    { font-size: 44px; color: rgba(255, 236, 200, 0.55); -unity-text-outline-width: 0; }
-.tw-pslot-text    { font-size: 16px; margin-top: 4px; color: rgb(255, 236, 200); }
+.tw-pslot-text    { font-size: 15px; margin-top: 2px; color: rgb(255, 236, 200); }
 .tw-pslot-icon    { width: 44px; height: 44px; -unity-background-scale-mode: scale-to-fit; }
 .tw-pslot-icon--big { width: 68px; height: 68px; }
-.tw-pslot-bar     { width: 120px; height: 12px; margin-top: 8px; border-radius: 6px; background-color: rgba(20, 12, 6, 0.9); padding: 2px; }
+.tw-pslot-bar     { width: 122px; height: 10px; margin-top: 4px; border-radius: 5px; background-color: rgba(10, 13, 24, 0.9); padding: 2px; }
 .tw-pslot-fill    { height: 100%; border-radius: 4px; background-color: rgb(255, 196, 70); }
 .tw-pslot-queue   { position: absolute; left: 8px; top: 6px; font-size: 13px; -unity-text-outline-width: 0; padding: 1px 6px; border-radius: 6px; background-color: rgba(30, 18, 8, 0.85); }
 .tw-pslot-status { flex-direction: row; align-items: center; justify-content: center; margin-top: 4px; }
@@ -207,7 +219,7 @@
 .tw-pslot-ready-text { font-size: 13px; -unity-text-outline-width: 0; }
 .tw-pslot-claim   { font-size: 18px; margin-top: 6px; color: rgb(170, 255, 140); }
 
-.tw-upgrade { margin-top: auto; padding: 12px 12px 10px 12px; border-radius: 12px; background-color: rgba(30, 18, 8, 0.82); }
+.tw-upgrade { margin-top: auto; padding: 12px 12px 10px 12px; border-radius: 12px; background-color: rgba(16, 20, 34, 0.82); }
 .tw-upgrade-title { font-size: 16px; margin-bottom: 8px; white-space: normal; }
 .tw-upgrade-costs { flex-direction: row; align-items: center; flex-wrap: wrap; }
 .tw-upgrade-cost  { flex-direction: row; align-items: center; margin-right: 12px; }
@@ -240,7 +252,7 @@
 
 .tw-stat {
     flex-direction: row; align-items: center; height: 62px; margin-bottom: 6px; padding: 0 10px 0 10px;
-    background-color: rgba(30, 18, 8, 0.82); border-radius: 10px;
+    background-color: rgba(16, 20, 34, 0.82); border-radius: 10px;
 }
 .tw-stat--locked { opacity: 0.6; }
 .tw-stat-icon    { width: 44px; height: 44px; margin-right: 10px; -unity-background-scale-mode: scale-to-fit; }
@@ -271,7 +283,7 @@
 
 .tw-graph-area {
     flex-grow: 1; border-radius: 12px; overflow: hidden;
-    background-color: rgb(238, 222, 190); border-width: 4px; border-color: rgb(120, 82, 46);
+    background-color: rgb(238, 222, 190); border-width: 4px; border-color: rgb(176, 146, 96);
 }
 .tw-graph-content { position: relative; }
 .tw-graph-hint { position: absolute; right: 16px; top: 8px; font-size: 14px; color: rgba(90, 70, 50, 0.9); -unity-text-outline-width: 0; -unity-font-style: normal; }
@@ -314,7 +326,76 @@
 }
 .tw-fac-slot-icon { width: 80px; height: 80px; -unity-background-scale-mode: scale-to-fit; }
 .tw-fac-slot-text { font-size: 18px; margin-top: 6px; }
-.tw-fac-bar    { width: 300px; height: 16px; border-radius: 8px; padding: 2px; background-color: rgba(20, 12, 6, 0.9); }
+.tw-fac-bar    { width: 300px; height: 16px; border-radius: 8px; padding: 2px; background-color: rgba(10, 13, 24, 0.9); }
 .tw-fac-timer  { font-size: 22px; margin-top: 8px; }
 .tw-fac-status { font-size: 17px; margin-top: 4px; color: rgb(70, 44, 20); -unity-text-outline-width: 0; }
 .tw-fac-button { flex-grow: 0; width: 100%; height: 60px; margin: 0; }
+
+/* ---- 모자란 재료 -> 제작 도감 링크 ---- */
+.tw-missing-link:hover { background-color: rgba(255, 190, 90, 0.18); border-radius: 6px; }
+.tw-missing-tag { font-size: 14px; color: rgb(255, 205, 120); margin-left: 8px; -unity-text-align: middle-right; flex-shrink: 0; }
+
+/* ---- 큰 가공 화면 (고른 칸의 가공 모습을 크게) ---- */
+.tw-big { align-items: center; margin-bottom: 4px; }
+.tw-big-stage { flex-shrink: 0; border-radius: 16px; overflow: hidden; border-width: 3px; border-color: rgba(255, 208, 120, 0.35); background-color: rgb(16, 20, 34); }
+.tw-big-title { position: absolute; left: 0; right: 0; top: 10px; font-size: 34px; -unity-text-align: middle-center; color: rgb(255, 244, 214); -unity-text-outline-width: 2px; -unity-text-outline-color: rgba(8, 12, 24, 0.95); }
+.tw-big-fac { position: absolute; left: 12px; bottom: 8px; font-size: 14px; color: rgba(255, 236, 200, 0.75); -unity-text-outline-width: 0; padding: 2px 8px; border-radius: 8px; background-color: rgba(10, 12, 22, 0.6); }
+.tw-big-idle-icon { width: 72px; height: 72px; margin-bottom: 10px; opacity: 0.55; -unity-background-scale-mode: scale-to-fit; }
+.tw-big-idle-title { font-size: 26px; color: rgb(255, 226, 170); }
+.tw-big-idle-sub { font-size: 17px; margin-top: 8px; color: rgba(255, 236, 200, 0.65); -unity-text-align: middle-center; white-space: normal; -unity-text-outline-width: 0; }
+
+.tw-bcards { flex-shrink: 0; flex-direction: row; align-items: center; justify-content: center; margin-top: 8px; }
+.tw-bcard { flex-direction: row; flex-shrink: 0; width: 204px; height: 64px; padding: 8px 10px 8px 10px; align-items: center; border-radius: 12px; }
+.tw-bcard-icon { width: 46px; height: 46px; margin-right: 10px; -unity-background-scale-mode: scale-to-fit; }
+.tw-bcard-col { flex-grow: 1; flex-shrink: 1; justify-content: center; }
+.tw-bcard-cap { font-size: 12px; color: rgba(255, 206, 120, 0.8); -unity-text-outline-width: 0; }
+.tw-bcard-name { font-size: 17px; max-width: 120px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: rgb(255, 240, 210); }
+.tw-bcard-count { font-size: 16px; color: rgb(255, 214, 120); }
+.tw-bcard-arrow { font-size: 40px; margin: 0 8px; color: rgb(255, 196, 70); }
+
+.tw-bbar-row { flex-shrink: 0; flex-direction: row; align-items: center; width: 100%; margin-top: 8px; }
+.tw-bbar { flex-grow: 1; height: 26px; border-radius: 13px; background-color: rgba(10, 13, 24, 0.92); padding: 3px; justify-content: center; }
+.tw-bbar-fill { height: 100%; border-radius: 10px; background-color: rgb(255, 188, 60); }
+.tw-bbar-pct { position: absolute; left: 0; right: 0; top: 0; bottom: 0; font-size: 16px; -unity-text-align: middle-center; color: rgb(255, 250, 235); -unity-text-outline-width: 2px; -unity-text-outline-color: rgba(8, 12, 24, 0.95); }
+.tw-bbar-time { width: 76px; margin-left: 8px; font-size: 17px; -unity-text-align: middle-right; color: rgb(255, 236, 200); }
+.tw-bbar-queue { font-size: 14px; margin-top: 4px; color: rgba(255, 226, 170, 0.8); -unity-text-outline-width: 0; }
+.tw-bbtns { flex-shrink: 0; flex-direction: row; justify-content: center; margin-top: 6px; }
+.tw-bbtn { flex-grow: 0; flex-shrink: 0; width: 200px; height: 44px; margin: 0 6px; }
+
+/* ---- 칸 선택 줄 ---- */
+.tw-ptile { flex-shrink: 0; width: 70px; height: 70px; margin: 4px; padding: 6px 4px 4px 4px; align-items: center; justify-content: center; background-color: rgba(0, 0, 0, 0); border-width: 3px; border-color: rgba(255, 255, 255, 0.06); border-radius: 12px; transition-property: scale; transition-duration: 0.1s; }
+.tw-ptile:hover { scale: 1.06 1.06; }
+.tw-ptile--on { border-color: rgb(255, 208, 82); }
+.tw-ptile--same { border-color: rgb(255, 160, 60); }
+.tw-ptile--done { border-color: rgb(150, 240, 110); }
+.tw-ptile-plus { font-size: 34px; color: rgba(255, 236, 200, 0.5); -unity-text-outline-width: 0; }
+.tw-ptile-icon { width: 34px; height: 34px; -unity-background-scale-mode: scale-to-fit; }
+.tw-ptile-bar { width: 56px; height: 8px; margin-top: 5px; border-radius: 4px; background-color: rgba(10, 13, 24, 0.9); padding: 1px; }
+.tw-ptile-done-icon { width: 18px; height: 18px; margin-top: 3px; flex-shrink: 0; }
+.tw-ptile-check { font-size: 16px; margin-top: 2px; color: rgb(170, 255, 140); -unity-text-outline-width: 0; }
+.tw-ptile-queue { position: absolute; right: 3px; top: 1px; font-size: 12px; -unity-text-outline-width: 0; padding: 0 5px; border-radius: 6px; background-color: rgba(16, 20, 34, 0.9); color: rgb(255, 236, 200); }
+
+/* ---- 가공 장면 레이아웃 (왼쪽 인벤토리 | 가운데 설비 장면 | 오른쪽 결과 예상) ---- */
+.tw-proc-left { flex-grow: 0; flex-shrink: 0; flex-basis: 300px; width: 300px; }
+.tw-scene { flex-grow: 1; flex-basis: 0; min-width: 0; margin-right: 10px; border-radius: 16px; overflow: hidden; border-width: 3px; border-color: rgba(255, 208, 120, 0.4); }
+.tw-scene-ui { position: absolute; left: 0; right: 0; top: 0; bottom: 0; padding: 14px 18px 10px 18px; align-items: center; }
+.tw-scene-title-row { flex-direction: row; align-items: center; justify-content: center; flex-shrink: 0; }
+.tw-scene-title { font-size: 30px; color: rgb(255, 244, 214); -unity-text-outline-width: 2px; -unity-text-outline-color: rgba(8, 12, 24, 0.95); }
+.tw-scene-title-icon { width: 34px; height: 34px; margin: 0 8px; -unity-background-scale-mode: scale-to-fit; }
+.tw-scene-dash { width: 36px; height: 3px; margin: 0 10px; border-radius: 2px; background-color: rgba(255, 236, 200, 0.45); }
+.tw-scene-bar-row { flex-direction: row; align-items: center; width: 100%; max-width: 480px; margin-top: 8px; flex-shrink: 0; }
+.tw-scene-area { flex-grow: 1; width: 100%; padding-bottom: 56px; align-items: center; justify-content: center; }
+.tw-scene-idle { position: absolute; bottom: 6px; font-size: 17px; color: rgba(255, 236, 200, 0.9); -unity-text-outline-width: 2px; -unity-text-outline-color: rgba(8, 12, 24, 0.9); }
+.tw-scene-tiles { flex-shrink: 0; align-items: center; margin-top: 8px; padding: 4px 10px 2px 10px; border-radius: 12px; background-color: rgba(10, 12, 22, 0.55); }
+.tw-scene-tiles-title { font-size: 14px; color: rgba(255, 226, 170, 0.9); -unity-text-outline-width: 0; }
+
+.tw-result { margin-bottom: 8px; padding: 10px 10px 12px 10px; border-radius: 12px; align-items: center; flex-shrink: 0; }
+.tw-result-head { font-size: 22px; color: rgb(255, 240, 210); }
+.tw-result-div { width: 90%; height: 2px; margin: 6px 0 4px 0; background-color: rgba(255, 236, 200, 0.25); }
+.tw-result-art { width: 170px; height: 150px; align-items: center; justify-content: center; }
+.tw-result-glow { position: absolute; width: 150px; height: 150px; border-radius: 75px; background-color: rgba(255, 196, 100, 0.22); }
+.tw-result-icon { width: 104px; height: 104px; -unity-background-scale-mode: scale-to-fit; }
+.tw-result-q { font-size: 70px; color: rgba(255, 236, 200, 0.4); }
+.tw-result-name { font-size: 24px; margin-top: 2px; color: rgb(255, 244, 220); white-space: normal; -unity-text-align: middle-center; }
+.tw-result-count { font-size: 19px; color: rgb(255, 206, 110); }
+.tw-result-sub { font-size: 15px; margin-top: 6px; color: rgba(255, 230, 190, 0.8); -unity-text-outline-width: 0; white-space: normal; -unity-text-align: middle-center; }

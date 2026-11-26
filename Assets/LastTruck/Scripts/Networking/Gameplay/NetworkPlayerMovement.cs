@@ -42,6 +42,27 @@ namespace LastTruck.Networking
         [Tooltip("점프할 때 재생할 애니메이터 상태 이름 (없으면 애니메이션 없이 점프만).")]
         [SerializeField] private string jumpStateName = "Jumping Up";
 
+        [Header("가속감")]
+        [Tooltip("최고 속도까지 붙는 가속도 (m/s²). 45면 달리기 속도(6)까지 약 0.13초.")]
+        [SerializeField] private float moveAcceleration = 45f;
+        [Tooltip("키를 뗐을 때 멈추는 감속도 (m/s²). 55면 약 0.11초, 0.3m 미끄러지며 선다.")]
+        [SerializeField] private float moveDeceleration = 55f;
+        [Tooltip("반대쪽으로 꺾을 때 감속도 (m/s²). 크면 방향 전환이 빠릿하다.")]
+        [SerializeField] private float moveTurnDeceleration = 95f;
+        [Tooltip("몸이 이동 방향으로 도는 빠르기 (Slerp 배율/초). 12면 90도에 약 0.15초.")]
+        [SerializeField] private float turnSpeed = 12f;
+
+        [Header("달리기 모션 발 맞추기")]
+        [Tooltip("달리기 모션(Running_B)이 1배속일 때 발이 땅을 미는 속도 (m/s, 모델 크기 1 기준). 실제 속도 ÷ 이 값으로 재생한다.")]
+        [SerializeField] private float runClipGroundSpeed = 3.56f;
+        [Tooltip("전력 질주 모션(Running_A)의 발 속도 (m/s).")]
+        [SerializeField] private float sprintClipGroundSpeed = 2.54f;
+        [Tooltip("달리기 모션 재생 배율 범위 (너무 빠르면 다리가 헛돈다).")]
+        [SerializeField] private Vector2 runAnimMulRange = new Vector2(0.75f, 2.1f);
+
+        /// <summary>방향키로 만든 수평 이동 속도 (튕겨 나가는 속도/중력 제외). 예측과 호스트가 같은 값으로 계산하도록 동기화한다.</summary>
+        [Networked] private Vector3 MoveVel { get; set; }
+
         [Networked] public NetworkBool IsWalking { get; set; }
         /// <summary>이 플레이어가 가방에 가진 가장 좋은 갑옷 등급 (0~3). 호스트가 받는 피해를 줄일 때 쓴다.</summary>
         [Networked] public int ArmorTier { get; set; }
@@ -69,8 +90,36 @@ namespace LastTruck.Networking
             FlingUp = Mathf.Max(0f, velocity.y);
         }
 
+        /// <summary>맞은 쪽(때린 몬스터 방향). 잠깐 그쪽으로 몸을 돌려서, 앞에서 맞는 피격 동작과 방향이 맞게 한다.</summary>
+        [Networked] private Vector3 HitFaceDir { get; set; }
+        [Networked] private TickTimer HitFaceTimer { get; set; }
+
+        /// <summary>호스트 전용: 몬스터에게 맞았다. 때린 쪽 반대로 밀려나고, 때린 쪽으로 몸을 돌린다.</summary>
+        public void PushFromHit(Vector3 velocity)
+        {
+            if (Object == null || !Object.IsValid || !Object.HasStateAuthority) return;
+            Fling(velocity);
+            Vector3 face = -velocity;
+            face.y = 0f;
+            if (face.sqrMagnitude < 0.0001f) return;
+            HitFaceDir = face.normalized;
+            HitFaceTimer = TickTimer.CreateFromSeconds(Runner, 0.25f);
+        }
+
         /// <summary>지금 튕겨 나가는 중인가 (넘어진 듯한 연출용).</summary>
         public bool IsFlung => Object != null && Object.IsValid && FlingVelocity.sqrMagnitude > 1f;
+
+        [Header("맵 밖 추락 복구")]
+        [Tooltip("이 시간(초) 넘게 떨어지기만 하면 맵 밖으로 떨어진 것으로 보고 마지막으로 안전하게 서 있던 곳으로 되돌린다.")]
+        [SerializeField] private float fallRecoverAirSeconds = 3.5f;
+        [Tooltip("이 높이보다 아래로 내려가면 바로 되돌린다 (맵에서 가장 깊은 곳은 약 -95m).")]
+        [SerializeField] private float fallRecoverMinY = -150f;
+
+        // 호스트 전용 (호스트만 위치를 정한다)
+        private Vector3 _lastSafePosition;
+        private bool _hasSafePosition;
+        private float _airTime;
+        private int _safeCheckTick;
 
         private int _shownJumpCount = -1;
         private int _lastJumpTick;
@@ -144,7 +193,18 @@ namespace LastTruck.Networking
         public override void Spawned()
         {
             if (_animator != null) _animator.applyRootMotion = false;
-            if (_controller != null) { _controller.jumpImpulse = jumpImpulse; _controller.gravity = jumpGravity; }
+            if (_controller != null)
+            {
+                _controller.jumpImpulse = jumpImpulse;
+                _controller.gravity = jumpGravity;
+                // 수평 속도는 이 스크립트(MoveVel)가 가속/감속까지 전부 정한다.
+                // NetworkCharacterController 자체 가속(100)/제동(100, 키를 떼면 즉시 0)이 위에 겹치면
+                // 출발/정지가 딱딱 끊기고, 서 있을 때 맞아서 밀려나는 속도도 바로 지워졌다.
+                _controller.acceleration = 0f;
+                _controller.braking = 0f;
+                _controller.maxSpeed = 1000f;
+                _controller.rotationSpeed = turnSpeed;
+            }
             _shownJumpCount = JumpCount; // 늦게 보이기 시작한 사람이 지난 점프를 다시 재생하지 않게
             TruckStabilizer.IgnoreCharacter(gameObject);   // 트럭이 캐릭터를 밟거나 겹쳐서 튕겨 날아가지 않게
         }
@@ -199,6 +259,7 @@ namespace LastTruck.Networking
             {
                 SetSeatedCollision(true);
                 StaySeated();
+                _airTime = 0f;
                 return;
             }
             SetSeatedCollision(false);
@@ -207,27 +268,36 @@ namespace LastTruck.Networking
             {
                 // 입력이 없거나(참가자 로딩 중 등) 조작할 수 없는 상태: 중력만 적용하고 멈춰 세운다.
                 StandStill();
+                UpdateFallRecovery();
                 return;
             }
 
             Vector3 direction = input.MoveDirection;
+            bool walking = input.Buttons.IsSet(NetworkInputButton.Walk);
             direction.y = 0f;
             if (direction.sqrMagnitude > 1f) direction.Normalize();
 
-            bool walking = input.Buttons.IsSet(NetworkInputButton.Walk);
             IsWalking = walking;
 
             // 활 차징/화염 분사 중 감속 등 PlayerMove 속도 배율은 입력에 실려 온다 (0이면 1로 본다).
             float speedMultiplier = input.SpeedMultiplier > 0f ? Mathf.Min(input.SpeedMultiplier, 2f) : 1f;
             float speed = MoveSpeed * (walking ? sprintSpeedMultiplier : 1f) * speedMultiplier;
             speed *= AllyApproachSpeedMultiplier(direction);   // 간호사 능력 (다른 캐릭터는 항상 1)
-            _controller.maxSpeed = speed;
 
-            // NetworkCharacterController는 기본적으로 가속/감속이 있는데, 기존 조작감(키를 누르는 즉시 최고 속도,
-            // 떼는 즉시 정지)과 같게 하려고 수평 속도를 목표값으로 먼저 맞춰 둔다. 수직 속도(중력)는 그대로 둔다.
+            // 수평 속도: 목표 속도까지 짧게(약 0.1초) 가속/감속한다. 예전에는 키를 누르는 즉시 최고 속도, 떼는 즉시 정지라
+            // 로봇처럼 딱딱했다. 너무 길면 굼떠지므로 반응성은 거의 그대로 두고 첫 발/멈춤/꺾기에만 무게감을 준다.
+            // 반대쪽으로 꺾을 때는 빨리 줄여서 미끄러지는 느낌이 나지 않게 한다.
+            // (NetworkCharacterController가 다음 틱 속도를 실제 이동 거리로 다시 계산하므로, 우리 속도는 MoveVel에 따로 들고 간다)
+            Vector3 targetVel = direction * speed;
+            Vector3 moveVel = MoveVel;
+            bool speedingUp = targetVel.sqrMagnitude > moveVel.sqrMagnitude + 0.01f;
+            bool reversing = moveVel.sqrMagnitude > 1f && targetVel.sqrMagnitude > 0.01f && Vector3.Dot(moveVel, targetVel) < 0f;
+            float rate = (reversing ? moveTurnDeceleration : speedingUp ? moveAcceleration : moveDeceleration) * Runner.DeltaTime;
+            moveVel = Vector3.MoveTowards(moveVel, targetVel, rate);
+            MoveVel = moveVel;
             Vector3 velocity = _controller.Velocity;
-            velocity.x = direction.x * speed;
-            velocity.z = direction.z * speed;
+            velocity.x = moveVel.x;
+            velocity.z = moveVel.z;
 
             // 트럭에서 튕겨 나가는 중이면 그 속도를 더하고, 빠를수록 방향키가 덜 듣는다. 땅에 닿으면 빠르게 줄어든다.
             Vector3 fling = FlingVelocity;
@@ -268,6 +338,15 @@ namespace LastTruck.Networking
             }
 
             _controller.Move(direction);
+            UpdateFallRecovery();
+
+            // 맞은 직후: 때린 쪽으로 빠르게 몸을 돌린다 (피격 동작이 "앞에서 맞는" 모양이라 방향을 맞춘다)
+            if (HitFaceTimer.IsRunning)
+            {
+                if (HitFaceTimer.Expired(Runner)) HitFaceTimer = TickTimer.None;
+                else if (HitFaceDir.sqrMagnitude > 0.01f)
+                    transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(HitFaceDir), 0.35f);
+            }
 
             // 무기 조준 등으로 "이쪽을 봐라"는 요청이 있으면 이동 방향 회전보다 우선한다.
             Vector3 face = input.FaceDirection;
@@ -278,9 +357,56 @@ namespace LastTruck.Networking
             }
         }
 
+        /// <summary>
+        /// 호스트 전용: 맵 밖으로 떨어지면 마지막으로 안전하게 서 있던 곳으로 되돌린다.
+        /// 땅에 서 있을 때 0.3초마다 발 주변 네 방향 모두 바닥이 있으면(가장자리가 아니면) 그 위치를 기억해 둔다.
+        /// 너무 오래 떨어지기만 하거나 아주 깊이 내려가면 그 위치로 순간이동시킨다.
+        /// </summary>
+        private void UpdateFallRecovery()
+        {
+            if (!Object.HasStateAuthority || _controller == null) return;
+
+            if (_controller.Grounded)
+            {
+                _airTime = 0f;
+                if (Runner.Tick - _safeCheckTick >= 10)
+                {
+                    _safeCheckTick = Runner.Tick;
+                    if (IsSolidGroundAround(transform.position))
+                    {
+                        _lastSafePosition = transform.position;
+                        _hasSafePosition = true;
+                    }
+                }
+                return;
+            }
+
+            _airTime += Runner.DeltaTime;
+            bool fellTooLong = _airTime > fallRecoverAirSeconds && _controller.Velocity.y < 0f;
+            bool fellTooDeep = transform.position.y < fallRecoverMinY;
+            if (!_hasSafePosition || (!fellTooLong && !fellTooDeep)) return;
+
+            _controller.Teleport(_lastSafePosition + Vector3.up * 0.3f, transform.rotation);
+            _controller.Velocity = Vector3.zero;
+            FlingVelocity = Vector3.zero;
+            FlingUp = 0f;
+            _airTime = 0f;
+        }
+
+        private static bool IsSolidGroundAround(Vector3 position)
+        {
+            const float offset = 1.5f;
+            Vector3 top = position + Vector3.up;
+            return Physics.Raycast(top + Vector3.forward * offset, Vector3.down, 4f, ~0, QueryTriggerInteraction.Ignore)
+                && Physics.Raycast(top + Vector3.back * offset, Vector3.down, 4f, ~0, QueryTriggerInteraction.Ignore)
+                && Physics.Raycast(top + Vector3.left * offset, Vector3.down, 4f, ~0, QueryTriggerInteraction.Ignore)
+                && Physics.Raycast(top + Vector3.right * offset, Vector3.down, 4f, ~0, QueryTriggerInteraction.Ignore);
+        }
+
         private void StaySeated()
         {
             _controller.Velocity = Vector3.zero;
+            MoveVel = Vector3.zero;
             IsWalking = false;
 
             // 좌석 위치는 호스트가 정한다 (클라이언트의 내 캐릭터는 호스트 값으로 맞춰진다).
@@ -304,6 +430,7 @@ namespace LastTruck.Networking
             Vector3 idle = _controller.Velocity;
             idle.x = 0f;
             idle.z = 0f;
+            MoveVel = Vector3.zero;
             _controller.Velocity = idle;
             _controller.Move(Vector3.zero);
             IsWalking = false;
@@ -338,9 +465,56 @@ namespace LastTruck.Networking
             _wasGroundedForCamera = grounded;
         }
 
+        // ---- 몸 기울기 (보이기만 하는 연출, 모든 화면) ----
+        private Transform _leanBody;
+        private Quaternion _leanBase;
+        private bool _leanInit;
+        private Vector3 _leanPrevVel;
+        private float _leanPrevYaw;
+        private Vector2 _lean;   // x = 앞뒤(가속), y = 좌우(회전)
+
+        /// <summary>
+        /// 달리기 시작하면 앞으로, 멈추면 뒤로, 방향을 틀면 안쪽으로 몸이 살짝 기운다 (최대 약 8~10도).
+        /// 모델(애니메이터가 붙은 자식)만 기울이고 캐릭터 루트/충돌은 건드리지 않는다.
+        /// </summary>
+        private void UpdateBodyLean()
+        {
+            if (!_leanInit)
+            {
+                _leanInit = true;
+                if (_animator != null && _animator.transform != transform)
+                {
+                    _leanBody = _animator.transform;
+                    _leanBase = _leanBody.localRotation;
+                }
+                _leanPrevYaw = transform.eulerAngles.y;
+            }
+            if (_leanBody == null || _controller == null) return;
+
+            float dt = Mathf.Max(Time.deltaTime, 0.0001f);
+            bool seated = Object != null && Object.IsValid && NetworkTruck.IsSeated(Object.InputAuthority);
+            Vector3 vel = _controller.Velocity; vel.y = 0f;
+            if (seated) vel = Vector3.zero;
+
+            Vector3 accel = (vel - _leanPrevVel) / dt;
+            _leanPrevVel = vel;
+            float forwardAccel = Vector3.Dot(accel, transform.forward);
+            float yaw = transform.eulerAngles.y;
+            float yawRate = Mathf.DeltaAngle(_leanPrevYaw, yaw) / dt;
+            _leanPrevYaw = yaw;
+
+            float speed01 = Mathf.Clamp01(vel.magnitude / 8f);
+            Vector2 target = new Vector2(
+                Mathf.Clamp(forwardAccel * 0.12f, -7f, 7f) + speed01 * 3f,       // 달리는 동안 살짝 앞으로 숙인 자세
+                Mathf.Clamp(-yawRate * 0.02f * speed01, -10f, 10f));
+            _lean = Vector2.Lerp(_lean, target, 1f - Mathf.Exp(-10f * dt));
+            _leanBody.localRotation = _leanBase * Quaternion.Euler(_lean.x, 0f, _lean.y);
+        }
+
         public override void Render()
         {
             TrackLandingForCamera();
+            UpdateBodyLean();
 
             if (_animator == null) return;
 
@@ -372,7 +546,21 @@ namespace LastTruck.Networking
             // Shift 연타에도 모션이 뒤집히지 않게 상태를 잠깐 유지하고, 재생 속도도 부드럽게 바꾼다.
             bool sprinting = _sprintGate.Update(moving && IsWalking) && moving;
             _animator.SetBool(IsSprintHash, sprinting);
-            _animator.speed = _sprintGate.StepAnimSpeed(sprinting, Time.deltaTime);
+            if (_hasRunAnimMul < 0) _hasRunAnimMul = HasAnimatorParam(RunAnimMulHash) ? 1 : 0;
+            if (_hasRunAnimMul == 1)
+            {
+                // 달리기 상태에만 재생 배율을 건다 (발이 실제 이동 속도로 땅을 밀게 → 미끄러지지 않게).
+                // 애니메이터 전체 속도는 1로 둬서 공격/피격 동작은 원래 빠르기로.
+                float ground = (sprinting ? sprintClipGroundSpeed : runClipGroundSpeed) * Mathf.Max(0.1f, _animator.transform.lossyScale.y);
+                float target = moving ? Mathf.Clamp(HorizontalSpeed / Mathf.Max(0.1f, ground), runAnimMulRange.x, runAnimMulRange.y) : 1f;
+                _runAnimMul = Mathf.MoveTowards(_runAnimMul, target, 6f * Time.deltaTime);
+                _animator.SetFloat(RunAnimMulHash, _runAnimMul);
+                _animator.speed = 1f;
+            }
+            else
+            {
+                _animator.speed = _sprintGate.StepAnimSpeed(sprinting, Time.deltaTime);
+            }
 
             // 달리는 동안 발밑에 먼지가 인다 (다른 사람 캐릭터도 같이 보인다)
             if (sprinting && _controller != null && _controller.Grounded && Time.time >= _nextDustTime)
@@ -383,6 +571,9 @@ namespace LastTruck.Networking
         }
 
         private static readonly int JumpLandHash = Animator.StringToHash("jumpLand");
+        private static readonly int RunAnimMulHash = Animator.StringToHash("RunAnimMul");
+        private int _hasRunAnimMul = -1;
+        private float _runAnimMul = 1f;
         private float _jumpAnimStart = -1f;
 
         private bool HasAnimatorParam(int hash)

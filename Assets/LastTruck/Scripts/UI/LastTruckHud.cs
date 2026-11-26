@@ -58,6 +58,7 @@ namespace LastTruck
         private AchievementHud _achievements;
         private GameManager.GamePhase _lastPhase = (GameManager.GamePhase)(-1);
         private int _lastCycle = -1;
+        private GameManager _lastGm;
         private VisualElement _keyHints;
         private VisualElement _truckOverhead;
         private VisualElement _truckOverFill;
@@ -165,7 +166,7 @@ namespace LastTruck
         {
             if (sprite == null) return;
             e.style.backgroundImage = new StyleBackground(sprite);
-            if (tint.HasValue) e.style.unityBackgroundImageTintColor = tint.Value;
+            if (tint.HasValue) { LastTruckUiSkin sk = LastTruckUiSkin.Get(); e.style.unityBackgroundImageTintColor = sk != null ? sk.ThemeTint(sprite, tint.Value) : tint.Value; }
             e.style.unitySliceLeft = Mathf.RoundToInt(sprite.border.x);
             e.style.unitySliceBottom = Mathf.RoundToInt(sprite.border.y);
             e.style.unitySliceRight = Mathf.RoundToInt(sprite.border.z);
@@ -232,17 +233,37 @@ namespace LastTruck
 
         private void BuildStatusPlate(VisualElement root)
         {
-            // 스태미나 판 (체력은 캐릭터 머리 위로 옮겼다)
+            // 기력(스태미나): 예전에는 오른쪽 미니맵 아래 판이라 달리는 중에 보기 어려웠다.
+            // 이제 캐릭터 머리 위 체력 막대 바로 밑에 얇은 막대로 따라다닌다 (가득 차 있고 안 달리면 사라진다).
             _statusPlate = new VisualElement { pickingMode = PickingMode.Ignore };
-            _statusPlate.AddToClassList("lt-status-plate");
-            _statusPlate.style.width = 226;
-            _statusPlate.style.top = 280;
-            _statusPlate.style.paddingTop = 12;
-            _statusPlate.style.paddingBottom = 10;
-            Skin(_statusPlate, _skin.panelBrownDark, 0.5f, new Color(0.74f, 0.62f, 0.55f, 1f));
+            _statusPlate.style.position = Position.Absolute;
+            _statusPlate.style.flexDirection = FlexDirection.Row;
+            _statusPlate.style.alignItems = Align.Center;
+            _statusPlate.style.width = 168;
+            _statusPlate.style.height = 18;
 
-            _spRow = MakeBarRow("bolt", "SP", "lt-fill-sp", false, out _spFill, out _spValue);
-            _statusPlate.Add(_spRow);
+            VisualElement bolt = MakeIcon("bolt", 20f);
+            if (bolt != null)
+            {
+                bolt.style.marginLeft = 7;
+                bolt.style.marginRight = 11;
+                _statusPlate.Add(bolt);
+            }
+            else _statusPlate.Add(MakeLabel("SP", "lt-tag"));
+
+            var track = new VisualElement { pickingMode = PickingMode.Ignore };
+            track.AddToClassList("lt-track");
+            track.style.height = 11;
+            track.style.flexGrow = 1;
+            track.style.borderTopLeftRadius = track.style.borderTopRightRadius = track.style.borderBottomLeftRadius = track.style.borderBottomRightRadius = 6;
+            _spFill = new VisualElement { pickingMode = PickingMode.Ignore };
+            _spFill.AddToClassList("lt-fill");
+            _spFill.AddToClassList("lt-fill-sp");
+            _spFill.style.borderTopLeftRadius = _spFill.style.borderTopRightRadius = _spFill.style.borderBottomLeftRadius = _spFill.style.borderBottomRightRadius = 5;
+            track.Add(_spFill);
+            _statusPlate.Add(track);
+            _spRow = track;
+            _spValue = MakeLabel("", "lt-value");
 
             _statusPlate.style.display = DisplayStyle.None;
             root.Add(_statusPlate);
@@ -252,7 +273,8 @@ namespace LastTruck
         {
             _truckPlate = new VisualElement { pickingMode = PickingMode.Ignore };
             _truckPlate.AddToClassList("lt-truck-plate");
-            Skin(_truckPlate, _skin.panelGreyBolts);
+            if (_skin.polyTheme && _skin.hudFade != null) Skin(_truckPlate, _skin.hudFade, 1f, Color.white);   // 투명 HUD
+            else Skin(_truckPlate, _skin.panelGreyBolts);
             // 위쪽 가운데는 캐릭터 머리 위 체력과 겹치므로 왼쪽 위로 옮긴다
             _truckPlate.style.left = 30;
             _truckPlate.style.translate = new Translate(0, 0);
@@ -294,7 +316,42 @@ namespace LastTruck
             track.Add(shine);
             _hpOverhead.Add(track);
 
+            // 갑옷: 방패 그림 + 감소율 (갑옷이 없으면 숨김). 갑옷은 가방/배낭에 있기만 하면 자동으로 입는다.
+            _armorBadge = new VisualElement { pickingMode = PickingMode.Ignore };
+            _armorBadge.style.position = Position.Absolute;
+            _armorBadge.style.left = 172; _armorBadge.style.top = 2;
+            _armorBadge.style.flexDirection = FlexDirection.Row;
+            _armorBadge.style.alignItems = Align.Center;
+            VisualElement shield = MakeIcon("shield", 26f);
+            if (shield != null) { shield.style.unityBackgroundImageTintColor = new Color(0.7f, 0.85f, 1f); _armorBadge.Add(shield); }
+            _armorText = MakeLabel("", "lt-text");
+            _armorText.style.fontSize = 17;
+            _armorText.style.color = new Color(0.75f, 0.88f, 1f);
+            _armorText.style.marginLeft = 2;
+            _armorBadge.Add(_armorText);
+            _armorBadge.style.display = DisplayStyle.None;
+            _hpOverhead.Add(_armorBadge);
+
             root.Add(_hpOverhead);
+        }
+
+        private VisualElement _armorBadge;
+        private Label _armorText;
+        private int _shownArmorTier = -1;
+
+        /// <summary>체력 막대 옆 갑옷 표시 + 처음 입는 순간(더 좋은 갑옷으로 바뀐 순간) 알림.</summary>
+        private void UpdateArmorBadge()
+        {
+            if (_armorBadge == null) return;
+            int tier = _stats != null ? CraftingSystem.PlayerArmor.LocalTier : 0;
+            if (tier != _shownArmorTier)
+            {
+                if (_shownArmorTier >= 0 && tier > _shownArmorTier)
+                    HudToast.Show("갑옷 착용! " + CraftingSystem.PlayerArmor.LocalSummary + "  (가방이나 배낭에 있으면 자동으로 입어요)");
+                _shownArmorTier = tier;
+                _armorBadge.style.display = tier > 0 ? DisplayStyle.Flex : DisplayStyle.None;
+                if (tier > 0) _armorText.text = "-" + Mathf.RoundToInt(CraftingSystem.PlayerArmor.ReductionOfTier(tier) * 100f) + "%";
+            }
         }
 
         /// <summary>기존 낮/밤 시계(반원 눈금판): 미니맵 왼쪽. 위쪽 가운데 모래시계 판과 함께 보인다.</summary>
@@ -365,11 +422,29 @@ namespace LastTruck
             _keyHints.style.alignItems = Align.FlexEnd;
 
             _keyHints.Add(MakeKeyHint("탐색", "E"));
-            _keyHints.Add(MakeKeyHint("공격", "클릭"));
+            _keyHints.Add(MakeKeyHint("공격 / 사용", "클릭"));
+            _keyHints.Add(MakeKeyHint("트럭 거점", "Tab"));
+            _keyHints.Add(MakeKeyHint("배낭", "B"));
+            _keyHints.Add(MakeKeyHint("미니맵 표시", "M"));
             _keyHints.Add(MakeKeyHint("임무 확인", "J"));
             _keyHints.Add(MakeKeyHint("생존 임무", "K"));
-            if (LastTruck.Networking.GameLauncher.IsOnlineSession) _keyHints.Add(MakeKeyHint("부활", "F"));
+            // HUD는 메뉴에서 한 번 만들어지므로(그때는 아직 오프라인) 부활 안내는 항상 만들어 두고, 멀티플레이일 때만 보인다 (UpdateKeyHints)
+            _reviveHint = MakeKeyHint("부활", "F");
+            _keyHints.Add(_reviveHint);
             root.Add(_keyHints);
+            UpdateKeyHints();
+        }
+
+        private VisualElement _reviveHint;
+
+        /// <summary>키 안내는 내 캐릭터가 있을 때(게임 중)만 보이고, 부활(F)은 멀티플레이에서만 보인다. 메뉴/로비에서는 숨긴다.</summary>
+        private void UpdateKeyHints()
+        {
+            if (_keyHints == null) return;
+            bool inGame = _stats != null;
+            _keyHints.style.display = inGame ? DisplayStyle.Flex : DisplayStyle.None;
+            if (_reviveHint != null)
+                _reviveHint.style.display = LastTruck.Networking.GameLauncher.IsOnlineSession ? DisplayStyle.Flex : DisplayStyle.None;
         }
 
         private VisualElement MakeKeyHint(string label, string key)
@@ -409,7 +484,9 @@ namespace LastTruck
         {
             _toast = new VisualElement { pickingMode = PickingMode.Ignore };
             _toast.AddToClassList("lt-toast");
-            Skin(_toast, _skin.panelBrownDark, 0.5f, new Color(0.7f, 0.58f, 0.5f, 1f));
+            // 원신풍: 판 대신 양 끝이 사라지는 그늘 띠 위에 글자만
+            if (_skin.polyTheme && _skin.hudBand != null) Skin(_toast, _skin.hudBand, 1f, Color.white);
+            else Skin(_toast, _skin.panelBrownDark, 0.5f, new Color(0.7f, 0.58f, 0.5f, 1f));
             _toastText = MakeLabel("", "lt-toast-text");
             _toast.Add(_toastText);
             _toast.style.opacity = 0f;
@@ -438,10 +515,12 @@ namespace LastTruck
             {
                 _nextResolve = Time.unscaledTime + 0.5f;
                 Resolve();
+                UpdateKeyHints();
             }
 
             UpdateStatus();
             UpdateHpOverhead();
+            UpdateArmorBadge();
             UpdateDial();
             if (_weatherKit != null) _weatherKit.Tick();
             if (_achievements != null) _achievements.Tick();
@@ -462,6 +541,7 @@ namespace LastTruck
 
                 if (_stats != null)
                 {
+                    _legacyHidden = false;   // 새 게임(새 캐릭터): 그 게임 씬의 예전 체력 막대를 다시 숨긴다 (HUD는 게임이 바뀌어도 남는다)
                     var list = new System.Collections.Generic.List<Renderer>();
                     foreach (Renderer r in _stats.GetComponentsInChildren<Renderer>(true))
                         if (r is SkinnedMeshRenderer || r is MeshRenderer) list.Add(r);
@@ -478,7 +558,7 @@ namespace LastTruck
                 PlayerHPUI legacy = FindFirstObjectByType<PlayerHPUI>(FindObjectsInactive.Include);
                 if (legacy != null && legacy.transform.parent != null)
                     legacy.transform.parent.gameObject.SetActive(false);
-                _legacyHidden = true;
+                if (legacy != null) _legacyHidden = true;   // 아직 안 생겼으면 다음에 다시 찾는다
             }
         }
 
@@ -489,21 +569,19 @@ namespace LastTruck
 
         private void UpdateStatus()
         {
-            bool show = _stats != null;
-            _statusPlate.style.display = show ? DisplayStyle.Flex : DisplayStyle.None;
-            if (!show) return;
-
+            // 위치는 UpdateHpOverhead가 체력 막대 밑으로 맞춘다 (체력 막대가 안 보이면 같이 숨긴다)
             PlayerStamina st = PlayerStamina.Instance;
-            if (st == null) return;
+            if (_stats == null || st == null) { _spAlpha = 0f; _statusPlate.style.opacity = 0f; return; }
 
             float sr = st.Max > 0f ? st.Current / st.Max : 0f;
             SetFill(_spFill, sr);
             _spFill.EnableInClassList("lt-fill-tired", st.Exhausted);
 
-            // 가득 차 있고 안 달릴 때는 스태미나 판이 흐려진다
-            float target = (sr >= 0.999f && !PlayerStamina.Sprinting) ? 0.45f : 1f;
-            _spAlpha = Mathf.MoveTowards(_spAlpha, target, Time.unscaledDeltaTime * 3f);
-            _statusPlate.style.opacity = _spAlpha;
+            // 가득 차 있고 안 달릴 때는 사라진다 (원신처럼 쓸 때만 보인다). 지쳤으면 깜빡인다.
+            float target = (sr >= 0.999f && !PlayerStamina.Sprinting) ? 0f : 1f;
+            _spAlpha = Mathf.MoveTowards(_spAlpha, target, Time.unscaledDeltaTime * (target > _spAlpha ? 6f : 2f));
+            float blink = st.Exhausted ? 0.55f + 0.45f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 6f)) : 1f;
+            _statusPlate.style.opacity = _spAlpha * blink;
         }
 
         private void UpdateHpOverhead()
@@ -512,6 +590,7 @@ namespace LastTruck
             if (_stats == null || cam == null || _hudRoot == null || _hudRoot.panel == null)
             {
                 _hpOverhead.style.display = DisplayStyle.None;
+                _statusPlate.style.display = DisplayStyle.None;
                 return;
             }
 
@@ -529,13 +608,29 @@ namespace LastTruck
             if (viewport.z <= 0f)
             {
                 _hpOverhead.style.display = DisplayStyle.None;
+                _statusPlate.style.display = DisplayStyle.None;
                 return;
             }
 
             Vector2 p = RuntimePanelUtils.CameraTransformWorldToPanel(_hudRoot.panel, world, cam);
             _hpOverhead.style.display = DisplayStyle.Flex;
             _hpOverhead.style.left = p.x - 84f;
-            _hpOverhead.style.top = Mathf.Max(6f, p.y - 34f);   // 카메라가 가까워 머리가 화면 위로 나가도 막대는 보이게
+            // 카메라가 가까워 머리가 화면 위로 나가도 막대는 보이게 (화면 맨 위에 붙인다).
+            // 단, 위쪽 가운데의 낮/밤 시계판과 겹치면 시계판 바로 아래로 내린다.
+            float minTop = 6f;
+            if (_badge != null && _badge.resolvedStyle.display != DisplayStyle.None)
+            {
+                Rect b = _badge.worldBound;
+                if (b.width > 1f && p.x + 84f > b.xMin && p.x - 84f < b.xMax)
+                    minTop = b.yMax + 6f;
+            }
+            float hpTop = Mathf.Max(minTop, p.y - 34f);
+            _hpOverhead.style.top = hpTop;
+
+            // 기력 막대: 체력 막대 바로 밑
+            _statusPlate.style.display = DisplayStyle.Flex;
+            _statusPlate.style.left = p.x - 84f;
+            _statusPlate.style.top = hpTop + 33f;
 
             float max = Mathf.Max(1f, _stats.MaxHealth);
             float ratio = Mathf.Clamp01(_stats.currentHealth / max);
@@ -554,9 +649,12 @@ namespace LastTruck
                 _mission.SetVisible(false);
                 return;
             }
-            _mission.SetVisible(true);
+            // 트럭 창/배낭 창이 열려 있으면 왼쪽 위 임무 추적기를 숨긴다 (투명 HUD라 창 뒤로 글자가 비쳐 보였다)
+            bool windowOpen = CraftingSystem.GameUIController.Instance != null && CraftingSystem.GameUIController.Instance.IsPopupOpen;
+            _mission.SetVisible(!windowOpen);
             _badge.style.display = DisplayStyle.Flex;
-            _dial.style.display = DisplayStyle.Flex;
+            // 반원 시계는 위쪽 가운데 모래시계 판과 내용이 겹쳐서 뺐다 (시간/일차/밤 진행은 모래시계 판 하나로 본다)
+            _dial.style.display = DisplayStyle.None;
 
             if (gm.CurrentPhase == GameManager.GamePhase.Day)
             {
@@ -575,6 +673,10 @@ namespace LastTruck
                 _badge.SetState(true, gm.CurrentCycle, view.progress, view.progressText, false);
                 _dial.SetState(view.progress, true, view.shortText, gm.CurrentCycle);
             }
+
+            // 새 게임이 시작됐으면(게임 매니저가 바뀜) 지난 게임의 낮/밤 기억을 지운다.
+            // HUD는 게임이 끝나도 남아서, 안 지우면 두 번째 게임의 1일차 임무 카드/무전이 나오지 않는다.
+            if (gm != _lastGm) { _lastGm = gm; _lastCycle = -1; }
 
             // 임무 UI: 낮/밤이 바뀌면 목표 글이 갈아 끼워지고 무전 대사가 나온다. J를 누르면 대사를 다시 들려준다.
             bool changed = gm.CurrentPhase != _lastPhase || gm.CurrentCycle != _lastCycle;

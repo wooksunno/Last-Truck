@@ -20,6 +20,8 @@ namespace Combat
         private float[] _flameSeed;
         private Renderer[] _flameR;
         private Light _light;
+        private List<GameObject> _fireFx;
+        private bool _fxStopped;
         private MaterialPropertyBlock _mpb;
 
         public void Setup(float radius, float duration, float tickInterval, int tickDamage, LayerMask hitMask)
@@ -55,8 +57,19 @@ namespace Combat
             sr.sharedMaterial = _scorchMat;
             sr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
-            // 불꽃 덩어리 (위로 길쭉한 구, 크기/색이 계속 흔들린다)
-            int n = Mathf.Clamp(Mathf.RoundToInt(_radius * 6f), 8, 18);
+            // 진짜 불꽃: 반경 안에 불 이펙트를 여러 군데 피운다 (이펙트가 없으면 아래 둥근 도형 불꽃으로 대신)
+            _fireFx = new List<GameObject>();
+            int clusters = Mathf.Clamp(Mathf.RoundToInt(_radius * 1.6f), 3, 8);
+            for (int i = 0; i < clusters; i++)
+            {
+                Vector2 q = i == 0 ? Vector2.zero : Random.insideUnitCircle * _radius * 0.8f;
+                GameObject fx = CombatFx.Spawn(i % 3 == 0 ? "FX_Fire_Big_01" : "FX_Fire_Small_01", transform.position + new Vector3(q.x, 0f, q.y),
+                    Quaternion.identity, Mathf.Clamp(_radius / 3.2f, 0.45f, 1.1f), 0f, transform);
+                if (fx != null) _fireFx.Add(fx);
+            }
+            bool realFire = _fireFx.Count > 0;
+
+            int n = realFire ? 0 : Mathf.Clamp(Mathf.RoundToInt(_radius * 6f), 8, 18);
             _flames = new Transform[n];
             _flameBase = new Vector3[n];
             _flameSeed = new float[n];
@@ -94,6 +107,12 @@ namespace Combat
             _age += Time.deltaTime;
             if (_age >= _duration) { Destroy(gameObject); return; }
 
+            if (!_fxStopped && _duration - _age < 1.5f && _fireFx != null)
+            {
+                // 끝나기 직전: 새 불꽃을 멈추고 남은 불꽃이 사그라들게 한다
+                _fxStopped = true;
+                foreach (GameObject fx in _fireFx) if (fx != null) { fx.transform.SetParent(null, true); CombatFx.StopEmitting(fx, 4f); }
+            }
             float fade = Mathf.Clamp01(_duration - _age);                 // 마지막 1초 동안 사그라든다
             float grow = Mathf.Clamp01(_age / 0.25f);                     // 처음엔 확 번진다
             float life = fade * grow;

@@ -168,6 +168,46 @@ namespace CraftingSystem
                 });
             }
 
+            // 가방 칸 늘리기 (맨 위 줄): 경화 가공 가죽을 내고 칸을 한 칸씩 늘린다 (트럭 보관함 + 내 가방의 가죽)
+            PlayerInventory bagOwner = _activePlayer != null ? _activePlayer : playerInventory;
+            if (bagOwner != null)
+            {
+                int done = bagOwner.BagUpgrades;
+                bool bagMax = bagOwner.BagMaxed;
+                var bagRow = new LastTruck.TruckStorageView.StatRow
+                {
+                    icon = catalog.GetItem(ItemIds.LeatherPouchBackpack) != null ? catalog.GetItem(ItemIds.LeatherPouchBackpack).icon : null,
+                    name = "가방 칸",
+                    maxed = bagMax, level = done, maxLevel = PlayerInventory.MaxBagUpgrades,
+                    value = bagMax ? bagOwner.MaxSlots + "칸 (최대)" : bagOwner.MaxSlots + "칸  →  " + (bagOwner.MaxSlots + 1) + "칸",
+                    hover = "가방 칸 " + bagOwner.MaxSlots + "개" + (bagMax ? "  (최대)" : "  (+ 를 누르면 경화 가공 가죽을 내고 한 칸 늘어요)"),
+                };
+                if (!bagMax)
+                {
+                    List<RecipeIngredient> bagCost = PlayerInventory.BagUpgradeCost(done);
+                    foreach (RecipeIngredient ing in bagCost)
+                        bagRow.costs.Add(new LastTruck.TruckStorageView.CostChip
+                        {
+                            item = ing.item, need = ing.count, have = truckInv != null ? truckInv.GetMaterialCount(ing.item) : 0,
+                        });
+                    bagRow.canAfford = bagCost.Count > 0 && truckInv != null && truckInv.GetMaterialCount(bagCost[0].item) >= bagCost[0].count;
+                    RecipeIngredient pay = bagCost.Count > 0 ? bagCost[0] : null;
+                    bagRow.onUpgrade = () =>
+                    {
+                        if (pay == null || pay.item == null || bagOwner == null) return;
+                        LastTruck.Networking.TruckInventorySync.ConsumeItem(truckInv, pay.item, pay.count, ok =>
+                        {
+                            if (ok && bagOwner != null && bagOwner.UpgradeBagLocal())
+                                LastTruck.HudToast.Show("가방이 " + bagOwner.MaxSlots + "칸이 되었어요");
+                            else if (!ok)
+                                LastTruck.HudToast.Show("경화 가공 가죽이 모자라요");
+                            if (IsOwnPopupOpen && _truckUpgradeOpen) ShowPopup("트럭 거점", BuildTruckContent);
+                        });
+                    };
+                }
+                m.stats.Add(bagRow);
+            }
+
             // 스탯 레벨
             for (int i = 0; i < TruckUpgradeRules.StatCount; i++)
             {

@@ -14,6 +14,8 @@ namespace LastTruck
         public float gatherPunchInterval = 0.6f;
         [Tooltip("곡괭이를 들고 캘 때 내려찍는 간격(초). 곡괭이 모션이 주먹보다 길다.")]
         public float gatherPickaxeInterval = 0.7f;
+        [Tooltip("풀/약초/선인장을 뽑는 동작의 간격(초). 숙여서 뽑는 모션 길이(0.65초)보다 조금 길게.")]
+        public float gatherPluckInterval = 0.75f;
 
         private IInteractable currentInteractable;
         private float _holdTimer;
@@ -79,6 +81,35 @@ namespace LastTruck
         /// </summary>
         private void UpdateGatherPunch()
         {
+            // 기름 웅덩이: 몸을 숙였다 폈다 하며 손 펌프 손잡이를 누른다 (펌프/기름 연출은 OilWellRig)
+            if (currentInteractable is CraftingSystem.SpecialResourceNode well && !well.IsDepleted
+                && well.Item != null && well.Item.itemID == CraftingSystem.ItemIds.Oil)
+            {
+                if (Time.time < _nextGatherPunch)
+                    return;
+                if (_weapon == null)
+                    _weapon = GetComponent<Combat.WeaponController>();
+                if (_weapon == null || !_weapon.isActiveAndEnabled)
+                    return;
+                _nextGatherPunch = Time.time + gatherPluckInterval;
+                _weapon.PlayGatherPluck(well.transform);
+                return;
+            }
+
+            // 풀/약초/선인장: 때리지 않고 몸을 숙여 뽑는다 (곡괭이·주먹 모션이 아니라 뽑는 동작)
+            if (currentInteractable is CraftingSystem.GatherableProp plant && Combat.WeaponController.IsPluckItem(plant.ItemId))
+            {
+                if (Time.time < _nextGatherPunch)
+                    return;
+                if (_weapon == null)
+                    _weapon = GetComponent<Combat.WeaponController>();
+                if (_weapon == null || !_weapon.isActiveAndEnabled)
+                    return;
+                _nextGatherPunch = Time.time + gatherPluckInterval;
+                _weapon.PlayGatherPluck(plant.transform);
+                return;
+            }
+
             // 나무/돌(GatherableProp) 또는 광물(구리/철/금/다이아 - SpecialResourceNode)
             Transform target = null;
             if (currentInteractable is CraftingSystem.GatherableProp prop && Combat.WeaponController.IsPunchGatherItem(prop.ItemId))

@@ -255,8 +255,8 @@ namespace CraftingSystem
             return n;
         }
 
-        /// <summary>한 칸에 쌓아 둘 수 있는 최대 개수 (가공 대기 + 완성품).</summary>
-        public const int MaxPerSlot = 99;
+        /// <summary>한 칸에 쌓아 둘 수 있는 최대 개수 (가공 대기 + 완성품). 더 많이 동시에 가공하려면 칸을 늘린다.</summary>
+        public const int MaxPerSlot = 6;
 
         /// <summary>
         /// 칸에 재료 1개를 넣는다. 빈 칸이면 가공을 시작하고, 같은 재료가 들어 있는 칸이면 대기 개수를 1 늘린다

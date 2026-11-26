@@ -6,18 +6,56 @@ namespace CraftingSystem
 {
     public class PlayerInventory : MonoBehaviour
     {
-        [SerializeField] private int maxSlots = 4;
+        // 가방 칸: 처음에는 BaseSlots칸만 있고, 경화 가공 가죽을 써서 한 칸씩 늘린다 (최대 BaseSlots + MaxBagUpgrades칸).
+        // 처음 3칸은 금방 차서 불편하다는 피드백으로 5칸에서 시작한다 (가죽으로 3번 늘리면 8칸 = 숫자 키 1~8)
+        public const int BaseSlots = 5;
+        public const int MaxBagUpgrades = 3;
+        public const int MaxPossibleSlots = BaseSlots + MaxBagUpgrades;
+
+        private int maxSlots = BaseSlots;
+        private int _bagUpgrades;
         [Tooltip("나무/돌/광석 같은 원재료는 한 칸에 이 개수까지만 들고 다닐 수 있다 (트럭 보관함은 제한 없음).")]
-        [SerializeField] private int rawStackLimit = 20;
+        [SerializeField] private int rawStackLimit = 40;
+        private const int MinRawStack = 40;
+
+        [Tooltip("트럭에서 이 거리(m) 안이면 '트럭 근처'로 본다 (IsNearTruck).")]
+        [SerializeField] private float truckAutoStoreRange = 18f;
         [SerializeField] private bool grantStarterItems = true;
         [SerializeField] private ItemStackInventory inventory = new ItemStackInventory();
 
         private static readonly KeyCode[] SlotHotkeys =
         {
             KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3, KeyCode.Alpha4,
+            KeyCode.Alpha5, KeyCode.Alpha6, KeyCode.Alpha7, KeyCode.Alpha8,
         };
 
         public int MaxSlots => maxSlots;
+
+        /// <summary>가죽으로 늘린 횟수 (0 ~ MaxBagUpgrades).</summary>
+        public int BagUpgrades => _bagUpgrades;
+        public bool BagMaxed => _bagUpgrades >= MaxBagUpgrades;
+
+        /// <summary>다음 가방 칸을 늘리는 데 드는 재료 (더 못 늘리면 빈 목록). 늘릴수록 가죽이 더 든다.</summary>
+        public static System.Collections.Generic.List<RecipeIngredient> BagUpgradeCost(int upgradesDone)
+        {
+            var cost = new System.Collections.Generic.List<RecipeIngredient>();
+            if (upgradesDone < 0 || upgradesDone >= MaxBagUpgrades) return cost;
+            int[] leather = { 2, 3, 4 };
+            ItemData item = ItemCatalog.GetOrCreate().GetItem(ItemIds.TannedLeather);
+            if (item != null) cost.Add(new RecipeIngredient(item, leather[upgradesDone]));
+            return cost;
+        }
+
+        /// <summary>가방 칸을 한 칸 늘린다 (재료는 부른 쪽에서 이미 냈다). 더 못 늘리면 false.</summary>
+        public bool UpgradeBagLocal()
+        {
+            if (BagMaxed) return false;
+            _bagUpgrades++;
+            maxSlots = BaseSlots + _bagUpgrades;
+            inventory.MaxSlots = maxSlots;
+            inventory.NotifyChanged();
+            return true;
+        }
 
         public event Action Changed;
         public event Action SelectedSlotChanged;
@@ -39,12 +77,13 @@ namespace CraftingSystem
 
         private void Awake()
         {
-            // 횃불을 손에 들면 빛나게 하는 컴포넌트 (씬/프리팹마다 따로 붙이지 않도록 여기서 자동으로 붙인다)
-            if (GetComponent<HeldTorch>() == null) gameObject.AddComponent<HeldTorch>();
-            if (GetComponent<HeldLantern>() == null) gameObject.AddComponent<HeldLantern>();   // 랜턴: 들면 주변이 환해지고 날씨 안개가 걷힌다
+            // 씬/프리팹마다 따로 붙이지 않도록 여기서 자동으로 붙인다
+            if (GetComponent<HeldLantern>() == null) gameObject.AddComponent<HeldLantern>();   // 랜턴: 가방에 있으면 허리에 매달려 주변이 환해지고 날씨 안개가 걷힌다
             if (GetComponent<HeldBinoculars>() == null) gameObject.AddComponent<HeldBinoculars>();   // 쌍안경: 들고 오른쪽 클릭으로 멀리 본다
+            if (GetComponent<ActionPose>() == null) gameObject.AddComponent<ActionPose>();           // 채집/먹기/물건 들기 몸짓 + 획득·장착 반짝임
+            maxSlots = BaseSlots + _bagUpgrades;
             inventory.MaxSlots = maxSlots;
-            inventory.RawStackLimit = rawStackLimit;
+            inventory.RawStackLimit = Mathf.Max(rawStackLimit, MinRawStack);   // 프리팹에 남은 예전 값(20)보다 작아지지 않게
             inventory.KeepSlotPositions = true;   // 1~4번 칸 위치를 고정한다 (아이템을 써도 칸이 밀리지 않고, 칸끼리 교환 가능)
             inventory.Changed += OnInventoryChanged;
         }
@@ -60,7 +99,7 @@ namespace CraftingSystem
             bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
             bool uiOpen = GameUIController.Instance != null && GameUIController.Instance.IsPopupOpen;
 
-            for (int i = 0; i < SlotHotkeys.Length; i++)
+            for (int i = 0; i < SlotHotkeys.Length && i < maxSlots; i++)
             {
                 if (Input.GetKeyDown(SlotHotkeys[i]))
                 {
@@ -73,9 +112,9 @@ namespace CraftingSystem
                 }
             }
 
-            // Q: 든 아이템 1개 버리기, Shift+Q: 칸 전부 버리기
+            // Q: 든 아이템 1개 버리기, Ctrl+Q(또는 Shift+Q): 든 칸 전부 버리기
             if (!uiOpen && Input.GetKeyDown(KeyCode.Q))
-                DropSelected(Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift));
+                DropSelected(ctrl || Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift));
         }
 
         /// <summary>두 칸의 아이템을 서로 바꾼다 (빈 칸이면 이동, 같은 아이템이면 합친다).</summary>
@@ -112,24 +151,126 @@ namespace CraftingSystem
         }
 
         /// <summary>
-        /// 채집처럼 "얻은 아이템"을 넣는다. 가방에 들어가는 만큼 넣고, 넘친 만큼은 발밑에 떨어뜨린다(나중에 E로 주울 수 있다).
+        /// 채집처럼 "얻은 아이템"을 넣는다. 가방(배낭 포함)에 들어가는 만큼 넣고, 넘친 만큼은 발밑에 떨어뜨린다(다가가면 다시 주워진다).
         /// 떨어뜨린 개수를 돌려준다.
         /// </summary>
         public int AddOrDrop(ItemData item, int amount)
         {
             if (item == null || amount <= 0) return 0;
 
-            int take = Mathf.Min(SpaceFor(item), amount);
-            if (take > 0 && !inventory.AddItem(item, take))
-                take = 0;
-
-            int overflow = amount - take;
+            // (예전에는 트럭 근처에서 얻은 재료를 트럭 보관함으로 바로 넣었지만, 이제는 항상 가방으로 들어간다)
+            int overflow = amount - Take(item, amount, 0);
             if (overflow > 0)
             {
                 DroppedItem.SpawnOrMerge(transform, item, overflow);
-                LastTruck.HudToast.Show($"인벤토리가 가득 차서 {item.itemName} {overflow}개를 바닥에 떨어뜨렸어요");
+                LastTruck.HudToast.Show(HasBackpack
+                    ? $"가방과 배낭이 가득 차서 {item.itemName} {overflow}개를 바닥에 떨어뜨렸어요"
+                    : $"인벤토리가 가득 차서 {item.itemName} {overflow}개를 바닥에 떨어뜨렸어요 (가죽 파우치 배낭을 만들면 더 들고 다닐 수 있어요)");
             }
             return overflow;
+        }
+
+        // ───────────── 트럭 근처 판정 ─────────────
+
+        private TruckStation _truck;
+        private float _truckSearchAt;
+
+        /// <summary>트럭에서 truckAutoStoreRange m 안인가 (트럭 몸체 중심 기준).</summary>
+        public bool IsNearTruck(out TruckStation truck)
+        {
+            if (_truck == null && Time.unscaledTime >= _truckSearchAt)
+            {
+                _truckSearchAt = Time.unscaledTime + 2f;
+                _truck = FindFirstObjectByType<TruckStation>();
+            }
+            truck = _truck;
+            if (truck == null || truck.TruckInventory == null) return false;
+            Vector3 d = truck.transform.position - transform.position;
+            d.y = 0f;
+            return d.sqrMagnitude <= truckAutoStoreRange * truckAutoStoreRange;
+        }
+
+        // ───────────── 가죽 파우치 배낭 ─────────────
+
+        private PouchInventory _pouch;
+        private ItemData _backpackItem;
+
+        /// <summary>내 배낭 (컴포넌트가 없으면 null).</summary>
+        public PouchInventory Pouch
+        {
+            get
+            {
+                if (_pouch == null) _pouch = GetComponent<PouchInventory>();
+                return _pouch;
+            }
+        }
+
+        /// <summary>가죽 파우치 배낭을 가방에 가지고 있는가 (가지고 있어야 배낭을 쓸 수 있다).</summary>
+        public bool HasBackpack
+        {
+            get
+            {
+                if (Pouch == null) return false;
+                if (_backpackItem == null) _backpackItem = ItemCatalog.GetOrCreate().GetItem(ItemIds.LeatherPouchBackpack);
+                return _backpackItem != null && inventory.GetItemCount(_backpackItem) > 0;
+            }
+        }
+
+        /// <summary>인벤토리 inv에 이 아이템이 몇 개 더 들어가는지. onlyExisting이면 이미 있는 같은 아이템 칸만 센다.</summary>
+        private static int RoomIn(ItemStackInventory inv, ItemData item, bool onlyExisting)
+        {
+            if (inv == null || item == null) return 0;
+            int maxStack = inv.StackLimitFor(item);
+            int room = 0;
+            foreach (InventorySlot s in inv.Slots)
+            {
+                if (s == null || s.IsEmpty) { if (!onlyExisting) room += maxStack; }
+                else if (!item.HasDurability && ItemMatching.IsSameItem(s.item, item)) room += Mathf.Max(0, maxStack - s.count);
+            }
+            if (!onlyExisting) room += Mathf.Max(0, inv.MaxSlots - inv.Slots.Count) * maxStack;
+            return room;
+        }
+
+        private static int PutInto(ItemStackInventory inv, ItemData item, int amount, int durability, bool onlyExisting)
+        {
+            int n = Mathf.Min(amount, RoomIn(inv, item, onlyExisting));
+            if (n <= 0) return 0;
+            if (item.HasDurability && durability > 0) return inv.AddItem(item, n, durability) ? n : 0;
+            return inv.AddItem(item, n) ? n : 0;
+        }
+
+        /// <summary>
+        /// 얻은 아이템을 넣고 넣은 개수를 돌려준다 (못 넣은 나머지는 부른 쪽이 처리).
+        /// 배낭이 있으면: 손에 쓰는 물건(도구/무기)은 가방 칸 먼저, 재료/음식 등은 가방에 이미 있는 묶음 → 배낭 → 가방 빈 칸 순서.
+        /// </summary>
+        public int Take(ItemData item, int amount, int durability)
+        {
+            if (item == null || amount <= 0) return 0;
+            PouchInventory pouch = HasBackpack ? Pouch : null;
+            if (pouch == null)
+                return PutInto(inventory, item, amount, durability, false);
+
+            bool handItem = item.HasDurability || item.itemType == ItemType.Tool || item.itemType == ItemType.Weapon || item.isWeapon
+                            || item.itemID == ItemIds.LeatherPouchBackpack;
+            int done = 0;
+            if (handItem)
+            {
+                done += PutInto(inventory, item, amount - done, durability, false);
+                done += PutInto(pouch.Inventory, item, amount - done, durability, false);
+                return done;
+            }
+            done += PutInto(inventory, item, amount - done, durability, true);    // 이미 든 묶음에 먼저 (손에 든 음식/재료가 계속 쌓이게)
+            done += PutInto(pouch.Inventory, item, amount - done, durability, false);
+            done += PutInto(inventory, item, amount - done, durability, false);
+            return done;
+        }
+
+        /// <summary>이 아이템을 가방 + 배낭에 몇 개 더 넣을 수 있는지.</summary>
+        public int SpaceForWithPouch(ItemData item)
+        {
+            int room = RoomIn(inventory, item, false);
+            if (HasBackpack) room += RoomIn(Pouch.Inventory, item, false);
+            return room;
         }
 
         public bool DropSlot(int slotIndex, int count)
@@ -253,8 +394,7 @@ namespace CraftingSystem
         {
             ItemCatalog catalog = ItemCatalog.GetOrCreate();
             AddItem(catalog.GetItem(ItemIds.Wood), 10);
-            AddItem(catalog.GetItem(ItemIds.Stone), 10);
-            AddItem(catalog.GetItem(ItemIds.IronOre), 10);
+            AddItem(catalog.GetItem(ItemIds.Stone), 10);   // (가방이 3칸뿐이라 한 칸은 비워 둔다)
             Debug.Log($"[PlayerInventory] 시작 원재료 지급\n{inventory.GetSummary("Player")}");
         }
 

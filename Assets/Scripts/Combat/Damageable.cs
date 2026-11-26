@@ -229,6 +229,7 @@ namespace Combat
                 PoliceMarkVisual.Hide(this);
                 StunRimVisual.Hide(this);
                 CraftingSystem.MonsterLoot.Drop(gameObject, maxHealth);
+                PlayKillFeel();
                 // 사망 연출을 맡은 스크립트(MonsterAI 등)가 있으면 그쪽이 애니메이션 후 없앤다.
                 if (Died != null)
                 {
@@ -248,18 +249,35 @@ namespace Combat
 
         private void PlayHitEffect(Vector3 hitPoint, int amount)
         {
-            SpawnDamagePopup(hitPoint, amount);
+            // 데미지 숫자는 띄우지 않는다 (빨간 깜빡임 + 피격 동작 + 밀려남으로 맞은 걸 보여 준다)
+            // 몸이 납작해졌다 튕기는 연출은 애니메이션이 없는 것(자원/구조물)에만 (캐릭터는 피격 동작이 있어 어색해진다)
+            if (GetComponentInChildren<Animator>() == null)
+                HitFeel.Punch(gameObject, Mathf.Clamp01(amount / 40f));
+            // 타격음: 플레이어가 맞으면 묵직하게, 몬스터는 세게 맞을수록 묵직한 소리
+            bool isPlayer = GetComponent<LastTruck.Networking.NetworkPlayer>() != null;
+            LastTruck.Audio.Sfx.PlayAt(isPlayer || amount >= 30 ? "hit_heavy" : "hit_flesh", hitPoint,
+                                       Mathf.Clamp(0.7f + amount / 60f, 0.7f, 1f), isPlayer ? 0.9f : 1f, 0.03f);
 
             if (_flashRoutine != null)
+            {
                 StopCoroutine(_flashRoutine);
+                RestoreColors();   // 이전 깜빡임이 빨간 채로 남지 않게
+            }
             if (isActiveAndEnabled)
                 _flashRoutine = StartCoroutine(FlashRed());
         }
 
-        private IEnumerator FlashRed()
+        private void RestoreColors()
         {
             for (int i = 0; i < _renderers.Length; i++)
-                SetColor(_renderers[i], Color.red);
+                if (_renderers[i] != null) SetColor(_renderers[i], _originalColors[i]);
+        }
+
+        private IEnumerator FlashRed()
+        {
+            // 맞는 순간 빨갛게 → 원래 색
+            for (int i = 0; i < _renderers.Length; i++)
+                if (_renderers[i] != null) SetColor(_renderers[i], Color.red);
 
             yield return new WaitForSeconds(hitFlashDuration);
 
@@ -320,6 +338,19 @@ namespace Combat
             PoliceMarkVisual.Hide(this);
             StunRimVisual.Hide(this);
             CraftingSystem.MonsterLoot.Drop(gameObject, maxHealth);
+            PlayKillFeel();
+        }
+
+        /// <summary>쓰러질 때: 덩어리가 터지고, 내 캐릭터가 가까우면 화면이 한 번 크게 흔들린다.</summary>
+        private void PlayKillFeel()
+        {
+            if (GetComponent<LastTruck.Networking.NetworkPlayer>() != null) return;   // 플레이어 기절에는 쓰지 않는다
+            float size = Mathf.Max(transform.lossyScale.x, transform.lossyScale.y);
+            HitFeel.KillBurst(transform.position, size);
+            LastTruck.Audio.Sfx.PlayAt("kill", transform.position, 1f, size > 1.5f ? 0.75f : 1f, 0.05f);   // 큰 놈은 더 낮고 무겁게
+            Camera cam = Camera.main;
+            if (cam != null && (cam.transform.position - transform.position).sqrMagnitude < 30f * 30f)
+                CameraShake.Shake(size > 1.5f ? 0.45f : 0.18f);
         }
 
         #endregion
