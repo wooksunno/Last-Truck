@@ -1,0 +1,3 @@
+Assets/LastTruck/Character/Prefabs/Explorer.prefab|52a53f20acb554947bd1c0efab6d7483
+Assets/LastTruck/Character/Prefabs/Army.prefab|c1343215e4c305a49a874ac519c3f54c
+Assets/LastTruck/Character/Prefabs/Chef.prefab|649fcbf0c562a6e4da83d7d84b2d66eb

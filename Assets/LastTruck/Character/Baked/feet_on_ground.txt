@@ -1,0 +1,9 @@
+- Explorer: 발바닥-바닥 간격 0.012 (BlackSmith -0.003, 차이 +0.015)
+    → 내림 0.015
+- Army: 발바닥-바닥 간격 0.012 (BlackSmith -0.003, 차이 +0.015)
+    → 내림 0.015
+- Chef: 발바닥-바닥 간격 0.013 (BlackSmith -0.003, 차이 +0.015)
+    → 내림 0.015
+- NetworkPlayer_Explorer: 발바닥-바닥 간격 0.093 (BlackSmith 0.090, 차이 +0.002)
+- NetworkPlayer_Army: 발바닥-바닥 간격 0.093 (BlackSmith 0.090, 차이 +0.002)
+- NetworkPlayer_Chef: 발바닥-바닥 간격 0.093 (BlackSmith 0.090, 차이 +0.002)
