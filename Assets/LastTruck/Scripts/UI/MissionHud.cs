@@ -627,6 +627,7 @@ namespace LastTruck
                 case WeatherKind.Fog: c = new Color(0.78f, 0.84f, 0.9f, 1f); break;
                 case WeatherKind.Rain: c = new Color(0.5f, 0.72f, 1f, 1f); break;
                 case WeatherKind.Storm: c = new Color(0.66f, 0.58f, 1f, 1f); break;
+                case WeatherKind.Snow: c = new Color(0.92f, 0.96f, 1f, 1f); break;
                 default: c = new Color(1f, 0.86f, 0.4f, 1f); break;
             }
             _wxDot.style.backgroundColor = c;

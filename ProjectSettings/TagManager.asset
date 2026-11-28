@@ -6,6 +6,7 @@ TagManager:
   tags:
   - Enemy
   - Ground
+  - FX Block Zone
   layers:
   - Default
   - TransparentFX

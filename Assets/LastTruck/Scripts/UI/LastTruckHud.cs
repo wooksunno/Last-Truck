@@ -132,8 +132,7 @@ namespace LastTruck
             BuildBadge(_hudRoot);
             _mission = new MissionHud(_fontDef, _skin.panelBrownDark, _skin.panelGreyBolts);
             _mission.Build(_hudRoot);
-            _weatherKit = new LastTruck.WeatherKitHud(_fontDef);
-            _weatherKit.Build(_hudRoot);
+            _weatherKit = new LastTruck.WeatherKitHud();
             _achievements = new AchievementHud(_fontDef, _skin.panelBrownDark);   // 도전과제 (성장 임무): 달성 알림만 (목록은 트럭 창의 도전과제 탭)
             _achievements.Build(_hudRoot);
             BuildKeyHints(_hudRoot);

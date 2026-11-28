@@ -26,6 +26,8 @@ namespace LastTruck
         [SerializeField] private GameManager gameManager;
         [SerializeField] private Volume dayVolume;
         [SerializeField] private Volume nightVolume;
+        public Volume DayVolume => dayVolume;       // COZY 연결(CozyWeatherBridge)이 씬마다 같은 Volume을 찾아 쓰도록
+        public Volume NightVolume => nightVolume;
         [Tooltip("낮에 켜지는 태양(방향광)들. 밤에는 세기가 0으로 줄어든다. 비워두면 씬의 모든 방향광을 자동 수집한다.")]
         [SerializeField] private List<Light> sunLights = new List<Light>();
         [Tooltip("밤에 켜지는 달빛 방향광. 없으면 자동 생성한다.")]

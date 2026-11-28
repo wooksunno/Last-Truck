@@ -2,10 +2,10 @@ using UnityEngine;
 
 namespace LastTruck
 {
-    public enum WeatherKind { Clear = 0, Fog = 1, Rain = 2, Storm = 3 }
+    public enum WeatherKind { Clear = 0, Fog = 1, Rain = 2, Storm = 3, Snow = 4 }
 
     /// <summary>
-    /// 날씨: 맑음 / 짙은 안개 / 비 / 폭풍우(비 + 안개). 낮과 밤이 바뀔 때마다 새로 정해진다.
+    /// 날씨: 맑음 / 짙은 안개 / 비 / 폭풍우(비 + 안개) / 눈(눈 연출이 있는 씬에서만 — SnowAvailable). 낮과 밤이 바뀔 때마다 새로 정해진다.
     ///
     ///  - 날씨는 (회차, 낮/밤)만으로 정해지는 규칙이라 멀티플레이에서도 모두 같은 날씨가 나온다 (동기화 불필요).
     ///  - 안개는 AtmosphereController.WeatherFog로 보낸다 (안개가 짙어지고 빛이 줄어 어두워진다).
@@ -29,7 +29,19 @@ namespace LastTruck
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void ResetStatics() { _instance = null; _override = null; }
+        private static void ResetStatics() { _instance = null; _override = null; VisualsSuppressed = false; SnowAvailable = false; }
+
+        /// <summary>
+        /// 화면 연출 끄기 (다른 날씨 연출을 시험할 때, 예: CozyWeatherBridge). 켜면 비 파티클과 안개 값 전달만 멈춘다.
+        /// 날씨 결정·패널티·알림은 그대로 동작한다.
+        /// </summary>
+        public static bool VisualsSuppressed { get; set; }
+
+        /// <summary>
+        /// 눈 날씨를 쓸 수 있는가 (눈을 그릴 연출이 있는 씬에서만 켠다, 예: CozyWeatherBridge).
+        /// 꺼져 있으면 일차 규칙에 눈이 나오지 않고 날씨 키트로도 고를 수 없다. 같은 씬이면 모든 화면이 같은 값이라 멀티에서도 날씨가 같다.
+        /// </summary>
+        public static bool SnowAvailable { get; set; }
 
         // ================================================================ 날씨 키트 (개발/테스트용 수동 조작)
 
@@ -41,26 +53,32 @@ namespace LastTruck
         /// <summary>날씨를 직접 정한다. null이면 자동(회차 규칙)으로 돌아간다.</summary>
         public static void SetOverride(WeatherKind? kind)
         {
+            if (kind == WeatherKind.Snow && !SnowAvailable)
+            {
+                HudToast.Show("이 씬에서는 눈 연출이 없어요 (COZY 연결 씬에서만)");
+                return;
+            }
             _override = kind;
             if (_instance != null && kind.HasValue) _instance.AnnounceKit(kind.Value);
-            else if (_instance != null) HudToast.Show("날씨: 자동 (일차 규칙)");
+            else if (_instance != null) HudToast.Show("날씨 키트(F5): 자동 (일차 규칙)");
         }
 
         private void AnnounceKit(WeatherKind kind)
         {
-            HudToast.Show("날씨 키트: " + Label(kind) + (kind == WeatherKind.Clear ? "" : "  (" + PenaltyText(kind) + ")"));
+            HudToast.Show("날씨 키트(F5): " + Label(kind) + (kind == WeatherKind.Clear ? "" : "  (" + PenaltyText(kind) + ")"));
         }
 
         // ================================================================ 날씨 패널티 (비/안개가 짙어지는 만큼 서서히 커진다)
         //   비      : 이동 -8%, 트럭 -12%
         //   안개    : 좀비가 가까이(약 36% 더 가까이)서 갑자기 나타난다 (랜턴으로 시야를 틔워도 좀비는 가까이서 나온다)
         //   폭풍우  : 이동 -14%, 트럭 -20%, 좀비 피해 +15%, 안개 패널티도 일부
+        //   눈      : 이동 -10%, 트럭 -15%, 옅은 안개(비와 같음)
 
-        /// <summary>플레이어 이동 속도 배율 (비가 올수록 느려진다). 1 = 영향 없음.</summary>
-        public static float PlayerSpeedScale { get { return _instance != null ? 1f - 0.14f * _instance._rain : 1f; } }
+        /// <summary>플레이어 이동 속도 배율 (비·눈이 올수록 느려진다). 1 = 영향 없음.</summary>
+        public static float PlayerSpeedScale { get { return _instance != null ? 1f - 0.14f * _instance._rain - 0.10f * _instance._snow : 1f; } }
 
-        /// <summary>트럭 최고 속도/가속 배율 (비 오는 길은 미끄럽다).</summary>
-        public static float TruckSpeedScale { get { return _instance != null ? 1f - 0.20f * _instance._rain : 1f; } }
+        /// <summary>트럭 최고 속도/가속 배율 (비·눈 오는 길은 미끄럽다).</summary>
+        public static float TruckSpeedScale { get { return _instance != null ? 1f - 0.20f * _instance._rain - 0.15f * _instance._snow : 1f; } }
 
         /// <summary>좀비가 스폰되는 거리 배율 (안개 속에서는 가까이서 나타난다).</summary>
         public static float SpawnDistanceScale { get { return _instance != null ? 1f - 0.40f * _instance._fog : 1f; } }
@@ -76,6 +94,7 @@ namespace LastTruck
                 case WeatherKind.Fog: return "패널티: 좀비가 가까이서 나타나요";
                 case WeatherKind.Rain: return "패널티: 이동 -8% · 트럭 -12%";
                 case WeatherKind.Storm: return "패널티: 이동 -14% · 트럭 -20% · 좀비 피해 +15%";
+                case WeatherKind.Snow: return "패널티: 이동 -10% · 트럭 -15%";
                 default: return "";
             }
         }
@@ -86,6 +105,14 @@ namespace LastTruck
         public static WeatherKind KindFor(int cycle, bool night)
         {
             if (cycle <= 1) return WeatherKind.Clear;
+
+            // 눈: 3일차부터, 별도 주사위 (낮 12% · 밤 18%). 눈이 안 나온 날은 아래 기존 규칙 그대로.
+            if (SnowAvailable && cycle >= 3)
+            {
+                uint s = (uint)cycle * 0x9E3779B1u ^ (night ? 0x27D4EB2Fu : 0x165667B1u);
+                s ^= s >> 15; s *= 0x2C1B3C6Du; s ^= s >> 12; s *= 0x297A2D39u; s ^= s >> 15;
+                if ((int)(s % 100u) < (night ? 18 : 12)) return WeatherKind.Snow;
+            }
 
             // 회차/낮밤으로 섞은 0~99 (고정 해시: 모든 화면이 같은 값)
             uint h = (uint)cycle * 2654435761u ^ (night ? 0x85EBCA6Bu : 0xC2B2AE35u);
@@ -109,6 +136,7 @@ namespace LastTruck
                 case WeatherKind.Fog: return "짙은 안개";
                 case WeatherKind.Rain: return "비";
                 case WeatherKind.Storm: return "폭풍우";
+                case WeatherKind.Snow: return "눈";
                 default: return "맑음";
             }
         }
@@ -121,6 +149,7 @@ namespace LastTruck
                 case WeatherKind.Fog: return "시야가 흐려요. 랜턴을 가방에 넣어 두면 걷혀요";
                 case WeatherKind.Rain: return "비가 내려요. 랜턴이 가방에 있으면 멀리 보여요";
                 case WeatherKind.Storm: return "시야가 아주 나빠요. 랜턴을 꼭 가방에 챙기세요";
+                case WeatherKind.Snow: return "눈이 내려요. 발이 푹푹 빠지고 길이 미끄러워요";
                 default: return "";
             }
         }
@@ -132,9 +161,12 @@ namespace LastTruck
                 case WeatherKind.Fog: return 0.9f;
                 case WeatherKind.Rain: return 0.3f;
                 case WeatherKind.Storm: return 0.72f;
+                case WeatherKind.Snow: return 0.3f;
                 default: return 0f;
             }
         }
+
+        private static float SnowOf(WeatherKind kind) { return kind == WeatherKind.Snow ? 1f : 0f; }
 
         private static float RainOf(WeatherKind kind)
         {
@@ -150,7 +182,7 @@ namespace LastTruck
 
         private WeatherKind _kind = WeatherKind.Clear;       // 지금 적용 중인 날씨 (키트로 고른 것 포함)
         private WeatherKind _autoKind = WeatherKind.Clear;   // 일차 규칙으로 정해진 날씨
-        private float _fog, _rain;
+        private float _fog, _rain, _snow;
         private int _lastCycle = -1;
         private bool _lastNight;
         private bool _announceReady;
@@ -210,13 +242,14 @@ namespace LastTruck
             float dt = Time.unscaledDeltaTime;
             _fog = Mathf.MoveTowards(_fog, FogOf(_kind), dt / 8f);     // 8초에 걸쳐 서서히 끼고 걷힌다
             _rain = Mathf.MoveTowards(_rain, RainOf(_kind), dt / 5f);
+            _snow = Mathf.MoveTowards(_snow, SnowOf(_kind), dt / 5f);
 
             if (_atmosphere == null && Time.unscaledTime >= _nextAtmosphereSearch)
             {
                 _nextAtmosphereSearch = Time.unscaledTime + 1f;
                 _atmosphere = FindFirstObjectByType<AtmosphereController>();
             }
-            if (_atmosphere != null)
+            if (_atmosphere != null && !VisualsSuppressed)
             {
                 _atmosphere.WeatherFog = _fog;
                 _atmosphere.LanternClear = CraftingSystem.HeldLantern.LitAmount;
@@ -274,6 +307,11 @@ namespace LastTruck
 
         private void UpdateRain()
         {
+            if (VisualsSuppressed)
+            {
+                if (_rainFx != null && (_rainFx.isPlaying || _rainFx.particleCount > 0)) _rainFx.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                return;
+            }
             if (_rain <= 0.01f)
             {
                 if (_rainFx != null && _rainFx.isPlaying) _rainFx.Stop(true, ParticleSystemStopBehavior.StopEmitting);

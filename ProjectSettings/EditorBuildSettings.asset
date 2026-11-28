@@ -11,5 +11,8 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/MiningMapTest.unity
     guid: 9c7087685c72139429e207344b726a3b
+  - enabled: 1
+    path: Assets/Scenes/KYI_TEST.unity
+    guid: 572208e91da2ecf4b9f18e00f90e265d
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0
